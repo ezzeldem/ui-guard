@@ -1,0 +1,20 @@
+@charset "UTF-8";
+// Breakpoints map. Read by tools/mixins/_mq.tools.scss. Values in rem (px in comments, root 16px).
+$breakpoints: (
+  mob-min: 20rem,       // 320px
+  mob: 25rem,           // 400px
+  mob-wide: 30rem,      // 480px
+  xs: 36rem,            // 576px
+  sm-tab: 40rem,        // 640px
+  sm: 47.9375rem,       // 767px
+  tablet: 48.0625rem,   // 769px
+  compact-h: 50.0625rem,// 801px
+  sm-wide: 54.375rem,   // 870px
+  md: 61.9375rem,       // 991px
+  md-max: 64rem,        // 1024px
+  md-wide: 68.75rem,    // 1100px
+  lg: 75rem,            // 1200px
+  xl: 87.5rem,          // 1400px
+  xl-max: 100rem,       // 1600px
+  xxl: 120rem           // 1920px
+);

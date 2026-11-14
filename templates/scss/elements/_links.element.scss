@@ -1,0 +1,12 @@
+@charset "UTF-8";
+@use "tools" as *;
+
+a {
+  color: var(--main-500);
+  text-decoration: none;
+
+  @include hover {
+    color: var(--main-700);
+    text-decoration: underline;
+  }
+}

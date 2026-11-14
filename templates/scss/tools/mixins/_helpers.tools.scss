@@ -1,0 +1,60 @@
+@charset "UTF-8";
+@use "sass:list";
+@use "sass:math";
+@use "sass:meta";
+
+/// dir($dir) — styles for one document direction, from inside an Angular component.
+/// @param {String} $dir rtl | ltr
+/// @output `::ng-deep html[dir="rtl"] & { … }` (the one allowed use of ::ng-deep and of an attribute selector outside generic/elements)
+/// @example .c-x { @include dir(rtl) { inset-inline-start: 0; } }
+@mixin dir($dir) {
+  @if not list.index((rtl, ltr), $dir) {
+    @error "dir(): `#{$dir}` is not a direction. Use rtl or ltr.";
+  }
+  ::ng-deep html[dir="#{$dir}"] & {
+    @content;
+  }
+}
+
+/// after($content) — positioned ::after pseudo-element.
+/// @param {String} $content the `content` value (default "")
+/// @output position: relative; z-index: 1 on the element + `&::after { position: absolute; content: …; }`
+/// @example .c-x { @include after { inset-block-start: 0; } }
+@mixin after($content: "") {
+  position: relative;
+  z-index: 1;
+  &::after {
+    position: absolute;
+    content: "#{$content}";
+    @content;
+  }
+}
+
+/// before($content) — positioned ::before pseudo-element.
+/// @param {String} $content the `content` value (default "")
+/// @output position: relative; z-index: 1 on the element + `&::before { position: absolute; content: …; }`
+/// @example .c-x { @include before { inset-block-start: 0; } }
+@mixin before($content: "") {
+  position: relative;
+  z-index: 1;
+  &::before {
+    position: absolute;
+    content: "#{$content}";
+    @content;
+  }
+}
+
+/// hover($trans) — hover only on devices that hover, same styles on keyboard focus.
+/// @param {Number} $trans transition duration in seconds, unitless (default 0.2)
+/// @output transition + `@media (hover: hover) { &:hover { … } }` + `&:focus-visible { … }`
+/// @example .c-x { @include hover { color: var(--main-700); } }
+@mixin hover($trans: 0.2) {
+  @if meta.type-of($trans) != "number" or not math.is-unitless($trans) {
+    @error "hover(): $trans is a unitless number of seconds, got `#{$trans}`.";
+  }
+  transition: #{$trans}s all ease-in-out;
+  @media (hover: hover) {
+    &:hover { @content; }
+  }
+  &:focus-visible { @content; }
+}

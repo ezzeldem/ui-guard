@@ -1,0 +1,106 @@
+#!/usr/bin/env node
+'use strict';
+// STYLE-32, STYLE-33, STYLE-35, STYLE-36 (SCSS @use/@import of theme files).
+const fs = require('fs');
+const path = require('path');
+const u = require('./lib/util');
+const css = require('./lib/css');
+const project = require('./lib/project');
+const { mk, cli } = require('./lib/findings');
+
+function propNames(file) {
+  const t = u.readText(file);
+  if (t == null) return null;
+  return css.customProps(css.parse(t));
+}
+
+function checkTokenFileShape(root, abs, rel, findings) {
+  const t = u.readText(abs);
+  if (t == null) return;
+  const tree = css.parse(t);
+  const isFonts = /fonts\.theme\.css$/.test(rel) || /\/fonts\/[^/]+\.css$/.test(rel);
+  const isCustom = /custom\.theme\.css$/.test(rel);
+  if (isCustom) {
+    css.walk(tree, (node, parents) => {
+      if (node.type === 'rule') {
+        for (const sel of css.splitSelectors(node.selector)) {
+          const stripped = sel.replace(/\.[\w-]+/g, '').replace(/:{1,2}[\w-]+(\([^)]*\))?/g, '').replace(/\bbody\b/g, '').replace(/[\s>+~]/g, '');
+          if (stripped) findings.push(mk(root, 'STYLE-33', rel, node.line, `Selector \`${u.clip(sel, 60)}\` in custom.theme.css — only class selectors and \`body\` are allowed.`, 'Use a class selector (or body).'));
+        }
+      }
+      if (node.type === 'decl' && node.prop.startsWith('--')) findings.push(mk(root, 'STYLE-33', rel, node.line, `custom.theme.css defines custom property \`${node.prop}\`.`, 'Move the token to the palette / fonts / images theme file.'));
+      void parents;
+    });
+    return;
+  }
+  let rootBlocks = 0;
+  const visit = (nodes, insideAt) => {
+    for (const node of nodes) {
+      if (node.type === 'rule') {
+        if (node.selector.trim() === ':root') { rootBlocks++; continue; }
+        findings.push(mk(root, 'STYLE-32', rel, node.line, `Selector \`${u.clip(node.selector, 60)}\` in a token file — only \`:root\` blocks are allowed.`, 'Move this rule to a utility/component/element file.'));
+      } else if (node.type === 'atrule') {
+        if (node.name === 'charset') continue;
+        if (node.name === 'font-face' && isFonts && !insideAt) continue;
+        if (node.nodes) visit(node.nodes, true);
+        else if (!(isFonts && node.name === 'font-face')) findings.push(mk(root, 'STYLE-32', rel, node.line, `\`@${node.name}\` in a token file.`, 'Token files hold only :root blocks (fonts: @font-face + :root).'));
+      } else if (node.type === 'decl') {
+        findings.push(mk(root, 'STYLE-32', rel, node.line, `Declaration \`${node.prop}\` outside \`:root\` in a token file.`, 'Put it inside :root.'));
+      }
+    }
+  };
+  visit(tree.nodes, false);
+  if (isFonts && rootBlocks > 1) findings.push(mk(root, 'STYLE-32', rel, 1, 'fonts.theme.css has more than one :root block.', 'Merge into one :root block of font tokens.'));
+}
+
+function run(root, profile) {
+  const findings = [];
+  const themes = project.themeDirs(root, profile);
+  // STYLE-32 / STYLE-33 on every theme token file (active + sources)
+  for (const th of themes) {
+    for (const f of u.walk(th.themeDir).filter((x) => x.endsWith('.css'))) checkTokenFileShape(root, f, u.relPosix(root, f), findings);
+  }
+  // STYLE-35: same custom property names in the same files across every theme
+  if (themes.length > 1) {
+    const fileSet = new Set();
+    const per = themes.map((th) => {
+      const map = {};
+      for (const f of u.walk(th.themeDir).filter((x) => x.endsWith('.css'))) {
+        const sub = u.relPosix(th.themeDir, f);
+        fileSet.add(sub);
+        map[sub] = new Set((propNames(f) || []).map((p) => p.name));
+      }
+      return { th, map };
+    });
+    for (const sub of [...fileSet].sort()) {
+      const union = new Map();
+      for (const p of per) for (const name of (p.map[sub] || [])) if (!union.has(name)) union.set(name, p.th.name);
+      for (const p of per) {
+        const relFile = u.relPosix(root, path.join(p.th.themeDir, ...sub.split('/')));
+        if (!p.map[sub]) { findings.push(mk(root, 'STYLE-35', u.relPosix(root, p.th.themeDir), 1, `Theme \`${p.th.name}\` has no \`${sub}\` (other themes do).`, `Copy ${sub} from another theme and set this client's values.`)); continue; }
+        for (const [name, from] of union) {
+          if (!p.map[sub].has(name)) findings.push(mk(root, 'STYLE-35', relFile, 1, `Missing \`${name}\` (defined in theme \`${from}\`) — this client breaks silently.`, `Add ${name} to ${sub} in theme ${p.th.name}.`));
+        }
+      }
+    }
+  }
+  // STYLE-36: theme files are never @use'd / @import'ed from SCSS
+  const scssFiles = project.listUiFiles(root, profile).filter((f) => f.kind === 'scss');
+  for (const f of scssFiles) {
+    const t = u.readText(f.abs) || '';
+    const re = /@(use|import|forward)\s+["']([^"']+)["']/g;
+    let m;
+    while ((m = re.exec(t))) {
+      if (/(^|\/)themes?\/|\.theme(\.css)?$|custom[._]theme|colors\.palette/.test(m[2])) {
+        findings.push(mk(root, 'STYLE-36', f.rel, u.lineAt(t, m.index), `Theme file \`${m[2]}\` is ${m[1]}d from SCSS — it can no longer be swapped after the build.`, 'Remove it from SCSS; load it with <link> in index.html.'));
+      }
+    }
+  }
+  // Image files (MEDIA-08) are not part of the scan: /ui-guard:assets checks referenced files exist.
+  void fs;
+  return findings;
+}
+
+module.exports = { run };
+if (require.main === module) cli('theme-check', `theme-check.js — theme files: STYLE-32 (token files :root only), STYLE-33 (custom.theme.css),
+STYLE-35 (same token names in every theme), STYLE-36 (theme files never @use'd from SCSS). Images are not checked here (see /ui-guard:assets).`, run);

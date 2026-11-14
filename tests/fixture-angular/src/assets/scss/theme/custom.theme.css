@@ -1,0 +1,12 @@
+@charset "UTF-8";
+body {
+  margin: 0 !important;
+}
+
+#client-header {
+  display: block;
+}
+
+.c-card {
+  --client-x: 1;
+}

@@ -1,0 +1,12 @@
+@charset "UTF-8";
+:root {
+  --hue: 200;
+  --saturation: 60%;
+  --lightness: 40%;
+  --main-500: hsl(var(--hue), var(--saturation), var(--lightness));
+  --neutral-25: hsl(0, 0%, 100%);
+  --neutral-50: hsl(210, 20%, 98%);
+  --neutral-400: hsl(215, 9%, 65%);
+  --neutral-100: hsl(220, 14%, 96%);
+  --color-img: brightness(0) saturate(100%);
+}

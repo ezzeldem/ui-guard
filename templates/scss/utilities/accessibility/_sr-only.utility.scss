@@ -1,0 +1,24 @@
+@charset "UTF-8";
+// u-sr-only / u-not-sr-only — documented multi-property exceptions to the one-property rule (STYLE-25).
+.u-sr-only {
+  position: absolute;
+  overflow: hidden;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.u-not-sr-only {
+  position: static;
+  overflow: visible;
+  inline-size: auto;
+  block-size: auto;
+  margin: 0;
+  padding: 0;
+  clip-path: none;
+  white-space: normal;
+}

@@ -1,0 +1,8 @@
+@charset "UTF-8";
+// Global entry — the ONLY file listed in angular.json `styles` (after vendor CSS).
+// Order: generic → elements → common → utilities (utilities win by load order).
+// Theme files are NOT used here: they are <link>ed from index.html so they can be swapped after the build.
+@use "generic";
+@use "elements";
+@use "common/common";
+@use "utilities/utils";

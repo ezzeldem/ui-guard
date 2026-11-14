@@ -1,0 +1,17 @@
+@charset "UTF-8";
+/* fonts.theme.css — @font-face rules (top level, never inside a selector) + one :root block of font tokens.
+   Font files live in assets/fonts/ and load through this file, so fonts are swappable after the build.
+   Add a project font like this (woff2 first, font-display: swap):
+
+   @font-face {
+     font-family: "Brand";
+     src: url("../../../fonts/brand-regular.woff2") format("woff2"), url("../../../fonts/brand-regular.woff") format("woff");
+     font-weight: 400;
+     font-style: normal;
+     font-display: swap;
+   }
+*/
+:root {
+  --ff: system-ui, -apple-system, "Segoe UI", Tahoma, Arial, sans-serif;
+  --fb: system-ui, -apple-system, "Segoe UI", Tahoma, Arial, sans-serif;
+}

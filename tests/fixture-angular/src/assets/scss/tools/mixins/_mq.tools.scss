@@ -1,0 +1,30 @@
+@charset "UTF-8";
+@use "sass:list";
+@use "sass:map";
+@use "../../settings/breakpoints.settings" as *;
+/// mq($type, $dimension, $breakpoint-name) — media query from the breakpoints map, range syntax.
+/// $type: min | max   $dimension: w | width | h | height   $breakpoint-name: a key of $breakpoints
+/// min → (width >= value)   max → (width < value)
+/// @example .c-x { @include mq(max, w, md) { padding-inline: px(8); } }
+///   → @media (width < 61.9375rem) { .c-x { padding-inline: 0.5rem; } }
+@mixin mq($type: min, $dimension: w, $breakpoint-name: md) {
+  @if not list.index((min, max), $type) {
+    @error "mq(): type `#{$type}` does not exist. Use min or max.";
+  }
+  @if not list.index((width, w, height, h), $dimension) {
+    @error "mq(): dimension `#{$dimension}` does not exist. Use w, width, h or height.";
+  }
+  @if not map.has-key($breakpoints, $breakpoint-name) {
+    @error "mq(): breakpoint `#{$breakpoint-name}` does not exist in $breakpoints.";
+  }
+  $value: map.get($breakpoints, $breakpoint-name);
+  $feature: height;
+  @if $dimension == w or $dimension == width {
+    $feature: width;
+  }
+  @if $type == min {
+    @media (#{$feature} >= #{$value}) { @content; }
+  } @else {
+    @media (#{$feature} < #{$value}) { @content; }
+  }
+}

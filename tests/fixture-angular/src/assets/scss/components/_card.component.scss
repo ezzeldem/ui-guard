@@ -1,0 +1,84 @@
+@use "tools" as *;
+@import "legacy";
+
+.tile {
+  display: block;
+}
+
+.c-card--big {
+  font-size: px(20);
+}
+
+.c-card {
+  padding: 16px;
+  margin-left: px(4);
+  color: #fff;
+  background-color: var(--neutral-25, #ffffff);
+  line-height: 1.123456;
+  outline: none;
+  filter: invert(1);
+  --main-500: hsl(10, 50%, 50%);
+  --light-gray: var(--neutral-200);
+  border-color: var(--waring-500);
+
+  p {
+    margin-block: 0;
+  }
+
+  &[disabled] {
+    opacity: 0.5;
+  }
+
+  &:hover {
+    opacity: 0.8;
+  }
+
+  .c-card__a {
+    .c-card__b {
+      .c-card__c {
+        .c-card__d {
+          .c-card__e {
+            display: none;
+          }
+        }
+      }
+    }
+  }
+
+  @media (max-width: 991px) {
+    display: none;
+  }
+
+  @include mq(max, w, md) {
+    gap: px(4);
+  }
+
+  @include mq(max, w, md) {
+    gap: px(6);
+  }
+
+  ::ng-deep .c-inner {
+    display: block;
+  }
+}
+
+.c-card {
+  display: flex;
+  display: grid;
+}
+
+#main {
+  display: block;
+}
+
+.c-card__empty {
+}
+
+.c-card__x {
+  @extend .c-card;
+  inline-size: 50% !important;
+}
+
+@mixin hover {
+  &:hover { @content; }
+}

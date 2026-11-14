@@ -1,0 +1,2 @@
+# the git hook template is a #!/bin/sh script: keep LF line endings
+templates/git/pre-push text eol=lf

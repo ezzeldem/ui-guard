@@ -1,0 +1,11 @@
+@charset "UTF-8";
+html {
+  @font-face {
+    font-family: "Brand";
+    src: url("../../../fonts/brand.ttf") format("truetype");
+  }
+}
+
+:root {
+  --ff: "Brand", sans-serif;
+}

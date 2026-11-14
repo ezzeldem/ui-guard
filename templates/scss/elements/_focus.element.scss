@@ -1,0 +1,8 @@
+@charset "UTF-8";
+@use "tools" as *;
+
+// Visible keyboard focus for every focusable element (STYLE-40).
+:focus-visible {
+  outline: px(2) solid var(--main-500);
+  outline-offset: px(2);
+}

@@ -1,0 +1,25 @@
+@charset "UTF-8";
+@use "tools" as *;
+
+:host {
+  display: block;
+}
+
+.c-clean {
+  display: flex;
+  gap: px(8);
+  padding-inline: px(12);
+  border: 1px solid var(--neutral-200);
+
+  @include mq(max, w, md) {
+    gap: px(4);
+  }
+
+  &__action {
+    color: var(--main-500);
+
+    @include hover {
+      color: var(--neutral-200);
+    }
+  }
+}

@@ -1,0 +1,4 @@
+@charset "UTF-8";
+@mixin gap-x($size) {
+  column-gap: $size;
+}

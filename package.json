@@ -1,0 +1,21 @@
+{
+  "name": "ui-guard",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Claude Code plugin: Angular UI standards guard. Runtime scripts use Node built-ins only; devDependencies are for the plugin's own self-tests.",
+  "author": "Ezz Elden Mohamed",
+  "license": "UNLICENSED",
+  "scripts": {
+    "test": "node tests/run-tests.js"
+  },
+  "devDependencies": {
+    "angular-eslint": "22.6.0",
+    "eslint": "9.39.5",
+    "postcss-scss": "4.0.9",
+    "sass": "1.108.2",
+    "stylelint": "17.16.0",
+    "stylelint-scss": "7.5.0",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.72.2"
+  }
+}

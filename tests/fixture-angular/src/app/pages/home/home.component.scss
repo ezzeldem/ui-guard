@@ -1,0 +1,7 @@
+@charset "UTF-8";
+@use "tools" as *;
+
+.p-home {
+  display: grid;
+  gap: px(16);
+}

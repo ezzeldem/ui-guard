@@ -1,0 +1,15 @@
+#!/bin/sh
+# ui-guard pre-push hook — runs for every push (terminal, VS Code, Claude). Lint only, no AI, a few seconds.
+# Installed by /ui-guard:init or /ui-guard:scan as .githooks/pre-push (git config core.hooksPath .githooks).
+# `git push --no-verify` skips it (git's choice).
+ROOT="$(git rev-parse --show-toplevel)"
+if [ ! -f "$ROOT/.ui-guard/bin/pre-push.js" ]; then
+  exit 0
+fi
+node "$ROOT/.ui-guard/bin/pre-push.js" "$@"
+STATUS=$?
+if [ $STATUS -ne 0 ]; then
+  exit $STATUS
+fi
+# __CHAIN__
+exit 0

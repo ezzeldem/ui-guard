@@ -1,0 +1,13 @@
+﻿{
+  "name": "ui-guard",
+  "description": "Marketplace for the ui-guard plugin.",
+  "owner": { "name": "Ezz Elden Mohamed" },
+  "plugins": [
+    {
+      "name": "ui-guard",
+      "source": "./",
+      "description": "Angular UI standards guard: init, scan, phased zero-pixel fixes, edit and push checks.",
+      "version": "1.0.0"
+    }
+  ]
+}

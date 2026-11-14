@@ -1,0 +1,21 @@
+{
+  "description": "ui-guard: lint every UI file Claude edits (blocks only on NEW errors) and guard `git push` made through Claude.",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/post-edit-lint.js\"", "timeout": 60 }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/pre-push-guard.js\"", "timeout": 120 }
+        ]
+      }
+    ]
+  }
+}

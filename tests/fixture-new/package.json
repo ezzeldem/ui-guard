@@ -1,0 +1,1 @@
+{ "name": "starter", "private": true, "dependencies": { "@angular/core": "^22.0.0" } }

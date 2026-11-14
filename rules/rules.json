@@ -1,0 +1,1555 @@
+{
+  "version": "1.0.0",
+  "note": "Machine-readable index of every ui-guard rule. checker: stylelint|eslint|script|ai|runtime|assets|none. inScan:false = never part of /ui-guard:scan (MEDIA: images/assets are out of the scan; MEDIA-07/08 are checked by /ui-guard:assets). group: AI routing group or family. lintMap maps Stylelint/ESLint rule names to ui-guard IDs.",
+  "rules": [
+    {
+      "id": "STYLE-01",
+      "severity": "error",
+      "checker": [
+        "stylelint",
+        "script"
+      ],
+      "group": "style",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [
+        "selector-class-pattern"
+      ],
+      "appliesTo": [
+        "**/*.scss",
+        "**/*.css",
+        "**/*.html",
+        "**/*.ts"
+      ],
+      "title": "Authored classes carry their segment/role or state prefix",
+      "inScan": true
+    },
+    {
+      "id": "STYLE-02",
+      "severity": "error",
+      "checker": [
+        "ai"
+      ],
+      "group": "style-ai",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/*.scss",
+        "**/*.html",
+        "**/*.ts"
+      ],
+      "title": "js-* hook classes have no styles",
+      "inScan": true
+    },
+    {
+      "id": "STYLE-03",
+      "severity": "error",
+      "checker": [
+        "ai"
+      ],
+      "group": "style-ai",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/*.html",
+        "**/*.ts"
+      ],
+      "title": "Who sets a class decides its prefix (is-/has- static, js- runtime)",
+      "inScan": true
+    },
+    {
+      "id": "STYLE-04",
+      "severity": "error",
+      "checker": [
+        "stylelint"
+      ],
+      "group": "style",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [
+        "ui-guard/bem"
+      ],
+      "appliesTo": [
+        "**/*.scss",
+        "**/*.css"
+      ],
+      "title": "BEM block__element, one level, no --modifier",
+      "inScan": true
+    },
+    {
+      "id": "STYLE-05",
+      "severity": "error",
+      "checker": [
+        "stylelint"
+      ],
+      "group": "style",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [
+        "max-nesting-depth"
+      ],
+      "appliesTo": [
+        "**/*.scss"
+      ],
+      "title": "Nesting depth at most 4",
+      "inScan": true
+    },
+    {
+      "id": "STYLE-06",
+      "severity": "error",
+      "checker": [
+        "stylelint"
+      ],
+      "group": "style",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [
+        "selector-max-type"
+      ],
+      "appliesTo": [
+        "**/*.scss",
+        "**/*.css"
+      ],
+      "title": "Class selectors only outside generic/elements",
+      "inScan": true
+    },
+    {
+      "id": "STYLE-07",
+      "severity": "error",
+      "checker": [
+        "stylelint"
+      ],
+      "group": "style",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [
+        "selector-max-id"
+      ],
+      "appliesTo": [
+        "**/*.scss",
+        "**/*.css"
+      ],
+      "title": "No ID selectors",
+      "inScan": true
+    },
+    {
+      "id": "STYLE-08",
+      "severity": "error",
+      "checker": [
+        "stylelint"
+      ],
+      "group": "style",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [
+        "ui-guard/attribute-selector"
+      ],
+      "appliesTo": [
+        "**/*.scss",
+        "**/*.css"
+      ],
+      "title": "No attribute selectors (with listed exceptions)",
+      "inScan": true
+    },
+    {
+      "id": "STYLE-09",
+      "severity": "error",
+      "checker": [
+        "script",
+        "ai"
+      ],
+      "group": "style-ai",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/*.theme.css",
+        "**/*.scss"
+      ],
+      "title": "Tokens named by role or family-step; no typos",
+      "inScan": true
+    },
+    {
+      "id": "STYLE-10",
+      "severity": "error",
+      "checker": [
+        "stylelint"
+      ],
+      "group": "style",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [
+        "ui-guard/px-only-1px"
+      ],
+      "appliesTo": [
+        "**/*.scss"
+      ],
+      "title": "Absolute lengths via px()/rem; raw px only for 1px",
+      "inScan": true
+    },
+    {
+      "id": "STYLE-11",
+      "severity": "error",
+      "checker": [
+        "stylelint"
+      ],
+      "group": "style",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [
+        "ui-guard/logical-properties"
+      ],
+      "appliesTo": [
+        "**/*.scss",
+        "**/*.css"
+      ],
+      "title": "Logical properties only",
+      "inScan": true
+    },
+    {
+      "id": "STYLE-12",
+      "severity": "error",
+      "checker": [
+        "stylelint"
+      ],
+      "group": "style",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [
+        "color-no-hex",
+        "color-named",
+        "function-disallowed-list",
+        "ui-guard/no-literal-color-fallback"
+      ],
+      "appliesTo": [
+        "**/*.scss",
+        "**/*.css"
+      ],
+      "title": "Colors only from custom properties",
+      "inScan": true
+    },
+    {
+      "id": "STYLE-13",
+      "severity": "error",
+      "checker": [
+        "script"
+      ],
+      "group": "style",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/colors/*.theme.css"
+      ],
+      "title": "Every shade in token files is HSL",
+      "inScan": true
+    },
+    {
+      "id": "STYLE-14",
+      "severity": "error",
+      "checker": [
+        "stylelint"
+      ],
+      "group": "style",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [
+        "number-max-precision"
+      ],
+      "appliesTo": [
+        "**/*.scss",
+        "**/*.css"
+      ],
+      "title": "At most 4 decimals",
+      "inScan": true
+    },
+    {
+      "id": "STYLE-15",
+      "severity": "error",
+      "checker": [
+        "stylelint"
+      ],
+      "group": "style",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [
+        "ui-guard/mq-only"
+      ],
+      "appliesTo": [
+        "**/*.scss"
+      ],
+      "title": "Media queries only through mq()",
+      "inScan": true
+    },
+    {
+      "id": "STYLE-16",
+      "severity": "error",
+      "checker": [
+        "stylelint"
+      ],
+      "group": "style",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [
+        "ui-guard/no-output"
+      ],
+      "appliesTo": [
+        "**/settings/**",
+        "**/tools/**"
+      ],
+      "title": "Settings and tools output no CSS",
+      "inScan": true
+    },
+    {
+      "id": "STYLE-17",
+      "severity": "error",
+      "checker": [
+        "script",
+        "ai"
+      ],
+      "group": "style-ai",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/*.scss",
+        "**/*.css"
+      ],
+      "title": "Segment purity: folder, suffix, own block only",
+      "inScan": true
+    },
+    {
+      "id": "STYLE-18",
+      "severity": "error",
+      "checker": [
+        "ai"
+      ],
+      "group": "style-ai",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/layout/**",
+        "**/pages/**",
+        "src/app/**/*.scss"
+      ],
+      "title": "Layout holds chrome only; pages hold own content only",
+      "inScan": true
+    },
+    {
+      "id": "STYLE-19",
+      "severity": "error",
+      "checker": [
+        "ai"
+      ],
+      "group": "style-ai",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/modules/**"
+      ],
+      "title": "Module purity; one library module per vendor component; isolated ctrl-",
+      "inScan": true
+    },
+    {
+      "id": "STYLE-20",
+      "severity": "error",
+      "checker": [
+        "ai"
+      ],
+      "group": "style-ai",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/objects/**"
+      ],
+      "title": "Objects are undecorated fixed patterns",
+      "inScan": true
+    },
+    {
+      "id": "STYLE-21",
+      "severity": "error",
+      "checker": [
+        "stylelint"
+      ],
+      "group": "style",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [
+        "declaration-no-important"
+      ],
+      "appliesTo": [
+        "**/*.scss",
+        "**/*.css"
+      ],
+      "title": "No !important (except reduced-motion block and custom.theme.css)",
+      "inScan": true
+    },
+    {
+      "id": "STYLE-22",
+      "severity": "error",
+      "checker": [
+        "stylelint"
+      ],
+      "group": "style",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [
+        "scss/at-extend-no-missing-placeholder"
+      ],
+      "appliesTo": [
+        "**/*.scss"
+      ],
+      "title": "No @extend except %placeholder",
+      "inScan": true
+    },
+    {
+      "id": "STYLE-23",
+      "severity": "error",
+      "checker": [
+        "stylelint"
+      ],
+      "group": "style",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [
+        "no-duplicate-selectors",
+        "declaration-block-no-duplicate-properties",
+        "ui-guard/duplicate-media-include"
+      ],
+      "appliesTo": [
+        "**/*.scss",
+        "**/*.css"
+      ],
+      "title": "No duplicate selectors, properties or mq blocks",
+      "inScan": true
+    },
+    {
+      "id": "STYLE-24",
+      "severity": "error",
+      "checker": [
+        "stylelint"
+      ],
+      "group": "style",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [
+        "block-no-empty",
+        "comment-no-empty",
+        "scss/comment-no-empty"
+      ],
+      "appliesTo": [
+        "**/*.scss",
+        "**/*.css"
+      ],
+      "title": "No empty blocks or comments",
+      "inScan": true
+    },
+    {
+      "id": "STYLE-25",
+      "severity": "error",
+      "checker": [
+        "stylelint",
+        "ai"
+      ],
+      "group": "style-ai",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [
+        "ui-guard/utility-one-property"
+      ],
+      "appliesTo": [
+        "**/utilities/**"
+      ],
+      "title": "Utilities: u- prefix, one property, no breakpoint names",
+      "inScan": true
+    },
+    {
+      "id": "STYLE-26",
+      "severity": "error",
+      "checker": [
+        "stylelint"
+      ],
+      "group": "style",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [
+        "ui-guard/charset-first"
+      ],
+      "appliesTo": [
+        "**/*.scss",
+        "**/*.css"
+      ],
+      "title": "@charset \"UTF-8\"; is the first line",
+      "inScan": true
+    },
+    {
+      "id": "STYLE-27",
+      "severity": "error",
+      "checker": [
+        "script"
+      ],
+      "group": "style",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [],
+      "appliesTo": [
+        "angular.json",
+        "**/packages/**"
+      ],
+      "title": "packages/ never compiled; vendor CSS before project styles",
+      "inScan": true
+    },
+    {
+      "id": "STYLE-28",
+      "severity": "error",
+      "checker": [
+        "script",
+        "ai"
+      ],
+      "group": "style-ai",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/common/**",
+        "**/components/**",
+        "**/objects/**",
+        "**/modules/**"
+      ],
+      "title": "Shared blocks reach the app through common/",
+      "inScan": true
+    },
+    {
+      "id": "STYLE-29",
+      "severity": "error",
+      "checker": [
+        "script"
+      ],
+      "group": "style",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/*.scss"
+      ],
+      "title": "No double import of files reached through common/",
+      "inScan": true
+    },
+    {
+      "id": "STYLE-30",
+      "severity": "error",
+      "checker": [
+        "stylelint"
+      ],
+      "group": "style",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [
+        "ui-guard/use-tools-only",
+        "at-rule-disallowed-list"
+      ],
+      "appliesTo": [
+        "**/*.scss"
+      ],
+      "title": "Component styles @use only settings/tools; no @import",
+      "inScan": true
+    },
+    {
+      "id": "STYLE-31",
+      "severity": "warning",
+      "checker": [
+        "stylelint"
+      ],
+      "group": "style",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [
+        "selector-pseudo-element-disallowed-list"
+      ],
+      "appliesTo": [
+        "**/*.scss"
+      ],
+      "title": "::ng-deep only inside tools",
+      "inScan": true
+    },
+    {
+      "id": "STYLE-32",
+      "severity": "error",
+      "checker": [
+        "stylelint",
+        "script"
+      ],
+      "group": "style",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [
+        "ui-guard/token-file-root-only"
+      ],
+      "appliesTo": [
+        "**/*.theme.css"
+      ],
+      "title": "Token files contain only :root blocks",
+      "inScan": true
+    },
+    {
+      "id": "STYLE-33",
+      "severity": "error",
+      "checker": [
+        "stylelint"
+      ],
+      "group": "style",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [
+        "ui-guard/custom-theme"
+      ],
+      "appliesTo": [
+        "**/custom.theme.css"
+      ],
+      "title": "custom.theme.css: classes and body only, no custom properties",
+      "inScan": true
+    },
+    {
+      "id": "STYLE-34",
+      "severity": "error",
+      "checker": [
+        "script"
+      ],
+      "group": "style",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/*.scss",
+        "**/*.css"
+      ],
+      "title": "The palette is the single source of shade values",
+      "inScan": true
+    },
+    {
+      "id": "STYLE-35",
+      "severity": "error",
+      "checker": [
+        "script"
+      ],
+      "group": "style",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [],
+      "appliesTo": [
+        "src/assets/themes/**",
+        "src/assets/scss/theme/**"
+      ],
+      "title": "All themes define the same custom property names",
+      "inScan": true
+    },
+    {
+      "id": "STYLE-36",
+      "severity": "error",
+      "checker": [
+        "script"
+      ],
+      "group": "style",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [],
+      "appliesTo": [
+        "src/index.html",
+        "angular.json",
+        "**/*.scss"
+      ],
+      "title": "Swappable theme files load via <link>; custom.theme.css last",
+      "inScan": true
+    },
+    {
+      "id": "STYLE-37",
+      "severity": "error",
+      "checker": [
+        "stylelint",
+        "ai"
+      ],
+      "group": "style-ai",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [
+        "ui-guard/no-literal-filter"
+      ],
+      "appliesTo": [
+        "**/*.scss",
+        "**/*.css",
+        "**/*.html"
+      ],
+      "title": "Icons colored by filter utilities, no literal filters, no [data-img]",
+      "inScan": true
+    },
+    {
+      "id": "STYLE-38",
+      "severity": "error",
+      "checker": [
+        "script",
+        "ai"
+      ],
+      "group": "style-ai",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/tools/**",
+        "**/settings/**"
+      ],
+      "title": "One shared, validated, documented tool set",
+      "inScan": true
+    },
+    {
+      "id": "STYLE-39",
+      "severity": "warning",
+      "checker": [
+        "ai"
+      ],
+      "group": "style-ai",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/*.html",
+        "**/*.scss"
+      ],
+      "title": "One shared button component",
+      "inScan": true
+    },
+    {
+      "id": "STYLE-40",
+      "severity": "error",
+      "checker": [
+        "stylelint"
+      ],
+      "group": "style",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [
+        "ui-guard/focus-visible"
+      ],
+      "appliesTo": [
+        "**/*.scss",
+        "**/*.css"
+      ],
+      "title": "No outline removal without :focus-visible replacement",
+      "inScan": true
+    },
+    {
+      "id": "STYLE-41",
+      "severity": "warning",
+      "checker": [
+        "stylelint"
+      ],
+      "group": "style",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [
+        "ui-guard/hover-media"
+      ],
+      "appliesTo": [
+        "**/*.scss",
+        "**/*.css"
+      ],
+      "title": ":hover inside (hover: hover) with matching :focus-visible",
+      "inScan": true
+    },
+    {
+      "id": "STYLE-42",
+      "severity": "error",
+      "checker": [
+        "script"
+      ],
+      "group": "style",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/generic/**",
+        "**/utilities/**"
+      ],
+      "title": "Exactly one reduced-motion block; u-sr-only declared once",
+      "inScan": true
+    },
+    {
+      "id": "STYLE-43",
+      "severity": "info",
+      "checker": [
+        "ai"
+      ],
+      "group": "style-ai",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/*.scss",
+        "**/*.html"
+      ],
+      "title": "Interactive targets at least 1.5rem",
+      "inScan": true
+    },
+    {
+      "id": "STYLE-44",
+      "severity": "info",
+      "checker": [
+        "script"
+      ],
+      "group": "style",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/colors/*.theme.css"
+      ],
+      "title": "Token pairs meet WCAG AA contrast (report only)",
+      "inScan": true
+    },
+    {
+      "id": "STYLE-45",
+      "severity": "info",
+      "checker": [
+        "runtime"
+      ],
+      "group": "style",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [],
+      "appliesTo": [
+        "routes"
+      ],
+      "title": "No horizontal overflow from 320px",
+      "inScan": true
+    },
+    {
+      "id": "STYLE-46",
+      "severity": "warning",
+      "checker": [
+        "script"
+      ],
+      "group": "style",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [],
+      "appliesTo": [
+        "dist/**"
+      ],
+      "title": "CSS size budget",
+      "inScan": true
+    },
+    {
+      "id": "STYLE-47",
+      "severity": "warning",
+      "checker": [
+        "stylelint"
+      ],
+      "group": "style",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [
+        "ui-guard/nest-block-parts"
+      ],
+      "appliesTo": [
+        "**/*.scss"
+      ],
+      "title": "Block elements and variants are written inside the block (&__element, &-variant)",
+      "inScan": true
+    },
+    {
+      "id": "LANG-01",
+      "severity": "warning",
+      "checker": [
+        "ai"
+      ],
+      "group": "lang",
+      "family": "lang",
+      "rulesFile": "rules/lang.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/*.html"
+      ],
+      "title": "Literal user-visible text in templates",
+      "inScan": true
+    },
+    {
+      "id": "LANG-02",
+      "severity": "warning",
+      "checker": [
+        "ai"
+      ],
+      "group": "lang",
+      "family": "lang",
+      "rulesFile": "rules/lang.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/*.ts",
+        "**/*.html"
+      ],
+      "title": "Literal chosen by language in code",
+      "inScan": true
+    },
+    {
+      "id": "LANG-03",
+      "severity": "warning",
+      "checker": [
+        "ai"
+      ],
+      "group": "lang",
+      "family": "lang",
+      "rulesFile": "rules/lang.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/*.ts"
+      ],
+      "title": "Literal user-visible text in TypeScript",
+      "inScan": true
+    },
+    {
+      "id": "LANG-04",
+      "severity": "error",
+      "checker": [
+        "script"
+      ],
+      "group": "lang",
+      "family": "lang",
+      "rulesFile": "rules/lang.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/*.html",
+        "**/*.ts",
+        "src/assets/i18n/**"
+      ],
+      "title": "Used key missing from a language",
+      "inScan": true
+    },
+    {
+      "id": "LANG-05",
+      "severity": "error",
+      "checker": [
+        "script"
+      ],
+      "group": "lang",
+      "family": "lang",
+      "rulesFile": "rules/lang.md",
+      "lintRules": [],
+      "appliesTo": [
+        "src/assets/i18n/**",
+        "**/*.i18n.ts",
+        "**/*.xlf"
+      ],
+      "title": "Key present in one language only",
+      "inScan": true
+    },
+    {
+      "id": "LANG-06",
+      "severity": "error",
+      "checker": [
+        "script"
+      ],
+      "group": "lang",
+      "family": "lang",
+      "rulesFile": "rules/lang.md",
+      "lintRules": [],
+      "appliesTo": [
+        "src/assets/i18n/**",
+        "**/*.i18n.ts",
+        "**/*.xlf"
+      ],
+      "title": "Duplicate key",
+      "inScan": true
+    },
+    {
+      "id": "LANG-07",
+      "severity": "warning",
+      "checker": [
+        "ai"
+      ],
+      "group": "lang",
+      "family": "lang",
+      "rulesFile": "rules/lang.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/*.html",
+        "**/*.ts"
+      ],
+      "title": "Sentence built from joined pieces",
+      "inScan": true
+    },
+    {
+      "id": "LANG-08",
+      "severity": "warning",
+      "checker": [
+        "script",
+        "ai"
+      ],
+      "group": "lang",
+      "family": "lang",
+      "rulesFile": "rules/lang.md",
+      "lintRules": [],
+      "appliesTo": [
+        "src/assets/i18n/**",
+        "**/*.i18n.ts",
+        "**/*.xlf"
+      ],
+      "title": "Empty, key-equal or wrong-language value",
+      "inScan": true
+    },
+    {
+      "id": "SAFE-01",
+      "severity": "error",
+      "checker": [
+        "ai"
+      ],
+      "group": "safe",
+      "family": "safe",
+      "rulesFile": "rules/safe.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/*.html",
+        "**/*.ts"
+      ],
+      "title": "HTML built from non-constant data",
+      "inScan": true
+    },
+    {
+      "id": "SAFE-02",
+      "severity": "error",
+      "checker": [
+        "ai"
+      ],
+      "group": "safe",
+      "family": "safe",
+      "rulesFile": "rules/safe.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/*.ts"
+      ],
+      "title": "bypassSecurityTrust* on non-constant values",
+      "inScan": true
+    },
+    {
+      "id": "SAFE-03",
+      "severity": "error",
+      "checker": [
+        "eslint",
+        "ai"
+      ],
+      "group": "safe",
+      "family": "safe",
+      "rulesFile": "rules/safe.md",
+      "lintRules": [
+        "no-eval",
+        "no-implied-eval",
+        "no-new-func"
+      ],
+      "appliesTo": [
+        "**/*.ts",
+        "**/*.html"
+      ],
+      "title": "Code run from a string",
+      "inScan": true
+    },
+    {
+      "id": "SAFE-04",
+      "severity": "error",
+      "checker": [
+        "script",
+        "ai"
+      ],
+      "group": "safe",
+      "family": "safe",
+      "rulesFile": "rules/safe.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/*.ts",
+        "src/assets/**/*.json"
+      ],
+      "title": "Secret in front-end code",
+      "inScan": true
+    },
+    {
+      "id": "SAFE-05",
+      "severity": "warning",
+      "checker": [
+        "ai"
+      ],
+      "group": "safe",
+      "family": "safe",
+      "rulesFile": "rules/safe.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/*.ts"
+      ],
+      "title": "Sensitive data in web storage or script cookies",
+      "inScan": true
+    },
+    {
+      "id": "SAFE-06",
+      "severity": "warning",
+      "checker": [
+        "script"
+      ],
+      "group": "safe",
+      "family": "safe",
+      "rulesFile": "rules/safe.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/*.html",
+        "**/*.ts"
+      ],
+      "title": "target=_blank / window.open without noopener",
+      "inScan": true
+    },
+    {
+      "id": "SAFE-07",
+      "severity": "warning",
+      "checker": [
+        "script"
+      ],
+      "group": "safe",
+      "family": "safe",
+      "rulesFile": "rules/safe.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/*.html",
+        "**/*.ts",
+        "src/index.html"
+      ],
+      "title": "Plain http:// or CDN without integrity",
+      "inScan": true
+    },
+    {
+      "id": "SAFE-08",
+      "severity": "warning",
+      "checker": [
+        "eslint",
+        "ai"
+      ],
+      "group": "safe",
+      "family": "safe",
+      "rulesFile": "rules/safe.md",
+      "lintRules": [
+        "no-console"
+      ],
+      "appliesTo": [
+        "**/*.ts",
+        "**/*.html"
+      ],
+      "title": "Sensitive data in console or error messages",
+      "inScan": true
+    },
+    {
+      "id": "MEDIA-01",
+      "severity": "warning",
+      "checker": [
+        "none"
+      ],
+      "group": "media",
+      "family": "media",
+      "rulesFile": "rules/media.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/*.html"
+      ],
+      "title": "img without fixed box",
+      "inScan": false,
+      "scanDecision": "docs"
+    },
+    {
+      "id": "MEDIA-02",
+      "severity": "warning",
+      "checker": [
+        "none"
+      ],
+      "group": "media",
+      "family": "media",
+      "rulesFile": "rules/media.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/*.html"
+      ],
+      "title": "Off-screen content image without loading=lazy",
+      "inScan": false,
+      "scanDecision": "docs"
+    },
+    {
+      "id": "MEDIA-03",
+      "severity": "warning",
+      "checker": [
+        "none"
+      ],
+      "group": "media",
+      "family": "media",
+      "rulesFile": "rules/media.md",
+      "lintRules": [],
+      "appliesTo": [
+        "src/assets/**"
+      ],
+      "title": "Asset too big",
+      "inScan": false,
+      "scanDecision": "removed"
+    },
+    {
+      "id": "MEDIA-04",
+      "severity": "warning",
+      "checker": [
+        "none"
+      ],
+      "group": "media",
+      "family": "media",
+      "rulesFile": "rules/media.md",
+      "lintRules": [],
+      "appliesTo": [
+        "src/assets/**",
+        "**/*.html"
+      ],
+      "title": "Raster used for icon or flat graphic",
+      "inScan": false,
+      "scanDecision": "removed"
+    },
+    {
+      "id": "MEDIA-05",
+      "severity": "warning",
+      "checker": [
+        "none"
+      ],
+      "group": "media",
+      "family": "media",
+      "rulesFile": "rules/media.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/*.scss",
+        "**/*.css"
+      ],
+      "title": "Font loading problems",
+      "inScan": false,
+      "scanDecision": "docs"
+    },
+    {
+      "id": "MEDIA-06",
+      "severity": "warning",
+      "checker": [
+        "none"
+      ],
+      "group": "media",
+      "family": "media",
+      "rulesFile": "rules/media.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/*.html"
+      ],
+      "title": "Autoplay video / preload auto / iframe without lazy",
+      "inScan": false,
+      "scanDecision": "docs"
+    },
+    {
+      "id": "MEDIA-07",
+      "severity": "error",
+      "checker": [
+        "assets"
+      ],
+      "group": "media",
+      "family": "media",
+      "rulesFile": "rules/media.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/*.html",
+        "**/*.scss",
+        "**/*.css",
+        "**/*.ts"
+      ],
+      "title": "Asset path the build will not find",
+      "inScan": false,
+      "scanDecision": "assets"
+    },
+    {
+      "id": "MEDIA-08",
+      "severity": "error",
+      "checker": [
+        "assets"
+      ],
+      "group": "media",
+      "family": "media",
+      "rulesFile": "rules/media.md",
+      "lintRules": [],
+      "appliesTo": [
+        "src/assets/themes/**",
+        "src/assets/project-images/**"
+      ],
+      "title": "Theme image sets differ",
+      "inScan": false,
+      "scanDecision": "assets"
+    },
+    {
+      "id": "MEDIA-09",
+      "severity": "warning",
+      "checker": [
+        "none"
+      ],
+      "group": "media",
+      "family": "media",
+      "rulesFile": "rules/media.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/*.svg",
+        "**/*.html"
+      ],
+      "title": "Single-color icon not saved black",
+      "inScan": false,
+      "scanDecision": "removed"
+    },
+    {
+      "id": "ACCESS-00",
+      "severity": "error",
+      "checker": [
+        "ai"
+      ],
+      "group": "access-aria",
+      "family": "access",
+      "rulesFile": "rules/access.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/*.html",
+        "**/*.ts"
+      ],
+      "title": "General Angular rules for ACCESS fixes",
+      "inScan": true
+    },
+    {
+      "id": "ACCESS-01",
+      "severity": "warning",
+      "checker": [
+        "eslint",
+        "ai"
+      ],
+      "group": "access-labels",
+      "family": "access",
+      "rulesFile": "rules/access.md",
+      "lintRules": [
+        "@angular-eslint/template/label-has-associated-control"
+      ],
+      "appliesTo": [
+        "**/*.html",
+        "**/*.ts"
+      ],
+      "title": "Labels: form field accessible names",
+      "inScan": true
+    },
+    {
+      "id": "ACCESS-02",
+      "severity": "warning",
+      "checker": [
+        "eslint",
+        "ai"
+      ],
+      "group": "access-alt",
+      "family": "access",
+      "rulesFile": "rules/access.md",
+      "lintRules": [
+        "@angular-eslint/template/alt-text",
+        "@angular-eslint/template/elements-content"
+      ],
+      "appliesTo": [
+        "**/*.html",
+        "**/*.ts"
+      ],
+      "title": "Alt: text alternatives and icon-only control names",
+      "inScan": true
+    },
+    {
+      "id": "ACCESS-03",
+      "severity": "warning",
+      "checker": [
+        "eslint",
+        "ai"
+      ],
+      "group": "access-aria",
+      "family": "access",
+      "rulesFile": "rules/access.md",
+      "lintRules": [
+        "@angular-eslint/template/valid-aria",
+        "@angular-eslint/template/role-has-required-aria"
+      ],
+      "appliesTo": [
+        "**/*.html",
+        "**/*.ts"
+      ],
+      "title": "ARIA: roles, state, validation, live regions",
+      "inScan": true
+    },
+    {
+      "id": "ACCESS-04",
+      "severity": "warning",
+      "checker": [
+        "eslint",
+        "ai"
+      ],
+      "group": "access-semantics",
+      "family": "access",
+      "rulesFile": "rules/access.md",
+      "lintRules": [
+        "@angular-eslint/template/table-scope",
+        "@angular-eslint/template/no-distracting-elements",
+        "@angular-eslint/template/button-has-type"
+      ],
+      "appliesTo": [
+        "**/*.html",
+        "src/index.html"
+      ],
+      "title": "Semantics: elements, landmarks, headings, tables, lists",
+      "inScan": true
+    },
+    {
+      "id": "ACCESS-05",
+      "severity": "warning",
+      "checker": [
+        "eslint",
+        "ai"
+      ],
+      "group": "access-keyboard",
+      "family": "access",
+      "rulesFile": "rules/access.md",
+      "lintRules": [
+        "@angular-eslint/template/click-events-have-key-events",
+        "@angular-eslint/template/interactive-supports-focus",
+        "@angular-eslint/template/no-positive-tabindex",
+        "@angular-eslint/template/no-autofocus"
+      ],
+      "appliesTo": [
+        "**/*.html",
+        "**/*.ts"
+      ],
+      "title": "Keyboard: tabindex, focus, key handlers",
+      "inScan": true
+    }
+  ],
+  "aiGroups": {
+    "style-ai": {
+      "rulesFile": "rules/style.md",
+      "rules": [
+        "STYLE-02",
+        "STYLE-03",
+        "STYLE-09",
+        "STYLE-17",
+        "STYLE-18",
+        "STYLE-19",
+        "STYLE-20",
+        "STYLE-25",
+        "STYLE-28",
+        "STYLE-37",
+        "STYLE-38",
+        "STYLE-39",
+        "STYLE-43"
+      ]
+    },
+    "lang": {
+      "rulesFile": "rules/lang.md",
+      "rules": [
+        "LANG-01",
+        "LANG-02",
+        "LANG-03",
+        "LANG-07",
+        "LANG-08"
+      ]
+    },
+    "safe": {
+      "rulesFile": "rules/safe.md",
+      "rules": [
+        "SAFE-01",
+        "SAFE-02",
+        "SAFE-03",
+        "SAFE-04",
+        "SAFE-05",
+        "SAFE-08"
+      ]
+    },
+    "access-labels": {
+      "rulesFile": "rules/access.md",
+      "rules": [
+        "ACCESS-01"
+      ]
+    },
+    "access-alt": {
+      "rulesFile": "rules/access.md",
+      "rules": [
+        "ACCESS-02"
+      ]
+    },
+    "access-aria": {
+      "rulesFile": "rules/access.md",
+      "rules": [
+        "ACCESS-00",
+        "ACCESS-03"
+      ]
+    },
+    "access-semantics": {
+      "rulesFile": "rules/access.md",
+      "rules": [
+        "ACCESS-04"
+      ]
+    },
+    "access-keyboard": {
+      "rulesFile": "rules/access.md",
+      "rules": [
+        "ACCESS-05"
+      ]
+    }
+  },
+  "lintMap": {
+    "selector-class-pattern": "STYLE-01",
+    "ui-guard/bem": "STYLE-04",
+    "max-nesting-depth": "STYLE-05",
+    "selector-max-type": "STYLE-06",
+    "selector-max-id": "STYLE-07",
+    "ui-guard/attribute-selector": "STYLE-08",
+    "ui-guard/px-only-1px": "STYLE-10",
+    "ui-guard/logical-properties": "STYLE-11",
+    "color-no-hex": "STYLE-12",
+    "color-named": "STYLE-12",
+    "function-disallowed-list": "STYLE-12",
+    "ui-guard/no-literal-color-fallback": "STYLE-12",
+    "number-max-precision": "STYLE-14",
+    "ui-guard/mq-only": "STYLE-15",
+    "ui-guard/no-output": "STYLE-16",
+    "declaration-no-important": "STYLE-21",
+    "scss/at-extend-no-missing-placeholder": "STYLE-22",
+    "no-duplicate-selectors": "STYLE-23",
+    "declaration-block-no-duplicate-properties": "STYLE-23",
+    "ui-guard/duplicate-media-include": "STYLE-23",
+    "block-no-empty": "STYLE-24",
+    "comment-no-empty": "STYLE-24",
+    "scss/comment-no-empty": "STYLE-24",
+    "ui-guard/utility-one-property": "STYLE-25",
+    "ui-guard/charset-first": "STYLE-26",
+    "ui-guard/use-tools-only": "STYLE-30",
+    "at-rule-disallowed-list": "STYLE-30",
+    "selector-pseudo-element-disallowed-list": "STYLE-31",
+    "ui-guard/token-file-root-only": "STYLE-32",
+    "ui-guard/custom-theme": "STYLE-33",
+    "ui-guard/no-literal-filter": "STYLE-37",
+    "ui-guard/focus-visible": "STYLE-40",
+    "ui-guard/hover-media": "STYLE-41",
+    "no-eval": "SAFE-03",
+    "no-implied-eval": "SAFE-03",
+    "no-new-func": "SAFE-03",
+    "no-console": "SAFE-08",
+    "@angular-eslint/template/label-has-associated-control": "ACCESS-01",
+    "@angular-eslint/template/alt-text": "ACCESS-02",
+    "@angular-eslint/template/elements-content": "ACCESS-02",
+    "@angular-eslint/template/valid-aria": "ACCESS-03",
+    "@angular-eslint/template/role-has-required-aria": "ACCESS-03",
+    "@angular-eslint/template/table-scope": "ACCESS-04",
+    "@angular-eslint/template/no-distracting-elements": "ACCESS-04",
+    "@angular-eslint/template/button-has-type": "ACCESS-04",
+    "@angular-eslint/template/click-events-have-key-events": "ACCESS-05",
+    "@angular-eslint/template/interactive-supports-focus": "ACCESS-05",
+    "@angular-eslint/template/no-positive-tabindex": "ACCESS-05",
+    "@angular-eslint/template/no-autofocus": "ACCESS-05",
+    "ui-guard/nest-block-parts": "STYLE-47"
+  }
+}
