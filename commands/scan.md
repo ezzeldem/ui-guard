@@ -24,7 +24,7 @@ Run scripts as `node "PLUGIN/scripts/<name>.js" --root "<project root>"`.
 
 ## A. --plan-only (rebuild from the existing findings.json, no rescan, no AI)
 1. `node PLUGIN/scripts/write-report.js --archive` (old files are kept as `history/<date>/report.old.md`, `findings.old.json`, `plan.old.md`).
-2. `node PLUGIN/scripts/write-report.js --plan-only` (summary report + baseline; MEDIA findings are dropped).
+2. `node PLUGIN/scripts/write-report.js --plan-only` (summary report + baseline).
 3. `node PLUGIN/scripts/plan.js` (plan.md, plan.json, renames.md). Reply with the phase list and the line counts. Stop.
 
 ## 1. Profile and first-run setup
@@ -68,7 +68,7 @@ Run scripts as `node "PLUGIN/scripts/<name>.js" --root "<project root>"`.
    files are listed as NOT scanned by AI) / stop here. Progress is saved; `/ui-guard:scan --ai --resume` continues from the exact batch.
 
 ## 4. Findings, report, plan (0 tokens)
-1. `node PLUGIN/scripts/merge-findings.js finalize` → `.ui-guard/findings.json` (free + AI findings, MEDIA never included).
+1. `node PLUGIN/scripts/merge-findings.js finalize` → `.ui-guard/findings.json` (free + AI findings).
 2. `node PLUGIN/scripts/write-report.js` → `.ui-guard/report.md` (summary ≤ ~150 lines, NOT-checked list, per-rule table, cost footer) + `baseline.json`.
 3. `node PLUGIN/scripts/plan.js` → `.ui-guard/plan.md` (≤ ~150 lines, numbered phases), `plan.json`, `renames.md`.
 4. Reply briefly: findings per area, what was NOT checked, the phase list (number · area · files), the cost (free scan: 0 tokens; AI: agents + tokens

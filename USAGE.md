@@ -172,7 +172,7 @@ Script only, 0 tokens. Output: `file:line -> missing <path>`. It never opens or 
 `STYLE-21 · src/app/x/x.component.scss:42 · "!important outside the reduced-motion block"`
 
 - **STYLE** — SCSS, classes, theme · **LANG** — translation · **SAFE** — security · **ACCESS** —
-  accessibility (labels, alt, ARIA, semantics, keyboard). (MEDIA rules are guidance only; images are not scanned.)
+  accessibility (labels, alt, ARIA, semantics, keyboard). The free scan also checks MEDIA-01..06 (image width/height, lazy loading, raster-as-icon, asset sizes, font loading, video/iframe) without opening any image.
 - **error** blocks a push when it is new · **warning** should be fixed, never blocks · **info** is
   advice or a manual check.
 - Full rule text: the files in `rules/` (one per prefix).

@@ -15,10 +15,9 @@ const AREAS = { style: 'STYLE', lang: 'LANG', safe: 'SAFE', access: 'ACCESS' };
 const esc = (s) => String(s == null ? '' : s).replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
 const fmt = (n) => (n >= 1e6 ? (n / 1e6).toFixed(2) + 'M' : n >= 1e3 ? Math.round(n / 1e3) + 'k' : String(n));
 
-/** Current findings without MEDIA (images/assets are out of the scan). */
-/** Current findings without MEDIA and without STYLE-01 on library classes (Bootstrap, ngx-*, …: used, not authored). */
+/** Current findings without STYLE-01 on library classes (Bootstrap, ngx-*, …: used, not authored). */
 function loadFindings(root) {
-  const raw = (u.readJSON(project.paths(root).findings, []) || []).filter((f) => !/^MEDIA-/.test(f.ruleId));
+  const raw = (u.readJSON(project.paths(root).findings, []) || []);
   const libs = require('./lib/libclasses');
   return libs.splitFindings(raw, libs.context(root, project.readProfile(root))).rest;
 }
@@ -161,7 +160,7 @@ function writeAll(root, opts = {}) {
 module.exports = { build, writeAll, archive, details, loadFindings };
 if (require.main === module) {
   const args = u.parseArgs(process.argv.slice(2), ['archive', 'plan-only']);
-  u.helpExit(args, `write-report.js — summary report (≤ ~150 lines) + baseline.json from .ui-guard/findings.json (MEDIA findings are never counted).
+  u.helpExit(args, `write-report.js — summary report (≤ ~150 lines) + baseline.json from .ui-guard/findings.json.
 Usage:
   node write-report.js --archive            copy report.md / findings.json / plan.md to .ui-guard/history/<date>/*.old.*
   node write-report.js [--plan-only]        write report.md + baseline.json
@@ -170,5 +169,5 @@ Usage:
   if (args.archive) { const a = archive(root); console.log(a ? `previous files kept in ${u.relPosix(root, a)}` : 'nothing to archive'); process.exit(0); }
   if (args.details) { const d = details(root, String(args.details)); console.log(`${d.count} finding(s) → ${u.relPosix(root, d.out)}`); process.exit(0); }
   const r = writeAll(root, { mode: args['plan-only'] ? 'plan-only' : 'scan' });
-  console.log(`report → .ui-guard/report.md (${r.lines} lines) · baseline → .ui-guard/baseline.json (${r.confirmed} fingerprints, MEDIA excluded)`);
+  console.log(`report → .ui-guard/report.md (${r.lines} lines) · baseline → .ui-guard/baseline.json (${r.confirmed} fingerprints)`);
 }

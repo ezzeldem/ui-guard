@@ -22,6 +22,6 @@ description: Use whenever creating or editing .scss, .css, .html or Angular .ts 
 15. Never commit, branch, stash or push unless the developer asks. Do not edit `.ui-guard/baseline.json`.
 
 For the full rules read `${CLAUDE_PLUGIN_ROOT}/rules/<file>.md` for the prefix you are touching
-(`style.md`, `lang.md`, `safe.md`, `access.md`; images/assets: `media.md` is guidance only — `/ui-guard:assets` checks referenced files exist).
+(`style.md`, `lang.md`, `safe.md`, `access.md`; images/assets: `media.md` (01–06 are checked by the free scan; `/ui-guard:assets` checks referenced files exist)).
 Read `.ui-guard/profile.md` for this project's role map, tokens, i18n setup and button.
 The post-edit hook lints every file you write; fix any `STYLE-xx line N` error it reports before moving on.

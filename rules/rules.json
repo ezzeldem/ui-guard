@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "note": "Machine-readable index of every ui-guard rule. checker: stylelint|eslint|script|ai|runtime|assets|none. inScan:false = never part of /ui-guard:scan (MEDIA: images/assets are out of the scan; MEDIA-07/08 are checked by /ui-guard:assets). group: AI routing group or family. lintMap maps Stylelint/ESLint rule names to ui-guard IDs.",
+  "note": "Machine-readable index of every ui-guard rule. checker: stylelint|eslint|script|ai|runtime|assets|none. inScan:false = never part of /ui-guard:scan (MEDIA-01..06 are checked by media-check.js in the scan; MEDIA-07/08 are checked by /ui-guard:assets; MEDIA-09 is guidance). group: AI routing group or family. lintMap maps Stylelint/ESLint rule names to ui-guard IDs.",
   "rules": [
     {
       "id": "STYLE-01",
@@ -1147,7 +1147,7 @@
       "id": "MEDIA-01",
       "severity": "warning",
       "checker": [
-        "none"
+        "script"
       ],
       "group": "media",
       "family": "media",
@@ -1156,15 +1156,14 @@
       "appliesTo": [
         "**/*.html"
       ],
-      "title": "img without fixed box",
-      "inScan": false,
-      "scanDecision": "docs"
+      "title": "img without fixed box (width+height / class)",
+      "inScan": true
     },
     {
       "id": "MEDIA-02",
       "severity": "warning",
       "checker": [
-        "none"
+        "script"
       ],
       "group": "media",
       "family": "media",
@@ -1173,50 +1172,50 @@
       "appliesTo": [
         "**/*.html"
       ],
-      "title": "Off-screen content image without loading=lazy",
-      "inScan": false,
-      "scanDecision": "docs"
+      "title": "content image without loading=lazy",
+      "inScan": true
     },
     {
       "id": "MEDIA-03",
       "severity": "warning",
       "checker": [
-        "none"
+        "script"
       ],
       "group": "media",
       "family": "media",
       "rulesFile": "rules/media.md",
       "lintRules": [],
       "appliesTo": [
-        "src/assets/**"
+        "**/*.html",
+        "src/assets/**",
+        "public/**"
       ],
-      "title": "Asset too big",
-      "inScan": false,
-      "scanDecision": "removed"
+      "title": "asset file too big",
+      "inScan": true
     },
     {
       "id": "MEDIA-04",
       "severity": "warning",
       "checker": [
-        "none"
+        "script"
       ],
       "group": "media",
       "family": "media",
       "rulesFile": "rules/media.md",
       "lintRules": [],
       "appliesTo": [
+        "**/*.html",
         "src/assets/**",
-        "**/*.html"
+        "public/**"
       ],
-      "title": "Raster used for icon or flat graphic",
-      "inScan": false,
-      "scanDecision": "removed"
+      "title": "raster used as icon (SVG exists)",
+      "inScan": true
     },
     {
       "id": "MEDIA-05",
       "severity": "warning",
       "checker": [
-        "none"
+        "script"
       ],
       "group": "media",
       "family": "media",
@@ -1226,15 +1225,14 @@
         "**/*.scss",
         "**/*.css"
       ],
-      "title": "Font loading problems",
-      "inScan": false,
-      "scanDecision": "docs"
+      "title": "font loading best practice",
+      "inScan": true
     },
     {
       "id": "MEDIA-06",
       "severity": "warning",
       "checker": [
-        "none"
+        "script"
       ],
       "group": "media",
       "family": "media",
@@ -1243,9 +1241,8 @@
       "appliesTo": [
         "**/*.html"
       ],
-      "title": "Autoplay video / preload auto / iframe without lazy",
-      "inScan": false,
-      "scanDecision": "docs"
+      "title": "video autoplay / iframe not lazy",
+      "inScan": true
     },
     {
       "id": "MEDIA-07",

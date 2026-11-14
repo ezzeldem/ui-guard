@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 // Combine the free findings (Stage 0) and the AI findings (stages 1-3) into .ui-guard/findings.json.
-// Deterministic: same input → same output and IDs. Images/assets (MEDIA-*) are never part of the findings.
+// Deterministic: same input → same output and IDs.
 const path = require('path');
 const u = require('./lib/util');
 const project = require('./lib/project');
@@ -10,8 +10,7 @@ const fp = require('./lib/fingerprint');
 const HELP = `merge-findings.js — build .ui-guard/findings.json (stable IDs).
 Usage:
   node merge-findings.js finalize [--root <dir>]
-      deterministic.jsonl (Stage 0) + ai/findings.jsonl (stages 1-3, when run) → .ui-guard/findings.json.
-      MEDIA findings are dropped (images/assets are out of the scan).`;
+      deterministic.jsonl (Stage 0) + ai/findings.jsonl (stages 1-3, when run) → .ui-guard/findings.json.`;
 
 const SEV = new Set(['error', 'warning', 'info']);
 const sourceOf = (f) => (f.checker === 'stylelint' || f.checker === 'eslint' ? 'lint' : f.checker === 'script' ? 'script' : null);
@@ -82,7 +81,7 @@ function finalize(root) {
   const rows = [];
   for (const raw of u.readJSONL(path.join(scan, 'deterministic.jsonl'))) { const f = normalize(root, raw); if (f) rows.push(f); }
   for (const raw of u.readJSONL(path.join(scan, 'ai', 'findings.jsonl'))) { const f = normalize(root, { ...raw, checker: 'ai', sources: ['ai'] }, 'ai'); if (f) rows.push(f); }
-  const out = cluster(rows.filter((f) => !/^MEDIA-/.test(f.ruleId))).map((f) => ({
+  const out = cluster(rows).map((f) => ({
     id: '', ruleId: f.ruleId, severity: f.severity, file: f.file, line: f.line, endLine: f.endLine, message: f.message, evidence: f.evidence,
     fix: f.fix || null, checker: f.checker, sources: f.sources, status: f.status, rejectReason: f.rejectReason || null, fingerprint: f.fingerprint,
   }));

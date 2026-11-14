@@ -10,7 +10,7 @@ const lint = require('./lib/lint');
 const inventory = require('./inventory');
 const { summarize } = require('./lib/findings');
 
-const SCRIPTS = ['theme-check', 'tokens-check', 'angular-config-check', 'i18n-check', 'web-check', 'class-usage', 'secrets-check', 'structure-check'];
+const SCRIPTS = ['theme-check', 'tokens-check', 'angular-config-check', 'i18n-check', 'web-check', 'class-usage', 'secrets-check', 'structure-check', 'media-check'];
 
 function runAll(root, { files = null, skipLint = false } = {}) {
   const profile = project.readProfile(root);
@@ -28,8 +28,7 @@ function runAll(root, { files = null, skipLint = false } = {}) {
     all.push(...lintRes.findings);
     notes.push(...lintRes.notices);
   }
-  // Images/assets are out of the scan: drop any MEDIA finding defensively.
-  let filtered = all.filter((f) => !/^MEDIA-/.test(f.ruleId));
+  let filtered = all;
   // STYLE-01 on a LIBRARY class (Bootstrap, ngx-*, …) is never raised: such classes are used, not authored.
   const libs = require('./lib/libclasses');
   const split = libs.splitFindings(filtered, libs.context(root, profile));

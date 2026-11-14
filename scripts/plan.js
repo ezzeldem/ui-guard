@@ -99,7 +99,7 @@ function labelText(labels) {
 }
 
 function buildPhases(findings, profile) {
-  const confirmed = findings.filter((f) => f.status === 'confirmed' && !/^MEDIA-/.test(f.ruleId));
+  const confirmed = findings.filter((f) => f.status === 'confirmed');
   const byArea = {};
   for (const f of confirmed) (byArea[areaOf(f.file, profile)] = byArea[areaOf(f.file, profile)] || []).push(f);
   const phases = [];
@@ -219,7 +219,7 @@ function renames(findings, phaseOf, root, ctx) {
 function run(root) {
   const p = project.paths(root);
   const profile = project.readProfile(root);
-  const raw = (u.readJSON(p.findings, []) || []).filter((f) => !/^MEDIA-/.test(f.ruleId));
+  const raw = (u.readJSON(p.findings, []) || []);
   const ctx = libs.context(root, profile);
   const findings = libs.splitFindings(raw, ctx).rest; // STYLE-01 on library classes is not a finding
   const byId = Object.fromEntries(findings.map((f) => [f.id, f]));

@@ -85,7 +85,7 @@ Full walkthrough: **[USAGE.md](USAGE.md)**.
 | `STYLE` | 46 | SCSS structure, class prefixes and naming, tokens, logical properties, media queries |
 | `LANG` | 8 | Translation: no hard-coded user-visible text |
 | `SAFE` | 8 | Security basics: unsafe HTML, secrets, sensitive data in logs and storage |
-| `MEDIA` | 9 | Images, icons, fonts (guidance; not part of the scan, see `/ui-guard:assets`) |
+| `MEDIA` | 9 | Images, fonts, video: width/height, lazy loading, SVG icons, file sizes, font loading (01–06 in the free scan; 07–08 in `/ui-guard:assets`) |
 | `ACCESS` | 6 | Accessibility: labels, alternative text, ARIA, semantics, keyboard |
 
 Class prefixes: `o-` `c-` `l-` `m-` `ctrl-` `p-` `u-`, and states `is-` `has-` `js-`. Rule text lives in [`rules/`](rules/).

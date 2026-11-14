@@ -196,7 +196,8 @@ async function main() {
     const inv = u.readJSON(path.join(fx, '.ui-guard', 'tmp', 'scan', 'inventory.json'));
     const bad = inv.files.filter((f) => /\.(png|jpe?g|gif|webp|svg|ico|woff2?|ttf|otf|eot|mp4)$/i.test(f.path) || f.kind === 'asset');
     assert.deepStrictEqual(bad.map((f) => f.path), []);
-    assert.ok(!det().some((f) => /^MEDIA-/.test(f.ruleId)), 'no MEDIA finding from the free checks');
+    const media = [...new Set(det().filter((f) => /^MEDIA-/.test(f.ruleId)).map((f) => f.ruleId))].sort();
+    assert.deepStrictEqual(media, ['MEDIA-01', 'MEDIA-02', 'MEDIA-03', 'MEDIA-04', 'MEDIA-05', 'MEDIA-06'], 'free checks report MEDIA-01..06 (script only, no image is opened)');
   });
   await test('free scan (default): findings, ≤150-line report, ≤150-line plan, baseline — 0 AI tokens, 0 agents', () => {
     freeScan(fx);
@@ -220,7 +221,7 @@ async function main() {
     const r = run('write-report.js', ['--details', 'style'], fx); assert.strictEqual(r.code, 0, r.out);
     assert.ok(/## `src\/assets\/scss\/components\/_card.component.scss`/.test(u.readText(path.join(fx, '.ui-guard', 'details', 'style.md'))));
   });
-  await test('--plan-only: rebuilds report + plan from findings.json (no rescan), drops MEDIA, keeps old files in history', () => {
+  await test('--plan-only: rebuilds report + plan from findings.json (no rescan), keeps MEDIA findings, keeps old files in history', () => {
     const p = path.join(fx, '.ui-guard', 'findings.json');
     const findings = u.readJSON(p);
     findings.push({ id: 'F-999999', ruleId: 'MEDIA-03', severity: 'warning', file: 'src/assets/images/big.png', line: 1, message: 'old MEDIA finding', status: 'confirmed', fingerprint: 'm'.repeat(40), sources: ['script'] });
@@ -233,8 +234,7 @@ async function main() {
     const report = u.readText(path.join(fx, '.ui-guard', 'report.md'));
     const plan = u.readText(path.join(fx, '.ui-guard', 'plan.md'));
     assert.ok(plan.split('\n').length < 150 && report.split('\n').length < 150, `plan ${plan.split('\n').length} / report ${report.split('\n').length} lines`);
-    assert.ok(!/MEDIA-/.test(report) && !/MEDIA-/.test(plan), 'MEDIA never counted');
-    assert.ok(!u.readJSON(path.join(fx, '.ui-guard', 'baseline.json')).fingerprints.includes('m'.repeat(40)), 'MEDIA not in baseline');
+        assert.ok(u.readJSON(path.join(fx, '.ui-guard', 'baseline.json')).fingerprints.includes('m'.repeat(40)), 'MEDIA is counted in the baseline');
     assert.ok(/rebuilt from the existing findings\.json/.test(report));
     u.writeJSON(p, findings.filter((f) => f.id !== 'F-999999'));
   });
