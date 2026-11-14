@@ -279,13 +279,14 @@ const bem = make('bem', 'STYLE-04', (root, r) => {
     for (const sel of resolveSelector(rule)) for (const c of classesOf(sel)) {
       if (reported.has(c)) continue;
       if (/--/.test(c)) { reported.add(c); r(rule, `\`.${c}\` uses a BEM --modifier — write the variant as \`.${c.replace(/--/, '-')}\` (block name + variant).`); }
-      else if ((c.match(/__/g) || []).length > 1) { reported.add(c); r(rule, `\`.${c}\` has more than one BEM element level — use one: \`block__element\`.`); }
+      else if ((c.match(/__/g) || []).length > 1) { reported.add(c); r(rule, `\`.${c}\` has more than one BEM element level — use one: \`block__element\`. A nested \`&__a { &__b {} }\` compiles to this: write \`&__a {}\` and \`&__b {}\` as siblings directly under the block.`); }
     }
   });
 });
 
 // ---------- STYLE-47 nest-block-parts ----------
 // Elements and variants of a block defined in the same file are written inside it: `&__icon`, `&-secondary`.
+// Also: a rule nested in its block that repeats the full block name (`.l-header { .l-header__toggle {} }`) is written `&__toggle`.
 const nestBlockParts = make('nest-block-parts', 'STYLE-47', (root, r) => {
   const single = (sel) => (/^\.(-?[_a-zA-Z][\w-]*)(?::[\w-]+(?:\([^)]*\))?)*$/.exec(sel.trim()) || [])[1];
   const blocks = new Set();
@@ -299,6 +300,22 @@ const nestBlockParts = make('nest-block-parts', 'STYLE-47', (root, r) => {
       if (el > 0 && blocks.has(c.slice(0, el))) { r(n, `\`.${c}\` is an element of \`.${c.slice(0, el)}\` — write it inside the block as \`&${c.slice(el)}\`.`); continue; }
       const parent = [...blocks].filter((b) => b !== c && c.startsWith(b + '-')).sort((a, b) => b.length - a.length)[0];
       if (parent) r(n, `\`.${c}\` is a variant of \`.${parent}\` — write it inside the block as \`&${c.slice(parent.length)}\`.`);
+    }
+  });
+  // nested rules that repeat the full block name. A real descendant context (`.l-header .other-block`) is not a single class: never flagged.
+  root.walkRules((n) => {
+    if (!n.parent || n.parent.type === 'root' || inMixinOrFunction(n)) return;
+    let outer = null, depth = 0;
+    for (let p = n.parent; p && p.type !== 'root'; p = p.parent) if (p.type === 'rule') { outer = p; depth++; }
+    if (!outer || outer.selector.includes(',')) return;
+    const b = single(outer.selector);
+    if (!b || b.includes('__')) return;
+    for (const s of n.selector.split(',')) {
+      const c = single(s);
+      if (!c || c.includes('--')) continue;
+      const where = depth > 1 ? ' as a sibling directly under the block, not inside another element' : ' inside the block';
+      if (c.startsWith(b + '__')) r(n, `\`.${c}\` repeats the block name inside \`.${b}\` — write it as \`&${c.slice(b.length)}\`${where}.`);
+      else if (c.startsWith(b + '-') && !c.includes('__')) r(n, `\`.${c}\` repeats the block name inside \`.${b}\` — write the variant as \`&${c.slice(b.length)}\`${where}.`);
     }
   });
 });

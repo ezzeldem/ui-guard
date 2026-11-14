@@ -79,8 +79,8 @@ async function stylelintUnitTests() {
     'no-literal-filter': { valid: ['.u-filter-primary { filter: var(--color-img); }', ':root { --color-img: invert(1); }'], invalid: ['.c-a { filter: invert(1) sepia(1); }', '.c-a[data-img="svg"] { color: red; }'] },
     'focus-visible': { valid: ['.c-a { outline: none; &:focus-visible { outline: 1px solid; } }', '.c-a { outline: none; @include hover { color: red; } }'], invalid: ['.c-a { outline: none; }', '.c-a:focus { outline: 0; }'] },
     'hover-media': { valid: ['@media (hover: hover) { .c-a:hover { color: red; } }\n.c-a:focus-visible { color: red; }', '.c-a { @include hover { color: red; } }'], invalid: ['.c-a:hover { color: red; }', '@media (hover: hover) { .c-a:hover { color: red; } }'] },
-    'nest-block-parts': { valid: ['.c-a { gap: 0; &__b { gap: 0; } &-big { gap: 0; } }', '.c-a { gap: 0; }\n.c-other__b { gap: 0; }'], invalid: ['.c-a { gap: 0; }\n.c-a__b { gap: 0; }', '.c-a { gap: 0; }\n.c-a-big:hover { gap: 0; }'] },
-    bem: { valid: ['.c-a__b { color: red; }', '.c-a { &__b { color: red; } &-variant { color: red; } }'], invalid: ['.c-a--big { color: red; }', '.c-a__b__c { color: red; }', '.c-a { &__b { &__c { color: red; } } }'] },
+    'nest-block-parts': { valid: ['.c-a { gap: 0; &__b { gap: 0; } &-big { gap: 0; } }', '.c-a { gap: 0; }\n.c-other__b { gap: 0; }', '.c-a { .c-other { gap: 0; } }', '.c-a { .c-a .c-other { gap: 0; } }', '.l-header { block-size: 5rem; &__toggle { &.js-closed { gap: 0; } } &__btn { min-inline-size: 2.75rem; } &__menu { inline-size: 15.75rem; } }'], invalid: ['.c-a { gap: 0; }\n.c-a__b { gap: 0; }', '.c-a { gap: 0; }\n.c-a-big:hover { gap: 0; }', '.c-a { .c-a__b { gap: 0; } }', '.c-a { .c-a-big { gap: 0; } }', '.c-a { &__x { .c-a__y { gap: 0; } } }', '@media print { .c-a { .c-a__b { gap: 0; } } }'] },
+    bem: { valid: ['.c-a__b { color: red; }', '.c-a { &__b { color: red; } &-variant { color: red; } }', '.l-header { block-size: 5rem; &__toggle { &.js-closed { gap: 0; } } &__btn { min-inline-size: 2.75rem; } &__menu { inline-size: 15.75rem; } }'], invalid: ['.c-a--big { color: red; }', '.c-a__b__c { color: red; }', '.c-a { &__b { &__c { color: red; } } }'] },
   };
   const fileFor = { 'token-file-root-only': 'src/assets/scss/theme/colors/colors.palette.theme.css', 'custom-theme': 'src/assets/scss/theme/custom.theme.css' };
   for (const [rule, c] of Object.entries(cases)) {
@@ -89,6 +89,18 @@ async function stylelintUnitTests() {
       for (const code of c.invalid) { const w = await lint(rule, code, true, fileFor[rule]); assert.ok(w.length > 0, `invalid case not reported: ${code}`); assert.ok(/^\[[A-Z]+-\d{2}\]/.test(w[0].text), 'message must start with the ui-guard ID: ' + w[0].text); }
     });
   }
+  await test('BEM in SCSS fixture: exact findings per shape (STYLE-47 / STYLE-04 / clean)', async () => {
+    const both = async (code) => [...(await lint('nest-block-parts', code)), ...(await lint('bem', code))].map((w) => w.text.slice(0, 10));
+    const ids = (a) => [...new Set(a.map((x) => x.slice(1, 9)))];
+    assert.deepStrictEqual(ids(await both('.l-header { gap: 0; }\n.l-header__toggle { gap: 0; }')), ['STYLE-47'], 'separate top-level rules');
+    assert.deepStrictEqual(ids(await both('.l-header { .l-header__toggle { gap: 0; } }')), ['STYLE-47'], 'nested full names');
+    assert.deepStrictEqual(ids(await both('.l-header { &__a { &__b { gap: 0; } } }')), ['STYLE-04'], 'double level');
+    assert.deepStrictEqual(await both('.l-header { block-size: 5rem; &__toggle { &.js-closed { gap: 0; } } &__btn { min-inline-size: 2.75rem; } &__menu { inline-size: 15.75rem; } }'), [], 'correct form has no findings');
+    const w = await lint('nest-block-parts', '.l-header { .l-header__toggle { gap: 0; } }');
+    assert.ok(/write it as `&__toggle` inside the block/.test(w[0].text), w[0].text);
+    const w2 = await lint('bem', '.l-header { &__a { &__b { gap: 0; } } }');
+    assert.ok(/siblings directly under the block/.test(w2[0].text), w2[0].text);
+  });
   await test('stylelint ui-guard/token-file-root-only fonts option allows @font-face', async () => {
     const w = await lint('token-file-root-only', '@font-face { font-family: "A"; font-display: swap; }\n:root { --ff: "A"; }', [true, { fonts: true }], 'src/assets/scss/theme/fonts/fonts.theme.css');
     assert.strictEqual(w.length, 0);

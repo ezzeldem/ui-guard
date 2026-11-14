@@ -100,7 +100,7 @@ Based on the team's AXIS SCSS architecture, adapted for Angular by ui-guard. Rul
 | STYLE-43 | info | ai | styles, templates | Interactive targets are at least 1.5rem (24px). | Report only. |
 | STYLE-44 | info | script | token pairs | Text/background token pairs used together meet WCAG AA contrast. | Report only. |
 | STYLE-45 | info | runtime | screenshot routes | No horizontal overflow from 320px wide up. | Report only (measured during `fix`). |
-| STYLE-47 | warning | stylelint (custom) | `*.scss` | BEM in SCSS: a block's elements and variants are written **inside** the block rule with `&__element` and `&-variant`, not as separate top-level rules in the same file. | Incorrect: `.c-button {}` then `.c-button__icon {}`, `.c-button-secondary {}`. Correct: `.c-button { … &__icon { … } &-secondary { … } }` (same compiled CSS). |
+| STYLE-47 | warning | stylelint (custom) | `*.scss` | BEM in SCSS: a block's elements and variants are written **inside** the block rule with `&__element` and `&-variant`, not as separate top-level rules in the same file, and not nested with the full block name (`.l-header { .l-header__toggle {} }` → `&__toggle`). Elements sit side by side under the block. | Incorrect: `.c-button {}` then `.c-button__icon {}`, `.c-button-secondary {}`; `.c-button { .c-button__icon {} }`. Correct: `.c-button { … &__icon { … } &-secondary { … } }` (same compiled CSS). |
 | STYLE-46 | warning | script | build output | CSS size budget (gzip): global styles ≤ 60 KB, each lazy component style chunk ≤ 12 KB, theme files together ≤ 3 KB. | Report; never blocks. |
 
 ## How agents use this file
@@ -109,6 +109,8 @@ Based on the team's AXIS SCSS architecture, adapted for Angular by ui-guard. Rul
 - **Is not a defect:** vendor classes (Bootstrap, Material, PrimeNG…) used in templates; files under `packages/`; `node_modules`; anything the "Exceptions" column allows; `!important` in `custom.theme.css`.
 - Rules checked by **stylelint** or **script** are not yours unless the scan tells you the tool was declined.
 - STYLE-40/41/43/44/45 are **report-only**. Never propose restyling focus or contrast.
+- **Writing SCSS (new or rewritten):** follow "Writing BEM in SCSS" above. One block rule; every element is `&__name` directly under the block, **side by side** (never inside another element); variants are `&-variant`; states like `&.js-closed` go inside their element. Never write `&__a { &__b {} }` (compiles to `.block__a__b`, STYLE-04) and never `.block { .block__x {} }` (STYLE-47). Never rename a class beyond its prefix or the planned renames: `.l-header__btn` stays `.l-header__btn`.
+- **Converting `.block { .block__x {} }` to `&__x`** turns a descendant selector into a plain class (lower specificity, compiled CSS changes). Do it only with pixel proof (Playwright installed and before/after screenshots taken) or when a script confirms `.block__x` is defined once in the project and used only in the block's own template. Otherwise leave it and report it as skipped (unsure) with the reason.
 - Before reporting STYLE-03 or STYLE-02, check who sets the class: grep the TS and the template for the class name.
 - Before reporting STYLE-28, count the pages and layouts that use the block (`class-usage.js` output or Grep).
 - When unsure, report `info` with `unverified` in the message.
