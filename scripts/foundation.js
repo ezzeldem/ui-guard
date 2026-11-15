@@ -27,7 +27,7 @@ Usage (all accept --root <dir>):
         Foundation B: move the rules of the existing global stylesheets into the segment files in cascade order, update the
         entry and angular.json styles, delete emptied old files. Verified by compiling before/after with the project's sass.
         Exit 0 = everything moved and proven · 6 = something left for the fixer agent (see .ui-guard/scss/foundation-move.json)
-        · 7 = sass cannot be loaded (no node_modules): STOP — nothing moved; run `npm install` first.`;
+        · 7 = sass cannot be loaded (no node_modules): STOP — nothing moved; run npm install first.`;
 
 const T = path.join(project.PLUGIN_ROOT, 'templates');
 const THEME_FILES = ['theme/colors/colors.palette.theme.css', 'theme/fonts/fonts.theme.css', 'theme/images/images.theme.css', 'theme/custom.theme.css'];

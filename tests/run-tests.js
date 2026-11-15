@@ -28,7 +28,12 @@ function run(script, args, cwd, input, env) {
   return { code: r.status, out: (r.stdout || '') + (r.stderr || ''), stdout: r.stdout || '', stderr: r.stderr || '' };
 }
 function gitRun(cwd, args, extraEnv = {}) {
-  const r = spawnSync('git', ['-c', 'user.name=ui-guard-test', '-c', 'user.email=test@example.invalid', '-c', 'commit.gpgsign=false', '-c', 'init.defaultBranch=main', ...args], { cwd, encoding: 'utf8', env: { ...process.env, ...extraEnv } });
+  // Safety: tests may only use git inside tests/.tmp. Git must never walk up into the plugin's own repository
+  // (a failed `git init` once let a test commit and push there). Refuse unless cwd is under TMP, and stop discovery at tests/.
+  const abs = path.resolve(cwd);
+  if (!(abs === TMP || abs.startsWith(TMP + path.sep))) throw new Error('gitRun outside tests/.tmp refused: ' + abs);
+  if (args[0] !== 'init' && !args.includes('--bare') && !fs.existsSync(path.join(abs, '.git'))) throw new Error('gitRun refused: ' + abs + ' has no .git of its own (git init failed?)');
+  const r = spawnSync('git', ['-c', 'user.name=ui-guard-test', '-c', 'user.email=test@example.invalid', '-c', 'commit.gpgsign=false', '-c', 'init.defaultBranch=main', ...args], { cwd, encoding: 'utf8', env: { ...process.env, GIT_CEILING_DIRECTORIES: __dirname, ...extraEnv } });
   return { code: r.status, out: (r.stdout || '') + (r.stderr || '') };
 }
 function freshCopy(src, name) {
