@@ -62,7 +62,7 @@ const pxOnly1px = make('px-only-1px', 'STYLE-10', (root, r) => {
   });
 });
 
-// ---------- STYLE-11 logical-properties ----------
+// ---------- STYLE-11 logical-properties (except width/height) ----------
 const PHYS = {
   'margin-left': 'margin-inline-start', 'margin-right': 'margin-inline-end', 'margin-top': 'margin-block-start', 'margin-bottom': 'margin-block-end',
   'padding-left': 'padding-inline-start', 'padding-right': 'padding-inline-end', 'padding-top': 'padding-block-start', 'padding-bottom': 'padding-block-end',
@@ -72,7 +72,7 @@ const PHYS = {
   'border-left-style': 'border-inline-start-style', 'border-right-style': 'border-inline-end-style', 'border-top-style': 'border-block-start-style', 'border-bottom-style': 'border-block-end-style',
   'border-top-left-radius': 'border-start-start-radius', 'border-top-right-radius': 'border-start-end-radius', 'border-bottom-left-radius': 'border-end-start-radius', 'border-bottom-right-radius': 'border-end-end-radius',
   left: 'inset-inline-start', right: 'inset-inline-end', top: 'inset-block-start', bottom: 'inset-block-end',
-  width: 'inline-size', height: 'block-size', 'min-width': 'min-inline-size', 'max-width': 'max-inline-size', 'min-height': 'min-block-size', 'max-height': 'max-block-size',
+  // width / height and min/max-width/height are NOT reported: they stay as written (team decision, STYLE-11)
   'scroll-margin-left': 'scroll-margin-inline-start', 'scroll-margin-right': 'scroll-margin-inline-end', 'scroll-margin-top': 'scroll-margin-block-start', 'scroll-margin-bottom': 'scroll-margin-block-end',
   'scroll-padding-left': 'scroll-padding-inline-start', 'scroll-padding-right': 'scroll-padding-inline-end', 'scroll-padding-top': 'scroll-padding-block-start', 'scroll-padding-bottom': 'scroll-padding-block-end',
 };

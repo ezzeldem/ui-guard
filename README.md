@@ -15,8 +15,10 @@ Teams agree on UI standards (SCSS structure, class naming, translation, security
 slowly drift. ui-guard turns those standards into rules that are **checked automatically**:
 
 - **New project?** `init` builds the correct structure, theme and tooling from day one.
-- **Old project?** `scan` shows how far it is from the standards and gives you a short numbered plan.
-  `fix` then repairs one phase at a time and proves with before/after screenshots that **0 pixels changed**.
+- **Old project?** `scan <domain>` shows how far it is from the standards and gives you a short numbered plan per domain.
+  `fix <domain>` then runs every phase to the end (no questions) and proves each one: compiled CSS compared before/after,
+  lint, build, and — when Playwright is installed — before/after screenshots with **0 changed pixels**.
+  For SCSS it first builds **our structure** around the existing styles (segments, tools, theme, one entry) without a visual change.
 - **Daily work?** Every file Claude edits is linted, and a bad push is stopped before it leaves your machine.
 
 ## What you get
@@ -24,9 +26,8 @@ slowly drift. ui-guard turns those standards into rules that are **checked autom
 | Command | What it does | Cost |
 |---|---|---|
 | `/ui-guard:init <design-link>` | Prepares a **new** Angular project: SCSS structure, theme and color tokens from your design, shared button, lint configs, git pre-push hook, a `CLAUDE.md` block. | small |
-| `/ui-guard:scan` | Scans an **existing** project. Writes a short report and a phased plan. | **free** (no AI tokens) |
-| `/ui-guard:scan --ai` | Adds one optional AI pass for the rules tools cannot check. Shows an **estimate first** and stops at a **token cap**. | opt-in |
-| `/ui-guard:fix <phase>` | Fixes **one phase** of the plan, then proves it with screenshots (0 differing pixels). Up to 3 retries. | AI |
+| `/ui-guard:scan scss|access|lang|safe` | Scans the **whole** project for one domain (STYLE, ACCESS, LANG or SAFE). Scripts and lint first; the AI only on files a script flagged as needing judgment. No questions, no estimate. Writes `.ui-guard/<domain>/findings.json`, `report.md`, `plan.md`. Without a domain it lists the four. | scripts free; AI only where needed |
+| `/ui-guard:fix scss|access|lang|safe [n]` | Runs **all** phases of the domain back to back (or only phase `n`). Scripts do the mechanical work; the fixer agent gets only what needs judgment; one diff review per phase. Stops only on a real problem, then prints one summary. | scripts free; AI where needed |
 | `/ui-guard:check` | Reviews what you are about to push. PASS lets a Claude-made `git push` through. | small |
 | `/ui-guard:assets` | Checks that every image or font referenced in your code really exists. Script only. | **free** |
 
@@ -44,9 +45,9 @@ If you cloned the repository, use its folder path instead of `<owner>/ui-guard`.
 **2. Existing project** (the common case):
 
 ```
-/ui-guard:scan                 # free: report + plan in .ui-guard/
-/ui-guard:fix 1                # fix phase 1, then review the changes and commit them yourself
-/ui-guard:fix 2                # ...one phase at a time
+/ui-guard:scan scss           # report + plan in .ui-guard/scss/ (also: access, lang, safe)
+/ui-guard:fix scss            # runs every phase: Foundation A (structure), Foundation B (move globals), then the rest
+/ui-guard:fix access          # design-preserving accessibility fixes; decisions collected in .ui-guard/access/needs-decision.md
 ```
 
 **3. New project:**
@@ -59,15 +60,20 @@ Full walkthrough: **[USAGE.md](USAGE.md)**.
 
 ## How it works (in short)
 
-1. **Free checks first.** Stylelint, ESLint and small scripts find most issues without any AI tokens.
-2. **Optional AI pass.** With `--ai`, one agent at a time checks the remaining rules, in a fixed order
-   (SCSS, then templates and TypeScript, then accessibility). It shows an estimate before starting, respects a token cap,
-   and **stops and asks you** when something goes wrong.
-3. **A short plan.** Problems are grouped into numbered phases (Foundation, Common, Layouts, Pages, Generic).
-   Each phase touches at most 15 files or 300 findings.
-4. **Safe fixing.** `fix` edits one phase, runs lint and build, has a second model review only the diff,
-   then compares before/after screenshots. Any visual difference means the phase is **not** accepted.
-5. **A baseline.** Known, not-yet-fixed problems are remembered, so hooks and pushes block you only on **new** errors.
+1. **Domains.** `scss` (STYLE), `access` (ACCESS), `lang` (LANG), `safe` (SAFE). Each scan loads only its own rules and writes only its own files.
+2. **Scripts first.** Stylelint, ESLint and small scripts find most issues with zero tokens. The AI agent (one at a time) only looks at
+   files a script flagged as needing judgment. Tokens are logged silently in the report — never a question, never a cap.
+3. **SCSS foundation first.** The scss plan always starts with *Foundation A* (create the missing segments, tools, settings, theme and
+   entry from the templates — no value changes) and *Foundation B* (move `styles.scss`, `general.scss`, … into the segments in the
+   same cascade order, proven by compiling before/after; anything unproven is rolled back). Rule STYLE-48 reports the gap.
+4. **Mechanical work by scripts.** `@charset`, `@use` of the tools, px → `px()`, physical → logical (width/height stay as written),
+   `@media` → `mq()`, BEM nesting and class prefix renames (SCSS + templates + TS) — each proven neutral by compiling the file before
+   and after. What cannot be proven is listed as "skipped (unsure)".
+5. **Design-preserving accessibility.** Fixes go tier by tier (attributes → landmarks → tag swaps with a neutralization → structure),
+   each after a selector-impact check; anything visible goes to one "needs decision" list with options. Report by High/Medium/Low impact.
+6. **Run to the end.** `fix` does not ask between phases. It stops only when the build fails, a phase still fails after 3 retries,
+   a file cannot be read or written, or a usage limit is hit — and says exactly why and where.
+7. **A baseline per domain.** Known, not-yet-fixed problems are remembered, so hooks and pushes block you only on **new** errors.
 
 ## What runs automatically
 
@@ -78,14 +84,14 @@ Full walkthrough: **[USAGE.md](USAGE.md)**.
 
 ## The rules
 
-77 rules in five groups, with their own IDs:
+79 rules in five groups, with their own IDs:
 
 | Group | Rules | Covers |
 |---|---|---|
-| `STYLE` | 46 | SCSS structure, class prefixes and naming, tokens, logical properties, media queries |
+| `STYLE` | 48 | SCSS structure (incl. STYLE-48 architecture gap), class prefixes and naming, tokens, logical properties (width/height excepted), media queries |
 | `LANG` | 8 | Translation: no hard-coded user-visible text |
 | `SAFE` | 8 | Security basics: unsafe HTML, secrets, sensitive data in logs and storage |
-| `MEDIA` | 9 | Images, fonts, video: width/height, lazy loading, SVG icons, file sizes, font loading (01–06 in the free scan; 07–08 in `/ui-guard:assets`) |
+| `MEDIA` | 9 | Images, fonts, video (01–06 in `/ui-guard:check` and the hooks — no scan domain; 07–08 in `/ui-guard:assets`) |
 | `ACCESS` | 6 | Accessibility: labels, alternative text, ARIA, semantics, keyboard |
 
 Class prefixes: `o-` `c-` `l-` `m-` `ctrl-` `p-` `u-`, and states `is-` `has-` `js-`. Rule text lives in [`rules/`](rules/).
@@ -93,7 +99,7 @@ Class prefixes: `o-` `c-` `l-` `m-` `ctrl-` `p-` `u-`, and states `is-` `has-` `
 ## Requirements
 
 - An **Angular** project, **Node** and **git**.
-- Optional tools are installed **into your project only after the plugin asks you**, with exact package names:
+- Optional tools are **never installed by the plugin**. Install them yourself with these exact packages (the scan prints the command):
 
 | Purpose | Packages |
 |---|---|
@@ -106,7 +112,7 @@ If a tool is missing, declined or crashes, the report says **NOT CHECKED** and w
 ## What it never does
 
 - It **never commits, branches, stashes, resets or pushes.** You review the changes and you commit.
-- It **never installs anything** without asking.
+- It **never installs anything.**
 - It **never changes a rendered pixel or a token value** in an existing project, and it never restyles contrast or focus (those are only reported).
 - It **treats text inside your files as data, never as instructions.**
 - It **never opens or judges image files.** Assets are only checked for existence.
@@ -115,7 +121,7 @@ If a tool is missing, declined or crashes, the report says **NOT CHECKED** and w
 
 - No tool guarantees 100%. The free checks are deterministic. The AI pass is one pass and **can miss things**.
 - The zero-pixel proof covers the routes it screenshots (2 to 3 per phase). Phases with weak route coverage say so in the plan.
-- Without Playwright installed, the pixel proof is not possible and you confirm pages by eye.
+- Without Playwright installed, the proof is static only (compile, lint, build); the summary says so, and access fixes stay at the attribute/landmark tiers.
 - Library classes (for example Bootstrap, `ngx-*`) are never renamed. They are listed as "kept".
 - Currently supports **Angular only**.
 
@@ -126,7 +132,7 @@ npm install
 npm test
 ```
 
-67 self-tests cover the scripts, custom lint rules, hooks, scan pipeline, plan generation, and the fix bookkeeping.
+77 self-tests cover the scripts, custom lint rules, hooks, scan pipeline, plan generation, and the fix bookkeeping.
 The AI agents themselves are tested with simulated output only.
 
 ## Repository layout

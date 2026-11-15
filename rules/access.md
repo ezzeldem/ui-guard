@@ -28,10 +28,33 @@ under STYLE-40/41/44 and is never restyled by an accessibility fix.
 | ACCESS-04 | **Semantics** — element choice, landmarks, headings, tables, lists, component-host wrappers, `lang`/`dir` | warning | eslint + ai | `*.html`, `index.html` | No `<main>`, nav in a `<div>`, several `<nav>`s without names (layout shell); no `<h1>`, skipped levels, fake headings, headings for emphasis (never renumber a shared component's heading blindly — check usages); `<div (click)>`/`<span (click)>`/`<a (click)>` without `href` used as buttons; `href="javascript:void(0)"`; navigation by click handler instead of `routerLink`; div-lists, div-tables, radio/checkbox groups without `<fieldset>`; `<button>` in a form without `type="button"`; duplicate attributes (report if fixing changes behavior); nested `<form>`; `<th>` without `scope`, tables without caption/`thead`/`tbody`; a component host between `<ul>` and `<li>` or `<tbody>` and `<tr>` (check `display: contents` first); foreign-language runs without `lang`; hard-coded `dir` in an app that switches direction. | Use the native element. **Supersession:** when a fake control becomes a native element, its `role` (ACCESS-03) and `tabindex`/key handlers (ACCESS-05) are dropped. |
 | ACCESS-05 | **Keyboard** — `tabindex`, focus order, key handlers, focus management, roving tabindex | warning | eslint + ai | `*.html`, `*.ts` | Positive `tabindex`; click-only elements not focusable or not operable with Enter/Space; dead or double focus stops; hidden-but-focusable content (class-hidden instead of `@if` — verify first); focus order different from visual order (CSS `order`, `row-reverse`, RTL); overlays/modals: focus not moved in, Tab escapes, Escape does nothing, focus not restored (check for an existing `document:keydown.escape` before adding one); Escape unreachable when the panel is a sibling of the trigger; focus lost when the focused element is destroyed; composite widgets without arrow-key navigation / roving `tabindex`; redundant key handlers on native buttons; fake-disabled controls still focusable; route-change focus, missing skip link, `autofocus`; missing focus indicator → report only (CSS, STYLE-40). | Use native controls; `tabindex="0"` / `-1` only; move and restore focus in overlays; roving tabindex for composites. |
 
+## Impact levels (the report ranks ACCESS by user impact, not one "warning" for all)
+
+| Impact | Examples |
+|---|---|
+| **High** — blocks a task | meaningful image without `alt`; form control or icon-only button without a name; clickable `div`/`span` without role and keyboard; `<html>` without `lang`; positive `tabindex`; focus outline removed with no replacement; ARIA state that contradicts the real state (`aria-expanded="false"` on an open panel, `aria-hidden` on focusable content) |
+| **Medium** — makes it harder | skipped heading level; `div` where a landmark belongs; `a` used as a button or `button` used as a link; data table without `th`; `iframe` without `title`; vague link text ("click here", "more") |
+| **Low** — polish | everything else |
+
+An agent may add `"impact": "high" | "medium" | "low"` to a finding; otherwise `lib/access-impact.js` decides from the message.
+The report counts add up (High + Medium + Low = total). The same issue from one shared source more than 3 times is one row
+"×N" with 2–3 examples, and the report starts with a short "fix these first" list (shared sources first).
+
+**Never reported** (they are not problems): a native element "without an explicit role" (`button`, `a[href]`, `input`,
+`nav`… have an implicit role); a correct `alt=""` on a decorative image; a missing `<h1>` in a component that is clearly a
+fragment (not a routed page, not the shell).
+
+## Fixing without changing the design
+
+`/ui-guard:fix access` follows `rules/access-fix-tiers.md`: Tier A (attributes) → B (landmarks) → C (tag swaps with a
+neutralization in the component's own SCSS) → D (structure), each after the selector-impact check. Anything that needs a
+visible change or content only the developer knows goes to `.ui-guard/access/needs-decision.md` with 2–3 options.
+
 ## How agents use this file
 
 - Read only the area you were given. One attribute belongs to one area (ownership column) — do not report the same attribute under two areas.
 - Check library defaults before reporting (e.g. Angular Material icons already set `aria-hidden`; some toast libraries already use live regions).
 - For shared components, count consumers (Grep the selector) and put the count in the message.
 - Focus styling and contrast are **never** ACCESS findings (STYLE-40/41/44).
+- Do not report native elements without an explicit role, a correct `alt=""` on a decorative image, or a missing `<h1>` in an obvious fragment.
 - When unsure, report `info` with `unverified` in the message.

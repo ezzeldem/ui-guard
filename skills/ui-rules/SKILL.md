@@ -8,7 +8,7 @@ description: Use whenever creating or editing .scss, .css, .html or Angular .ts 
 1. Every SCSS/CSS file starts with `@charset "UTF-8";`, then `@use "tools" as *;` when it uses a tool.
 2. Sizes with `px(N)` (rem). Raw `px` only for `1px`. Media queries only with `@include mq(min|max, w|h, <bp>)`.
 3. Colors only with `var(--token)` — no hex/rgb/hsl/named colors, no literal fallbacks inside `var()`.
-4. Logical properties only: `margin-inline-end`, `inset-inline-start`, `inline-size`, `text-align: start`…
+4. Logical properties: `margin-inline-end`, `inset-inline-start`, `text-align: start`… — but `width`/`height` and `min-/max-width/height` stay as written.
 5. No `!important` (only allowed in `custom.theme.css` and the one generic reduced-motion block). No IDs. No attribute selectors. No `@extend` (except `%placeholder`). No `@import`.
 6. Every authored class has its role prefix — in SCSS **and** in templates/TS: `o- c- l- m- ctrl- p- u-`, state `is- has- js-`. The prefix follows the folder → role map in `.ui-guard/profile.md`.
 7. BEM `block__element`, one level, never `--modifier`; variants are `c-button c-button-secondary`. Write elements and variants inside the block: `.c-button { &__icon { … } &-secondary { … } }`.
@@ -19,9 +19,9 @@ description: Use whenever creating or editing .scss, .css, .html or Angular .ts 
 12. Every user-visible text (text nodes, `placeholder`, `title`, `alt`, `aria-label`, toasts, titles) is a translation key added to **every** language file.
 13. Bind ARIA with `[attr.aria-*]` (bind `null` to remove); no positive `tabindex`; native elements over `div (click)`.
 14. No HTML from untrusted data (`innerHTML`, `bypassSecurityTrust*`), no secrets in front-end code.
-15. Never commit, branch, stash or push unless the developer asks. Do not edit `.ui-guard/baseline.json`.
+15. Never commit, branch, stash or push unless the developer asks. Do not edit the `.ui-guard/<domain>/baseline.json` files.
 
 For the full rules read `${CLAUDE_PLUGIN_ROOT}/rules/<file>.md` for the prefix you are touching
-(`style.md`, `lang.md`, `safe.md`, `access.md`; images/assets: `media.md` (01–06 are checked by the free scan; `/ui-guard:assets` checks referenced files exist)).
+(`style.md`, `lang.md`, `safe.md`, `access.md` + `access-fix-tiers.md`; images/assets: `media.md` (01–06 are checked by the free scan; `/ui-guard:assets` checks referenced files exist)).
 Read `.ui-guard/profile.md` for this project's role map, tokens, i18n setup and button.
 The post-edit hook lints every file you write; fix any `STYLE-xx line N` error it reports before moving on.

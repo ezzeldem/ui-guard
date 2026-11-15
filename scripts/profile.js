@@ -179,7 +179,7 @@ function deepMerge(a, b) {
 function render(p) {
   const yes = (b) => (b ? 'yes' : 'no');
   const L = [];
-  L.push('# ui-guard project profile', '', 'Written by ui-guard. Reused by every command. Rebuild with `/ui-guard:scan --refresh-profile`.', 'Answers given once are kept (section "Answers"). The JSON block at the end is what scripts read.', '');
+  L.push('# ui-guard project profile', '', 'Written by ui-guard. Reused by every command. Rebuild with `node <plugin>/scripts/profile.js --refresh` (every scan refreshes it when it is missing).', 'Answers given once are kept (section "Answers"). The JSON block at the end is what scripts read.', '');
   L.push('## Project', `- Project type: **${p.projectType || 'unknown'}**`, `- Angular: ${p.angular.version || '?'} · builder \`${p.angular.builder || '?'}\` · project \`${p.angular.project || '?'}\``);
   L.push(`- Global styles (in order): ${p.angular.styles.length ? p.angular.styles.map((s) => '`' + (typeof s === 'string' ? s : s.input) + '`').join(' → ') : '(none)'}`);
   L.push(`- includePaths: ${p.angular.includePaths.map((s) => '`' + s + '`').join(', ') || '(none)'} · externalDependencies: ${p.angular.externalDependencies.map((s) => '`' + s + '`').join(', ') || '(none)'}`);

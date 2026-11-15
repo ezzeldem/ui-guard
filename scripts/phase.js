@@ -1,64 +1,71 @@
 #!/usr/bin/env node
 'use strict';
-// §8.1 helper for /ui-guard:fix — read the plan, guard the file set, verify, record success/failure. Never touches git state.
+// /ui-guard:fix <domain> helper — read the domain's plan, guard the file set, verify, record success/failure, and write the
+// one end-of-run summary. Never touches git state. Every command needs --domain scss|access|lang|safe.
+const fs = require('fs');
 const path = require('path');
 const u = require('./lib/util');
 const project = require('./lib/project');
 const git = require('./lib/git');
 const fpLib = require('./lib/fingerprint');
+const domains = require('./lib/domains');
 const runChecks = require('./run-checks');
 const merge = require('./merge-findings');
 
-const HELP = `phase.js — /ui-guard:fix helper (read-only git).
-Usage (all accept --root <dir>):
-  node phase.js list                       phase ids, titles, status, file counts
-  node phase.js render                     re-render plan.md from plan.json
-  node phase.js show <id>                  phase + its findings → .ui-guard/tmp/fix/phase-<id>.json
-                                           exit 1 unknown id (lists valid ids) · 3 already done · 4 earlier phases not done
-  node phase.js gitcheck                   exit 0 if git works; exit 5 + a plain warning when the project is not a git repo (no way to undo)
-  node phase.js backup [--made-by-me]      copy the project to <project>-backup-<date> (no node_modules/dist/.angular) — only after the developer chose it
-  node phase.js dirty <id>                 phase files that already have uncommitted changes (exit 1 if any; skipped without git)
-  node phase.js snapshot <id>              remember changed files before the fixer runs
-  node phase.js outside <id>               files changed by the fix OUTSIDE the phase (exit 1 if any)
-  node phase.js diff <id>                  git diff -- <phase files> → .ui-guard/tmp/fix/phase-<id>.diff
-  node phase.js verify <id>                lint + scripts on phase files: phase findings still present + new errors (exit 1 on problems)
-  node phase.js complete <id> --verdict "<text>" [--retries n]
-                                           status done, findings → fixed, fingerprints removed from baseline, writes .ui-guard/fixes/phase-<id>.md
-  node phase.js fail <id> --reason "<text>" [--retries n]
-                                           status failed, writes the failure log (changes stay in the working tree)`;
+const HELP = `phase.js — /ui-guard:fix helper (read-only git). Every command needs --domain scss|access|lang|safe; all accept --root <dir>.
+  node phase.js list                       phase ids, kinds, titles, status, file counts
+  node phase.js render                     re-render .ui-guard/<domain>/plan.md from plan.json
+  node phase.js next                       print the id of the next phase to run (first one not done) · exit 10 = all done
+  node phase.js show <id> [--verification static|visual]
+                                           phase + its findings → .ui-guard/tmp/<domain>/fix/phase-<id>.json
+                                           exit 1 unknown id (lists valid ids) · 3 already done · 4 earlier phases not done (a warning only)
+  node phase.js gitcheck                   exit 0 if git works; exit 5 when the project is not a git repo (no undo — fix makes a backup)
+  node phase.js backup [--made-by-me]      copy the project to <project>-backup-<date> (no node_modules/dist/.angular/.git)
+  node phase.js dirty <id>                 phase files that already have uncommitted changes (listed in the summary; never a question)
+  node phase.js snapshot <id>              remember changed files before the fix runs
+  node phase.js outside <id>               files changed OUTSIDE the phase (exit 1 if any). Foundation phases may touch the scss root,
+                                           angular.json and index.html; script fixes may touch the extra files they report.
+  node phase.js diff <id>                  diff of the phase → .ui-guard/tmp/<domain>/fix/phase-<id>.diff (the reviewer's only input)
+  node phase.js verify <id>                lint + scripts of the domain on the phase files: phase findings still present + new errors (exit 1)
+  node phase.js complete <id> --verdict "<text>" [--retries n] [--review skipped|run]
+                                           status done, findings → fixed, fingerprints removed from the domain baseline, log written
+  node phase.js fail <id> --reason "<text>" [--retries n]   status failed, failure log (changes stay in the working tree)
+  node phase.js summary [--stopped "<why>"] [--at <id>]
+        the ONE end-of-run summary: phases done, files changed, remaining findings, skipped (unsure) items, the access
+        needs-decision list, the plan.md and report.md paths → .ui-guard/<domain>/fix-summary.md`;
 
-// The plan's machine part is .ui-guard/plan.json (written by plan.js); plan.md is re-rendered from it.
-function readPlan(root) {
-  const data = u.readJSON(path.join(project.paths(root).ug, 'plan.json'), null);
+let DOMAIN = null;
+const dp = (root) => domains.paths(root, DOMAIN);
+
+function readPlan(root, domain = DOMAIN) {
+  const data = u.readJSON(domains.paths(root, domain).planJson, null);
   return data && Array.isArray(data.phases) ? { data } : null;
 }
-
-function writePlan(root, plan) {
-  u.writeJSON(path.join(project.paths(root).ug, 'plan.json'), plan.data);
-  require('./plan').renderOnly(root);
+function writePlan(root, plan, domain = DOMAIN) {
+  u.writeJSON(domains.paths(root, domain).planJson, plan.data);
+  require('./plan').renderOnly(root, domain);
 }
 
 const cmpId = (a, b) => { const pa = String(a).split('.').map(Number), pb = String(b).split('.').map(Number); for (let i = 0; i < Math.max(pa.length, pb.length); i++) { const d = (pa[i] || 0) - (pb[i] || 0); if (d) return d; } return 0; };
 
 function getPhase(root, id) {
   const plan = readPlan(root);
-  if (!plan) { console.error('No .ui-guard/plan.json. Run /ui-guard:scan (or --plan-only) first.'); process.exit(1); }
+  if (!plan) { console.error(`No .ui-guard/${DOMAIN}/plan.json. Run /ui-guard:scan ${DOMAIN} first (fix runs it for you).`); process.exit(1); }
   const ph = plan.data.phases.find((p) => String(p.id) === String(id));
   return { plan, ph };
 }
 
-function fixDir(root) { return path.join(project.paths(root).tmp, 'fix'); }
+const fixDir = (root) => dp(root).fix;
 function workingChanged(root) { return [...new Set([...(git.git(root, ['diff', '--name-only', 'HEAD']) || '').split(/\r?\n/), ...(git.git(root, ['ls-files', '--others', '--exclude-standard']) || '').split(/\r?\n/)].map((s) => s.trim()).filter(Boolean))].sort(); }
 
 // ---------- projects that are not a git repo ----------
 const hasGit = (root) => git.isRepo(root);
-const NO_GIT_WARNING = 'WARNING: this project is not a git repository, so there is NO way to undo a fix (no `git restore`, no diff against a commit). Make a backup before the fix runs.';
+const NO_GIT_WARNING = 'WARNING: this project is not a git repository, so there is NO way to undo a fix with git. /ui-guard:fix copies the project to a backup folder first.';
 const backupFile = (root) => path.join(project.paths(root).tmp, 'backup.json');
 const backupInfo = (root) => u.readJSON(backupFile(root), null);
 
-/** Copy the project to <project>-backup-<date> without node_modules, dist, .angular, .git. Only after the developer chose it. */
+/** Copy the project to <project>-backup-<date> without node_modules, dist, .angular, .git. */
 function makeBackup(root) {
-  const fs = require('fs');
   const date = new Date().toISOString().slice(0, 10);
   let dest = `${root}-backup-${date}`;
   for (let i = 2; fs.existsSync(dest); i++) dest = `${root}-backup-${date}-${i}`;
@@ -68,10 +75,11 @@ function makeBackup(root) {
   return dest;
 }
 
-/** sha1 of every file under src/ (the non-git replacement for `git diff --name-only`). */
+/** sha1 of every file under src/ plus angular.json (the non-git replacement for `git diff --name-only`). */
 function hashSrc(root) {
   const out = {};
-  for (const f of u.walk(path.join(root, 'src'), (name) => name === 'node_modules')) out[u.relPosix(root, f)] = u.sha1(require('fs').readFileSync(f));
+  for (const f of u.walk(path.join(root, 'src'), (name) => name === 'node_modules')) out[u.relPosix(root, f)] = u.sha1(fs.readFileSync(f));
+  if (u.exists(path.join(root, 'angular.json'))) out['angular.json'] = u.sha1(fs.readFileSync(path.join(root, 'angular.json')));
   return out;
 }
 const changedSince = (root, before) => { const now = hashSrc(root); return Object.keys(now).filter((f) => before[f] !== now[f]).concat(Object.keys(before).filter((f) => !(f in now))).sort(); };
@@ -99,26 +107,124 @@ function udiff(name, a, b) {
   return out.join('\n') + '\n';
 }
 
-function undoHint(root, ph) {
-  if (hasGit(root)) return `To discard them yourself: \`git restore -- ${(ph.files || []).join(' ')}\``;
-  const b = backupInfo(root);
-  return `This project has no git. To undo, copy the files back from your backup: ${b ? b.path : 'the backup you made yourself'}`;
+/** Extra files a phase may touch: script reports (renamed-class usages, breakpoints), foundation files. */
+function scriptReports(root, ph) {
+  const d = fixDir(root);
+  const mech = u.readJSON(path.join(d, `mechanical-${ph.id}.json`), null);
+  const fa = u.readJSON(path.join(root, '.ui-guard', 'scss', 'foundation-move.json'), null);
+  return { mech, foundationMove: ph.kind === 'foundation-move' ? fa : null };
+}
+function allowedFiles(root, ph) {
+  const set = new Set([...(ph.files || []), ...(ph.extraFiles || [])]);
+  const { mech } = scriptReports(root, ph);
+  for (const f of (mech && mech.extraFiles) || []) set.add(f);
+  return set;
+}
+function isAllowed(root, ph, f, set) {
+  if (set.has(f) || f.startsWith('.ui-guard/')) return true;
+  if (ph.kind === 'foundation-structure' || ph.kind === 'foundation-move') {
+    const sr = project.scssRoot(project.readProfile(root));
+    if (f.startsWith(sr + '/') || f === 'angular.json' || f === 'src/index.html') return true;
+  }
+  return false;
 }
 
-function writeLog(root, ph, { ok, verdict, reason, retries }) {
-  const base = path.join(project.paths(root).tmp, 'screens', `phase-${ph.id}`);
+function undoHint(root, ph) {
+  if (hasGit(root)) return `To discard them yourself: \`git restore -- ${(ph.files || []).join(' ')}\` (and remove the new files it created).`;
+  const b = backupInfo(root);
+  return `This project has no git. To undo, copy the files back from the backup: ${b ? b.path || 'the backup you made yourself' : 'the backup you made yourself'}`;
+}
+
+function writeLog(root, ph, { ok, verdict, reason, retries, review }) {
+  const base = path.join(project.paths(root).tmp, 'screens', `phase-${DOMAIN}-${ph.id}`);
   const pix = u.readJSON(path.join(base, 'diff', 'results.json'), null);
   const overflow = u.readJSON(path.join(base, 'after', 'overflow.json'), u.readJSON(path.join(base, 'before', 'overflow.json'), null));
-  const L = [`# Phase ${ph.id} — ${ph.title}`, '', `- Result: **${ok ? 'done' : 'failed'}**`, `- Date: ${new Date().toISOString()}`, `- Retries used: ${retries || 0} of 3`, `- Review verdict: ${verdict || '—'}`];
-  if (!ok) L.push(`- Failure: ${reason}`, `- The changes are still in your working tree. ${undoHint(root, ph)}`);
-  L.push('', '## Files changed', '', ...(ph.files || []).map((f) => `- \`${f}\``), '', '## Findings fixed', '', ...(ok ? (ph.findings || []).map((x) => `- ${x}`) : ['(none recorded — phase failed)']));
+  const { mech, foundationMove } = scriptReports(root, ph);
+  const L = [`# ${DOMAIN} phase ${ph.id} — ${ph.title}`, '', `- Result: **${ok ? 'done' : 'failed'}**`, `- Date: ${new Date().toISOString()}`, `- Retries used: ${retries || 0} of 3`, `- Review (opus, diff only): ${review === 'skipped' ? 'not needed — script-only phase, proven by compiling before/after' : verdict || '—'}`];
+  if (!ok) L.push(`- Failure: ${reason}`, `- The changes are still in the working tree. ${undoHint(root, ph)}`);
+  L.push('', '## Files changed', '', ...(ph.files || []).map((f) => `- \`${f}\``));
+  if (mech && mech.extraFiles && mech.extraFiles.length) L.push(...mech.extraFiles.map((f) => `- \`${f}\` (usage update by script)`));
+  if (foundationMove) L.push(...(foundationMove.created || []).map((f) => `- \`${f}\` (created)`), ...(foundationMove.deleted || []).map((f) => `- \`${f}\` (deleted — its rules moved)`));
+  L.push('', '## Findings fixed', '', ...(ok ? (ph.findings || []).map((x) => `- ${x}`) : ['(none recorded — phase failed)']));
   L.push('', '## Pixel diff (threshold 0, includeAA)', '');
-  if (pix) { L.push('| Shot | Differing pixels | Diff image |', '|---|---|---|', ...pix.map((r) => `| ${r.shot} | ${r.error || (r.sizeChanged ? `size ${r.a} → ${r.b}` : r.diffPixels)} | ${r.diff ? '`' + r.diff + '`' : '—'} |`)); }
-  else L.push('Not run (Playwright/pixelmatch not available) — the developer confirmed the pages by eye: ' + (ph.eyeConfirmed ? 'yes' : 'NOT YET'));
+  if (pix) L.push('| Shot | Differing pixels | Diff image |', '|---|---|---|', ...pix.map((r) => `| ${r.shot} | ${r.error || (r.sizeChanged ? `size ${r.a} → ${r.b}` : r.diffPixels)} | ${r.diff ? '`' + r.diff + '`' : '—'} |`));
+  else L.push('Not run (Playwright/pixelmatch not installed). Proof was static only: compile before/after (scss), lint, scripts and the build.');
   L.push('', '## Overflow at 320px (STYLE-45, info)', '', overflow ? overflow.map((o) => `- ${o.route}: ${o.overflow ? `overflow (scrollWidth ${o.scrollWidth} > ${o.clientWidth})` : 'no overflow'}`).join('\n') : 'Not measured.', '');
-  const out = path.join(project.paths(root).fixes, `phase-${ph.id}.md`);
+  const out = path.join(dp(root).fixes, `phase-${ph.id}.md`);
   u.writeText(out, L.join('\n'));
   return out;
+}
+
+/** skipped (unsure) items of every source (scripts + fixer) and the access decisions, collected for the summary. */
+function collect(root) {
+  const d = fixDir(root);
+  const skipped = [], decisions = [];
+  if (!u.isDir(d)) return { skipped, decisions };
+  for (const f of fs.readdirSync(d).sort()) {
+    const full = path.join(d, f);
+    if (/^mechanical-.*\.json$/.test(f)) for (const s of (u.readJSON(full, {}).skipped || [])) skipped.push(`${s.file} · ${s.what} — ${s.reason}`);
+    if (/^skipped-.*\.jsonl$/.test(f)) for (const s of u.readJSONL(full)) if (!s.__malformed) skipped.push(`${s.file || ''}${s.line ? ':' + s.line : ''} · ${s.what || s.ruleId || ''} — ${s.reason || ''}`);
+    if (/^decisions-.*\.jsonl$/.test(f)) for (const s of u.readJSONL(full)) if (!s.__malformed) decisions.push(s);
+  }
+  if (DOMAIN === 'scss') {
+    const fm = u.readJSON(path.join(root, '.ui-guard', 'scss', 'foundation-move.json'), null);
+    if (fm) { for (const k of fm.kept || []) skipped.push(k); for (const j of fm.judge || []) skipped.push('Foundation B needs judgment: ' + j); }
+  }
+  return { skipped: [...new Set(skipped)], decisions };
+}
+
+/** .ui-guard/access/needs-decision.md — ONE list, grouped, each with 2–3 concrete options. */
+function writeDecisions(root, decisions) {
+  const file = dp(root).needsDecision;
+  const L = ['# Needs your decision (accessibility)', '', 'These changes would change what the page looks like, or need content only you know. Nothing here was changed.',
+    'Pick an option per item (or write your own), then run `/ui-guard:fix access` again.', ''];
+  const by = {};
+  for (const x of decisions) (by[x.topic || 'Other'] = by[x.topic || 'Other'] || []).push(x);
+  let n = 0;
+  for (const topic of Object.keys(by).sort()) {
+    L.push(`## ${topic}`, '');
+    for (const x of by[topic]) {
+      n++;
+      L.push(`${n}. \`${x.file}${x.line ? ':' + x.line : ''}\` — ${x.issue}${x.reason ? ` (${x.reason})` : ''}`);
+      for (const [i, o] of (x.options || []).slice(0, 3).entries()) L.push(`   - ${String.fromCharCode(65 + i)}. ${o}`);
+    }
+    L.push('');
+  }
+  if (!n) L.push('Nothing needs a decision.');
+  u.writeText(file, L.join('\n') + '\n');
+  return n;
+}
+
+function summary(root, args) {
+  const plan = readPlan(root);
+  const p = dp(root);
+  const phases = plan ? plan.data.phases : [];
+  const done = phases.filter((x) => x.status === 'done');
+  const findings = u.readJSON(p.findings, []) || [];
+  const remaining = findings.filter((f) => f.status === 'confirmed');
+  const changed = new Set();
+  for (const ph of done) {
+    for (const f of ph.files || []) changed.add(f);
+    const { mech, foundationMove } = scriptReports(root, ph);
+    for (const f of (mech && mech.extraFiles) || []) changed.add(f);
+    if (foundationMove) for (const f of [...(foundationMove.created || []), ...(foundationMove.deleted || [])]) changed.add(f);
+  }
+  const { skipped, decisions } = collect(root);
+  const nDecide = DOMAIN === 'access' ? writeDecisions(root, decisions) : 0;
+  const shots = phases.some((x) => u.exists(path.join(project.paths(root).tmp, 'screens', `phase-${DOMAIN}-${x.id}`, 'diff', 'results.json')));
+  const L = [`# /ui-guard:fix ${DOMAIN} — summary`, '',
+    args.stopped ? `**Stopped** at phase ${args.at || '?'}: ${args.stopped}` : (done.length === phases.length ? '**Finished**: every phase ran.' : `**Partial**: ${done.length} of ${phases.length} phases done.`), '',
+    `- Phases done: ${done.length} of ${phases.length}${done.length ? ` (${done.map((x) => x.id).join(', ')})` : ''}`,
+    `- Files changed: ${changed.size}`,
+    `- Remaining findings: ${remaining.length} (${['error', 'warning', 'info'].map((s) => `${remaining.filter((f) => f.severity === s).length} ${s}`).join(', ')})`,
+    `- Skipped (unsure — not proven neutral, left as they are): ${skipped.length}`,
+    ...(DOMAIN === 'access' ? [`- Needs your decision: ${nDecide} → \`.ui-guard/access/needs-decision.md\``] : []),
+    `- Visual proof: ${shots ? 'screenshots with 0-pixel diff per phase (see .ui-guard/' + DOMAIN + '/fixes/)' : 'static only (compile/lint/build) — Playwright is not installed, no screenshot was compared'}`,
+    `- Plan: \`.ui-guard/${DOMAIN}/plan.md\` · Report: \`.ui-guard/${DOMAIN}/report.md\``, ''];
+  if (skipped.length) L.push('## Skipped (unsure)', '', ...skipped.slice(0, 60).map((s) => `- ${s}`), ...(skipped.length > 60 ? [`- … ${skipped.length - 60} more`] : []), '');
+  L.push('Nothing was committed.');
+  u.writeText(p.summary, L.join('\n') + '\n');
+  return L.join('\n');
 }
 
 if (require.main === module) {
@@ -131,41 +237,46 @@ if (require.main === module) {
     if (hasGit(root)) { console.log('git: ok'); process.exit(0); }
     console.log(NO_GIT_WARNING);
     const b = backupInfo(root);
-    if (b) console.log(`A backup exists: ${b.path} (${b.by}, ${b.date}).`);
+    if (b) console.log(`A backup exists: ${b.path || '(made by the developer)'} (${b.by}, ${b.date}).`);
     process.exit(5);
   }
   if (cmd === 'backup') {
-    // Only after the developer picked "copy" (or said they made a backup themselves with --made-by-me).
     if (args['made-by-me']) { u.writeJSON(backupFile(root), { path: null, by: 'developer', date: new Date().toISOString().slice(0, 10) }); console.log('Noted: you made a backup yourself.'); process.exit(0); }
     const dest = makeBackup(root);
     console.log(`backup written → ${dest} (without node_modules, dist, .angular)`);
     process.exit(0);
   }
-  if (cmd === 'list' || cmd === 'render') {
+  DOMAIN = domains.fromArgs(args).name;
+  if (cmd === 'summary') { console.log(summary(root, args)); process.exit(0); }
+  if (cmd === 'list' || cmd === 'render' || cmd === 'next') {
     const plan = readPlan(root);
-    if (!plan) { console.error('No plan.'); process.exit(1); }
+    if (!plan) { console.error(`No .ui-guard/${DOMAIN}/plan.json.`); process.exit(1); }
+    if (cmd === 'next') {
+      const nx = plan.data.phases.find((x) => x.status !== 'done');
+      if (!nx) { console.log('ALL DONE'); process.exit(10); }
+      console.log(nx.id); process.exit(0);
+    }
     if (cmd === 'render') { writePlan(root, plan); console.log('plan.md re-rendered.'); }
-    for (const ph of plan.data.phases) console.log(`${ph.id}\t${ph.status}\t${(ph.files || []).length} files\t${ph.title}`);
+    for (const ph of plan.data.phases) console.log(`${ph.id}\t${ph.status}\t${ph.kind || 'fix'}\t${(ph.files || []).length} files\t${ph.title}`);
     process.exit(0);
   }
   const { plan, ph } = getPhase(root, id);
-  if (!ph) { console.error(`Unknown phase "${id}". Valid ids: ${plan.data.phases.map((p) => p.id).join(', ')}`); process.exit(1); }
+  if (!ph) { console.error(`Unknown phase "${id}". Valid ids: ${plan.data.phases.map((x) => x.id).join(', ')}`); process.exit(1); }
   if (cmd === 'show') {
-    const findings = u.readJSON(project.paths(root).findings, []).filter((f) => (ph.findings || []).includes(f.id));
-    u.writeJSON(path.join(fixDir(root), `phase-${ph.id}.json`), { phase: ph, findings });
-    console.log(`phase ${ph.id} "${ph.title}" — status ${ph.status}, ${(ph.files || []).length} files, ${findings.length} findings, routes ${(ph.routes || []).join(', ') || '(none)'} → .ui-guard/tmp/fix/phase-${ph.id}.json`);
+    const findings = (u.readJSON(dp(root).findings, []) || []).filter((f) => (ph.findings || []).includes(f.id));
+    // verification: 'visual' (Playwright installed → screenshots + style compare) or 'static' (no Playwright: access stays Tier A/B)
+    u.writeJSON(path.join(fixDir(root), `phase-${ph.id}.json`), { domain: DOMAIN, verification: args.verification === 'static' ? 'static' : 'visual', phase: ph, findings });
+    console.log(`${DOMAIN} phase ${ph.id} "${ph.title}" (${ph.kind || 'fix'}) — status ${ph.status}, ${(ph.files || []).length} files, ${findings.length} findings, routes ${(ph.routes || []).join(', ') || '(none)'} → ${u.relPosix(root, path.join(fixDir(root), `phase-${ph.id}.json`))}`);
     if (!hasGit(root)) console.log(NO_GIT_WARNING);
     if (ph.status === 'done') { console.log('Already done.'); process.exit(3); }
-    const earlier = plan.data.phases.filter((p) => cmpId(p.id, ph.id) < 0 && p.status !== 'done' && !String(ph.id).startsWith(String(p.id) + '.'));
-    const deps = plan.data.phases.filter((p) => (ph.dependsOn || []).includes(p.id) && p.status !== 'done');
-    const pending = [...new Set([...earlier, ...deps])];
-    if (pending.length) { console.log(`Earlier phases not done: ${pending.map((p) => p.id).join(', ')} (order matters).`); process.exit(4); }
+    const earlier = plan.data.phases.filter((x) => cmpId(x.id, ph.id) < 0 && x.status !== 'done');
+    if (earlier.length) { console.log(`Note: earlier phases not done: ${earlier.map((x) => x.id).join(', ')} (order matters).`); process.exit(4); }
     process.exit(0);
   }
   if (cmd === 'dirty') {
     if (!hasGit(root)) { console.log('No git: the dirty-files check is skipped (there is no commit to compare with).'); process.exit(0); }
     const d = git.dirtyFiles(root, ph.files || []);
-    console.log(d.length ? `Already changed: ${d.join(', ')}` : 'No phase file has uncommitted changes.');
+    console.log(d.length ? `Already changed before the fix (their diff includes your own edits): ${d.join(', ')}` : 'No phase file has uncommitted changes.');
     process.exit(d.length ? 1 : 0);
   }
   if (cmd === 'snapshot') {
@@ -174,7 +285,7 @@ if (require.main === module) {
     else {
       // no git: remember a hash of every src file and a copy of the phase files (for `diff`)
       u.writeJSON(snap, { hashes: hashSrc(root) });
-      for (const f of ph.files || []) { const src = u.fromPosix(root, f); if (u.exists(src)) { u.mkdirp(path.dirname(path.join(fixDir(root), `phase-${ph.id}-before`, ...f.split('/')))); require('fs').copyFileSync(src, path.join(fixDir(root), `phase-${ph.id}-before`, ...f.split('/'))); } }
+      for (const f of ph.files || []) { const src = u.fromPosix(root, f); if (u.exists(src)) { const dest = path.join(fixDir(root), `phase-${ph.id}-before`, ...f.split('/')); u.mkdirp(path.dirname(dest)); fs.copyFileSync(src, dest); } }
     }
     console.log(hasGit(root) ? 'snapshot saved.' : 'snapshot saved (no git: file hashes + a copy of the phase files).');
     process.exit(0);
@@ -182,19 +293,25 @@ if (require.main === module) {
   if (cmd === 'outside') {
     const snapData = u.readJSON(path.join(fixDir(root), `phase-${ph.id}-before.json`), { changed: [] });
     const before = new Set(snapData.changed || []);
-    const allowed = new Set([...(ph.files || []), ...(ph.extraFiles || [])]);
+    const allowed = allowedFiles(root, ph);
     const changed = hasGit(root) ? workingChanged(root) : changedSince(root, snapData.hashes || {});
-    const out = changed.filter((f) => !before.has(f) && !allowed.has(f) && !f.startsWith('.ui-guard/'));
+    const out = changed.filter((f) => !before.has(f) && !isAllowed(root, ph, f, allowed));
     console.log(out.length ? `Edited outside the phase: ${out.join(', ')}` : 'No edits outside the phase.');
     process.exit(out.length ? 1 : 0);
   }
   if (cmd === 'diff') {
     const out = path.join(fixDir(root), `phase-${ph.id}.diff`);
-    if (hasGit(root)) u.writeText(out, git.workingDiff(root, ph.files || []));
+    const files = [...allowedFiles(root, ph)];
+    // the diff is the reviewer's ONLY input: a short header with the phase's findings, then the changes
+    const fl = (u.readJSON(dp(root).findings, []) || []).filter((f) => (ph.findings || []).includes(f.id));
+    const verify = u.readJSON(path.join(fixDir(root), `phase-${ph.id}-verify.json`), null);
+    const header = [`# ui-guard ${DOMAIN} phase ${ph.id} — ${ph.title} (${ph.kind || 'fix'})`, `# files: ${(ph.files || []).length} · findings: ${fl.length}`,
+      ...fl.slice(0, 400).map((f) => `# ${f.id} ${f.ruleId} ${f.file}:${f.line} ${u.clip(f.message, 140)}`),
+      ...(verify ? [`# verify: ${verify.notFixed.length} not fixed, ${verify.newErrors.length} new error(s)`, ...verify.notFixed.map((x) => `#   not fixed: ${x}`), ...verify.newErrors.map((x) => `#   new error: ${x}`)] : []), ''].join('\n');
+    if (hasGit(root)) u.writeText(out, header + git.workingDiff(root, files));
     else {
-      const fs = require('fs');
-      const parts = [];
-      for (const f of ph.files || []) {
+      const parts = [header];
+      for (const f of files) {
         const beforeFile = path.join(fixDir(root), `phase-${ph.id}-before`, ...f.split('/'));
         const nowFile = u.fromPosix(root, f);
         const a = u.exists(beforeFile) ? fs.readFileSync(beforeFile, 'utf8') : '', b = u.exists(nowFile) ? fs.readFileSync(nowFile, 'utf8') : '';
@@ -207,41 +324,42 @@ if (require.main === module) {
   }
   if (cmd === 'verify') {
     fpLib.clearCache();
-    const res = runChecks.runAll(root, { files: ph.files || [] });
+    const files = [...allowedFiles(root, ph)].filter((f) => u.exists(u.fromPosix(root, f)) || f === 'angular.json');
+    const res = runChecks.runAll(root, { files: files.length ? files : null, domain: DOMAIN });
     const now = res.findings.map((f) => merge.normalize(root, f)).filter(Boolean);
     const nowFp = new Set(now.map((f) => f.fingerprint));
-    const phaseFindings = u.readJSON(project.paths(root).findings, []).filter((f) => (ph.findings || []).includes(f.id) && (f.sources || []).some((s) => s === 'lint' || s === 'script'));
+    const phaseFindings = (u.readJSON(dp(root).findings, []) || []).filter((f) => (ph.findings || []).includes(f.id) && (f.sources || []).some((s) => s === 'lint' || s === 'script'));
     const notFixed = phaseFindings.filter((f) => nowFp.has(f.fingerprint));
     const baseline = fpLib.loadBaseline(root);
-    const newErrors = now.filter((f) => f.severity === 'error' && !baseline.has(f.fingerprint));
+    const newErrors = now.filter((f) => f.severity === 'error' && !baseline.has(f.fingerprint) && (files.includes(f.file)));
     const report = { notFixed: notFixed.map((f) => `${f.id} ${f.ruleId} ${f.file}:${f.line}`), newErrors: newErrors.map((f) => `${f.ruleId} ${f.file}:${f.line} ${f.message}`), notes: res.notes };
     u.writeJSON(path.join(fixDir(root), `phase-${ph.id}-verify.json`), report);
     for (const n of res.notes) console.log('note: ' + n);
-    console.log(`verify: ${notFixed.length} deterministic finding(s) not fixed, ${newErrors.length} new error(s)`);
+    console.log(`verify: ${notFixed.length} script/lint finding(s) not fixed, ${newErrors.length} new error(s)`);
     for (const x of report.notFixed) console.log('  not fixed: ' + x);
     for (const x of report.newErrors) console.log('  new error: ' + x);
     process.exit(notFixed.length || newErrors.length ? 1 : 0);
   }
   if (cmd === 'complete') {
-    const p = project.paths(root);
-    const findings = u.readJSON(p.findings, []);
+    const p = dp(root);
+    const findings = u.readJSON(p.findings, []) || [];
     const fixedFps = [];
     for (const f of findings) if ((ph.findings || []).includes(f.id) && f.status === 'confirmed') { f.status = 'fixed'; fixedFps.push(f.fingerprint); }
     u.writeJSON(p.findings, findings);
-    const left = fpLib.removeFromBaseline(root, fixedFps);
+    const left = fpLib.removeFromBaseline(root, fixedFps, DOMAIN);
     ph.status = 'done'; ph.doneAt = new Date().toISOString();
     writePlan(root, plan);
-    const log = writeLog(root, ph, { ok: true, verdict: args.verdict, retries: args.retries });
-    console.log(`phase ${ph.id} done · ${fixedFps.length} finding(s) fixed · baseline now ${left} · log ${u.relPosix(root, log)}`);
+    const log = writeLog(root, ph, { ok: true, verdict: args.verdict, retries: args.retries, review: args.review });
+    console.log(`${DOMAIN} phase ${ph.id} done · ${fixedFps.length} finding(s) fixed · baseline now ${left} · log ${u.relPosix(root, log)}`);
     process.exit(0);
   }
   if (cmd === 'fail') {
-    ph.status = 'failed'; ph.failedAt = new Date().toISOString();
+    ph.status = 'failed'; ph.failedAt = new Date().toISOString(); ph.failReason = args.reason || 'see review';
     writePlan(root, plan);
     const log = writeLog(root, ph, { ok: false, reason: args.reason || 'see review', verdict: args.verdict, retries: args.retries });
-    console.log(`phase ${ph.id} marked failed · changes left in the working tree · log ${u.relPosix(root, log)}`);
+    console.log(`${DOMAIN} phase ${ph.id} marked failed · changes left in the working tree · log ${u.relPosix(root, log)}`);
     process.exit(0);
   }
   console.log(HELP);
 }
-module.exports = { readPlan, writePlan, udiff };
+module.exports = { readPlan, writePlan, udiff, summary };

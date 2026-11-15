@@ -13,7 +13,8 @@ const HELP = `setup-project.js — install ui-guard's project-side files (run on
 Usage (all accept --root <dir>):
   node setup-project.js tools                  print the EXACT install commands (ESLint pinned to 9) and whether an installed ESLint works or crashes; installs nothing
   node setup-project.js status                 what exists already (configs, hook path, .gitignore, CLAUDE.md block)
-  node setup-project.js lint [--root-stylelint] [--root-eslint]
+  node setup-project.js lint [--internal] [--root-stylelint] [--root-eslint]
+        --internal: only .ui-guard/lint/ (used by /ui-guard:scan and /ui-guard:fix — no file outside .ui-guard/, no question)
         copy the Stylelint plugin + configs into .ui-guard/lint/ and write lint-settings.json / lint-map.json from the profile.
         Root re-export files (stylelint.config.mjs / eslint.config.mjs) are written only when the project has NO config of its
         own, or when --root-stylelint / --root-eslint is given (= the developer agreed to replace). Existing configs are
@@ -42,6 +43,7 @@ function lint(root, args) {
   u.writeJSON(path.join(p.lint, 'lint-settings.json'), { scssRoot: project.scssRoot(profile), themesRoot: 'src/assets/themes', roleMap: project.roleMap(profile) });
   const idx = project.loadRulesIndex();
   u.writeJSON(path.join(p.lint, 'lint-map.json'), { lintMap: idx.lintMap, severity: Object.fromEntries(idx.rules.map((r) => [r.id, r.severity])) });
+  if (args.internal) { console.log(`lint files → ${u.relPosix(root, p.lint)}/ (internal: no root config written)`); return 0; }
   const ex = existingConfigs(root);
   let blocked = false;
   const sOthers = ex.stylelint.filter((f) => !isOurs(root, f));
@@ -150,7 +152,7 @@ function status(root) {
 }
 
 if (require.main === module) {
-  const args = u.parseArgs(process.argv.slice(2), ['root-stylelint', 'root-eslint', 'create', 'with-assets']);
+  const args = u.parseArgs(process.argv.slice(2), ['root-stylelint', 'root-eslint', 'create', 'with-assets', 'internal']);
   u.helpExit(args, HELP);
   const root = args.root ? path.resolve(args.root) : project.findRoot();
   if (!root) { console.error('This is not an Angular project.'); process.exit(1); }

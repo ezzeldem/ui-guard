@@ -26,8 +26,8 @@ Record the color sources in the profile (`profile.js --answers`). Stop here.
 
 ## 1. Pre-checks
 1. `angular.json` must exist in the project root (nearest folder up). Otherwise stop: "This is not an Angular project."
-2. If `.ui-guard/profile.md` exists → stop: "ui-guard is already set up here. Use `/ui-guard:scan`."
-3. If `src/assets/scss/` already has authored files (more than Angular's defaults), ask (AskUserQuestion): "This looks like an existing project. `init` builds a fresh structure and could clash with yours. Run `/ui-guard:scan` instead (recommended), or continue with init?" Default → stop and tell them to run `/ui-guard:scan`.
+2. If `.ui-guard/profile.md` exists → stop: "ui-guard is already set up here. Use `/ui-guard:scan <domain>` (scss, access, lang, safe)."
+3. If `src/assets/scss/` already has authored files (more than Angular's defaults), ask (AskUserQuestion): "This looks like an existing project. `init` builds a fresh structure and could clash with yours. Run `/ui-guard:scan scss` + `/ui-guard:fix scss` instead (recommended: it builds our structure around the existing styles with no visual change), or continue with init?" Default → stop and tell them to run `/ui-guard:fix scss`.
 4. Run `node PLUGIN/scripts/profile.js --refresh` to detect the project (it writes `.ui-guard/profile.md`; you will complete it in step 8).
 
 ## 2. Questions — ONE AskUserQuestion round, max 4 questions
@@ -85,7 +85,7 @@ If the developer agreed to installs, run exactly the listed `npm install -D …`
 3. Fix anything the plugin itself produced until both are clean (never edit the developer's own pre-existing files here).
 
 ## 8. Finish
-1. `node PLUGIN/scripts/profile.js --refresh --answers '{"projectType":"new"}'` and write an empty baseline:
+1. `node PLUGIN/scripts/profile.js --refresh --answers '{"projectType":"new"}'` and write empty baselines (one per domain):
    `node PLUGIN/scripts/lib/fingerprint.js --empty-baseline --root "<project root>"`.
 2. Reply in a short summary: what was created, which questions were answered (and what was declined), filter ΔE results, and the list of
    new/changed files the developer should review and commit (`git status --short`). **Do not commit.**

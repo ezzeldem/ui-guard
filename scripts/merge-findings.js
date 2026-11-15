@@ -6,11 +6,13 @@ const path = require('path');
 const u = require('./lib/util');
 const project = require('./lib/project');
 const fp = require('./lib/fingerprint');
+const domains = require('./lib/domains');
 
-const HELP = `merge-findings.js — build .ui-guard/findings.json (stable IDs).
+const HELP = `merge-findings.js — build .ui-guard/<domain>/findings.json (stable IDs).
 Usage:
-  node merge-findings.js finalize [--root <dir>]
-      deterministic.jsonl (Stage 0) + ai/findings.jsonl (stages 1-3, when run) → .ui-guard/findings.json.`;
+  node merge-findings.js finalize --domain scss|access|lang|safe [--root <dir>]
+      .ui-guard/tmp/<domain>/scan/deterministic.jsonl (scripts + lint) + ai/findings.jsonl (AI pass)
+      → .ui-guard/<domain>/findings.json (only the domain's own rule family).`;
 
 const SEV = new Set(['error', 'warning', 'info']);
 const sourceOf = (f) => (f.checker === 'stylelint' || f.checker === 'eslint' ? 'lint' : f.checker === 'script' ? 'script' : null);
@@ -76,17 +78,30 @@ function cluster(findings) {
   }).sort(byKey);
 }
 
-function finalize(root) {
-  const scan = project.paths(root).scan;
+function finalize(root, domain) {
+  const dom = domain ? domains.get(domain) : null;
+  const scan = dom ? domains.paths(root, dom.name).scan : project.paths(root).scan;
   const rows = [];
   for (const raw of u.readJSONL(path.join(scan, 'deterministic.jsonl'))) { const f = normalize(root, raw); if (f) rows.push(f); }
   for (const raw of u.readJSONL(path.join(scan, 'ai', 'findings.jsonl'))) { const f = normalize(root, { ...raw, checker: 'ai', sources: ['ai'] }, 'ai'); if (f) rows.push(f); }
-  const out = cluster(rows).map((f) => ({
+  const own = dom ? rows.filter((f) => domains.owns(dom, f)) : rows;
+  const out = cluster(own).map((f) => ({
     id: '', ruleId: f.ruleId, severity: f.severity, file: f.file, line: f.line, endLine: f.endLine, message: f.message, evidence: f.evidence,
     fix: f.fix || null, checker: f.checker, sources: f.sources, status: f.status, rejectReason: f.rejectReason || null, fingerprint: f.fingerprint,
+    ...(f.impact ? { impact: f.impact } : {}),
   }));
   out.forEach((f, i) => { f.id = 'F-' + String(i + 1).padStart(6, '0'); });
-  u.writeJSON(project.paths(root).findings, out);
+  if (dom && dom.name === 'access') {
+    // ACCESS: rank by user impact; findings that are not real problems are kept as rejected (with the reason), never reported
+    const ai = require('./lib/access-impact');
+    const pageDirs = ai.pageDirsOf(root);
+    for (const f of out) {
+      f.impact = ai.impactOf(f);
+      const why = ai.notAProblem(root, f, pageDirs);
+      if (why) { f.status = 'rejected'; f.rejectReason = why; }
+    }
+  }
+  u.writeJSON(dom ? domains.paths(root, dom.name).findings : project.paths(root).findings, out);
   return out;
 }
 
@@ -96,6 +111,10 @@ if (require.main === module) {
   u.helpExit(args, HELP);
   const root = args.root ? path.resolve(args.root) : project.findRoot();
   if (!root) { console.error('Not an Angular project.'); process.exit(1); }
-  if (args._[0] === 'finalize') { const out = finalize(root); console.log(`findings.json: ${out.length} finding(s)`); }
+  if (args._[0] === 'finalize') {
+    const dom = domains.fromArgs(args, { required: false });
+    const out = finalize(root, dom && dom.name);
+    console.log(`${dom ? `.ui-guard/${dom.name}/` : ''}findings.json: ${out.length} finding(s)`);
+  }
   else console.log(HELP);
 }

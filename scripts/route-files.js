@@ -8,7 +8,8 @@ const u = require('./lib/util');
 const project = require('./lib/project');
 
 const SIGNALS = {
-  'style-ai': { kinds: ['scss', 'css'], text: /\bclass\s*=|ngClass|\[class[.\]]|classList|addClass|removeClass|querySelector|@HostBinding\(\s*['"]class/ },
+  // style files: only when something in them needs judgment (segment purity, vendor overrides, icons, buttons, tokens)
+  'style-ai': { style: /::ng-deep|filter\s*:|\b(btn|button)\b|@extend|--[\w-]+\s*:|\.(o|m|ctrl|u|l|p)-[\w-]/, segments: /\/(layout|modules|objects|utilities|pages|components|common)\//, text: /\bclass\s*=|ngClass|\[class[.\]]|classList|addClass|removeClass|querySelector|@HostBinding\(\s*['"]class/ },
   lang: { text: />\s*[^<{\s][^<{]*[A-Za-z؀-ۿ][^<]*</, ts: /\b(toast|toastr|snack|alert|confirm|dialog|title|setTitle|Validators|message|notify|swal|error)\b[^\n]*['"`][^'"`\n]*[A-Za-z؀-ۿ]{2,}|\?\s*['"`][^'"`]+['"`]\s*:\s*['"`]|lang\s*===?/i, html: /\s(placeholder|title|alt|aria-label|aria-placeholder|label)\s*=\s*"[^"{]*[A-Za-z؀-ۿ]/ },
   safe: { text: /innerHTML|outerHTML|bypassSecurityTrust|\beval\s*\(|Function\s*\(|localStorage|sessionStorage|document\.cookie|console\.|insertAdjacentHTML|document\.write|setTimeout\s*\(\s*['"`]|setInterval\s*\(\s*['"`]|javascript:|\b(key|secret|token|password|passwd|apikey)\b/i, kinds: ['config'] },
   'access-labels': { text: /<input|<select|<textarea|formControlName|ngModel|ControlValueAccessor|<label|<button[^>]*>\s*<(i|img|svg|mat-icon|fa-icon)/i },
@@ -33,6 +34,7 @@ function groupsFor(root, f, unparsed = new Set()) {
       continue;
     }
     if (['scss', 'css'].includes(f.kind) && g.startsWith('access-')) continue;
+    if (g === 'style-ai' && ['scss', 'css'].includes(f.kind)) { if (s.style.test(text) || s.segments.test(f.path)) groups.add(g); continue; }
     if (s.text && s.text.test(text)) groups.add(g);
   }
   if (/\/packages\//.test(f.path) || f.path === 'angular.json') groups.clear();
@@ -46,8 +48,9 @@ function groupsFor(root, f, unparsed = new Set()) {
  */
 function routeMap(root) {
   const app = path.join(root, 'src', 'app');
-  const entries = []; // { route, dir }
-  const files = u.isDir(app) ? u.walk(app).filter((f) => /(routes?|routing)(\.module)?\.ts$/.test(f)) : [];
+  const raw = []; // { file, path, dir, children: target routes file or null, redirect }
+  const files = u.isDir(app) ? u.walk(app).filter((f) => /(routes?|routing)(\.module)?\.ts$/.test(f)).map((f) => path.resolve(f)) : [];
+  const resolveTs = (from, spec) => { const base = path.resolve(path.dirname(from), spec); for (const c of [base + '.ts', path.join(base, 'index.ts'), base]) if (u.exists(c) && !u.isDir(c)) return c; return base + '.ts'; };
   for (const f of files) {
     const text = u.readText(f) || '';
     const imports = {};
@@ -55,28 +58,62 @@ function routeMap(root) {
     const marks = [...text.matchAll(/\bpath\s*:\s*['"]([^'"]*)['"]/g)];
     marks.forEach((m, i) => {
       const body = text.slice(m.index + m[0].length, i + 1 < marks.length ? marks[i + 1].index : text.length);
-      const route = '/' + m[1];
-      if (/[:*]/.test(route)) return;
-      let spec = (/\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/.exec(body) || [])[1];
+      const redirect = /\bredirectTo\s*:/.test(body);
+      const lazyChildren = (/\bloadChildren\s*:[\s\S]{0,80}?import\s*\(\s*['"]([^'"]+)['"]\s*\)/.exec(body) || [])[1];
+      let spec = lazyChildren ? null : (/\bloadComponent\s*:[\s\S]{0,80}?import\s*\(\s*['"]([^'"]+)['"]\s*\)/.exec(body) || /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/.exec(body) || [])[1];
       if (!spec) { const c = /\bcomponent\s*:\s*(\w+)/.exec(body); if (c) spec = imports[c[1]]; }
-      if (!spec || !spec.startsWith('.')) return;
-      entries.push({ route, dir: path.dirname(path.resolve(path.dirname(f), spec)) });
+      raw.push({ file: f, path: m[1], redirect, dir: spec && spec.startsWith('.') ? path.dirname(path.resolve(path.dirname(f), spec)) : null, children: lazyChildren && lazyChildren.startsWith('.') ? resolveTs(f, lazyChildren) : null });
     });
   }
+  // lazy children: the routes inside the loaded file (or the routing file next to a loaded module) get the parent's prefix
+  const prefixOf = new Map();
+  for (const r of raw) if (r.children) {
+    const dirOf = path.dirname(r.children);
+    for (const f of files) if (f === r.children || (path.dirname(f) === dirOf && f !== r.file)) prefixOf.set(f, r.path);
+  }
+  const fullPrefix = (f, seen = new Set()) => {
+    if (!prefixOf.has(f) || seen.has(f)) return '';
+    seen.add(f);
+    const parent = raw.find((r) => r.children && (r.children === f || path.dirname(r.children) === path.dirname(f)));
+    const up = parent ? fullPrefix(parent.file, seen) : '';
+    return [up, prefixOf.get(f)].filter(Boolean).join('/');
+  };
+  const entries = [];
+  for (const r of raw) {
+    if (!r.dir || r.redirect) continue;
+    const route = '/' + [fullPrefix(r.file), r.path].filter(Boolean).join('/');
+    if (/[:*]/.test(route)) continue;
+    entries.push({ route: route.replace(/\/+$/, '') || '/', dir: r.dir });
+  }
   return entries;
+}
+
+// Utility pages are not good screenshot routes for a global change: they show almost nothing of the shared styles.
+const UTILITY_ROUTE = /(^|\/)(no-?connection|offline|not-?found|404|500|error|errors|unauthori[sz]ed|forbidden|403|access-denied|maintenance|logout|sign-?out|redirect|callback|silent-refresh)(\/|$)/i;
+
+/** Real content routes of the app (component routes from the routes files, utility pages last), unique. */
+function realRoutes(root, entries = routeMap(root)) {
+  const seen = new Set(), good = [], weak = [];
+  for (const e of entries) { if (seen.has(e.route)) continue; seen.add(e.route); (UTILITY_ROUTE.test(e.route) ? weak : good).push(e.route); }
+  // spread over different top-level sections first
+  const byTop = new Map();
+  for (const r of good) { const top = r.split('/')[1] || ''; if (!byTop.has(top)) byTop.set(top, []); byTop.get(top).push(r); }
+  const spread = [];
+  for (let i = 0; spread.length < good.length; i++) for (const list of byTop.values()) if (list[i]) spread.push(list[i]);
+  return spread.concat(weak);
 }
 
 /** Routes whose component folder contains any of the files (forward-slash, project-relative). */
 function routesFor(root, files, entries = routeMap(root)) {
   const out = new Set();
   for (const file of files) {
-    const abs = path.join(root, ...file.split('/'));
+    const abs = path.resolve(root, ...file.split('/'));
     for (const e of entries) if (abs === e.dir || abs.startsWith(e.dir + path.sep)) out.add(e.route);
   }
   return [...out].sort();
 }
 
-module.exports = { groupsFor, routeMap, routesFor, SIGNALS };
+module.exports = { groupsFor, routeMap, routesFor, realRoutes, UTILITY_ROUTE, SIGNALS };
 if (require.main === module) {
   const args = u.parseArgs(process.argv.slice(2));
   u.helpExit(args, `route-files.js — print the AI rule groups each inventory file would need (debug aid; the scan uses ai-scan.js).

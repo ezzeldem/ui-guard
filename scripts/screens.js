@@ -8,7 +8,8 @@ const project = require('./lib/project');
 
 const HELP = `screens.js — §8.4 stable screenshots (Playwright Chromium from the project's node_modules).
 Usage:
-  node screens.js shoot --url <base> --routes /a,/b --label <before|before2|after> --phase <id>
+  node screens.js shoot --url <base> --routes /a,/b --label <before|before2|after> --phase <id> [--styles]
+      --styles   also save the computed style + bounding box of every element (<shot>.styles.json) for style-diff.js
                         [--viewports 1440x900,375x812] [--masks ".a,.b"] [--root <dir>]
       → .ui-guard/tmp/screens/phase-<id>/<label>/<route>__<viewport>.png  (+ overflow.json at 320px)
   node screens.js login --url <base> --route </login-protected-route> [--root <dir>] [--timeout 600]
@@ -24,6 +25,11 @@ function loadPlaywright(root) {
 }
 
 const STABLE_CSS = `*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important;scroll-behavior:auto!important}`;
+// what a tag swap (div → button, p → h2, …) can change: the visual properties compared by style-diff.js
+const STYLE_PROPS = ['display', 'position', 'margin-top', 'margin-right', 'margin-bottom', 'margin-left', 'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
+  'border-top-width', 'border-right-width', 'border-bottom-width', 'border-left-width', 'border-top-style', 'border-top-color', 'font-family', 'font-size', 'font-weight', 'font-style',
+  'line-height', 'letter-spacing', 'text-align', 'text-decoration-line', 'text-transform', 'color', 'background-color', 'background-image', 'list-style-type', 'outline-style',
+  'box-shadow', 'opacity', 'visibility', 'cursor', 'appearance', 'width', 'height', 'gap', 'vertical-align', 'white-space'];
 const slug = (r) => (r === '/' ? 'root' : r.replace(/^\//, '').replace(/[^\w-]+/g, '_')) || 'root';
 
 async function shoot(root, o) {
@@ -55,6 +61,23 @@ async function shoot(root, o) {
         }
         if (/login|signin|auth/i.test(page.url()) && !/login|signin|auth/i.test(route)) results.push({ route, viewport: vp, redirectedToLogin: true });
         const file = path.join(outDir, `${slug(route)}__${vp}.png`);
+        if (o.styles) {
+          // computed style + bounding box of every element, keyed by its DOM path (tag + nth-of-type), for style-diff.js
+          const snap = await page.evaluate((props) => {
+            const out = {};
+            const keyOf = (el) => { const parts = []; for (let e = el; e && e.nodeType === 1 && e !== document.documentElement; e = e.parentElement) { let i = 1; for (let s = e.previousElementSibling; s; s = s.previousElementSibling) if (s.tagName === e.tagName) i++; parts.unshift(`${e.tagName.toLowerCase()}:${i}`); } return parts.join('>'); };
+            for (const el of document.querySelectorAll('body *')) {
+              const cs = getComputedStyle(el);
+              if (cs.display === 'none') continue;
+              const r = el.getBoundingClientRect();
+              const st = {};
+              for (const p of props) st[p] = cs.getPropertyValue(p);
+              out[keyOf(el)] = { box: [Math.round(r.x * 10) / 10, Math.round(r.y * 10) / 10, Math.round(r.width * 10) / 10, Math.round(r.height * 10) / 10], st };
+            }
+            return out;
+          }, STYLE_PROPS);
+          u.writeJSON(file.replace(/\.png$/, '.styles.json'), snap);
+        }
         const masks = (o.masks || []).map((s) => page.locator(s));
         await page.screenshot({ path: file, fullPage: true, animations: 'disabled', caret: 'hide', mask: masks, maskColor: '#FF00FF' });
         results.push({ route, viewport: vp, file: u.relPosix(root, file) });
@@ -101,7 +124,7 @@ if (require.main === module) {
     routes: String(args.routes || (sc.routes || ['/']).join(',')).split(',').filter(Boolean),
     viewports: String(args.viewports || (sc.viewports || ['1440x900', '375x812']).join(',')).split(','),
     masks: args.masks ? String(args.masks).split(',').filter(Boolean) : (sc.masks || []),
-    label: args.label || 'before', phase: args.phase || 'adhoc', route: args.route, timeout: +args.timeout || 600, locale: sc.locale,
+    label: args.label || 'before', phase: args.phase || 'adhoc', styles: !!args.styles, route: args.route, timeout: +args.timeout || 600, locale: sc.locale,
   };
   const cmd = args._[0];
   (cmd === 'login' ? login(root, o) : cmd === 'shoot' ? shoot(root, o) : Promise.resolve(console.log(HELP))).catch((e) => { console.error(e.message); process.exit(1); });

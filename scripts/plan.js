@@ -8,35 +8,44 @@ const path = require('path');
 const u = require('./lib/util');
 const project = require('./lib/project');
 const libs = require('./lib/libclasses');
+const domains = require('./lib/domains');
 const route = require('./route-files');
 
-const HELP = `plan.js — build plan.md / plan.json / renames.md from .ui-guard/findings.json (0 tokens).
-Usage: node plan.js [--root <dir>]          (re-running keeps each phase's status when the phase is unchanged)
-       node plan.js render [--root <dir>]   re-render plan.md from plan.json (after a status change)`;
+const HELP = `plan.js — build one domain's plan.md / plan.json (+ renames.md for scss) from its findings.json (0 tokens).
+Usage: node plan.js --domain scss|access|lang|safe [--root <dir>]   (re-running keeps each unchanged phase's status)
+       node plan.js render --domain <d> [--root <dir>]              re-render plan.md from plan.json (after a status change)
+The scss plan ALWAYS starts with Foundation A (structure) and Foundation B (move the global stylesheets) — run by scripts.`;
 
 const MAX_FILES = 15, MAX_FINDINGS = 300, MAX_LINES = 150;
 const AREAS = [
-  { key: 'foundation', name: 'Foundation', why: 'Everything else uses the settings, tools, theme tokens and build config, so they are fixed first.', how: 'Normalize settings/tools/theme names and config without changing any value; prove it with screenshots.' },
-  { key: 'common', name: 'Common', why: 'Shared components, styles and translations are used by many pages; fixing them once removes repeats later.', how: 'Fix shared blocks and their class renames in every template/TS usage; keep the current look.' },
-  { key: 'layouts', name: 'Layouts', why: 'The shell (header, menu, footer) is on every page, so it comes before single pages.', how: 'Fix layout SCSS, templates and their text/ARIA findings; 0-pixel screenshot proof.' },
-  { key: 'pages', name: 'Pages', why: 'Page-only code is fixed after the shared pieces it depends on.', how: 'Fix each page group\'s SCSS, template and TS findings; 0-pixel screenshot proof.' },
-  { key: 'generic', name: 'Generic + Elements', why: 'Global resets touch every page, so they are moved last, with the full visual pass.', how: 'Move existing element-level rules into generic/elements so the result is identical; no new resets.' },
+  { key: 'foundation-a', name: 'Foundation A — Structure', kind: 'foundation-structure', domains: ['scss'], why: 'Every later fix uses our segments, tools, settings, theme files and the one entry, so they must exist first.', how: 'Script: create the missing segment/tools/settings/theme/entry files from the templates (no value changes; resets as empty files), add includePaths, the entry and the theme <link>s.' },
+  { key: 'foundation-b', name: 'Foundation B — Move', kind: 'foundation-move', domains: ['scss'], why: 'The existing global stylesheets must live in our segments before single files are fixed.', how: 'Script: move every rule of the global stylesheets into its segment file in the same cascade order, update the entry and angular.json, delete the emptied files; proven by compiling before/after. What cannot be proven goes to the fixer.' },
+  { key: 'foundation', name: 'Foundation — settings, tools, theme', domains: ['scss'], why: 'Everything else uses the settings, tools, theme tokens and build config.', how: 'Normalize settings/tools/theme names and config without changing any value.' },
+  { key: 'global', name: 'Global — index.html, config, translations', domains: ['access', 'lang', 'safe'], why: 'index.html, the config and the translation files are used by every page.', how: 'Fix the global files first; every later phase relies on them.' },
+  { key: 'common', name: 'Common', why: 'Shared components, styles and translations are used by many pages; fixing them once removes repeats later.', how: 'Fix shared blocks and their usages in every template/TS; keep the current look.' },
+  { key: 'layouts', name: 'Layouts', why: 'The shell (header, menu, footer) is on every page, so it comes before single pages.', how: 'Fix the layout files; 0-pixel screenshot proof.' },
+  { key: 'pages', name: 'Pages', why: 'Page-only code is fixed after the shared pieces it depends on.', how: "Fix each page group's files; 0-pixel screenshot proof." },
+  { key: 'generic', name: 'Generic + Elements', domains: ['scss'], why: 'Global resets touch every page, so they are fixed last, with the full visual pass.', how: 'Fix the generic/elements segment files so the result is identical; no new resets.' },
 ];
 const FAMILY = { STYLE: 'SCSS architecture & classes (STYLE)', LANG: 'translation (LANG)', SAFE: 'security (SAFE)', ACCESS: 'accessibility (ACCESS)', LINT: 'other lint (LINT)' };
 
-function areaOf(file, profile) {
+/** Global stylesheets: not a component style and not in the scss root → Foundation B, never "Pages". */
+function areaOf(file, profile, ctx = {}) {
   const sr = project.scssRoot(profile);
-  if (file === 'angular.json' || file === 'src/index.html' || /^src\/environments\//.test(file) || /^src\/assets\/themes\//.test(file) || /^src\/assets\/config\//.test(file)) return 'foundation';
+  const isStyle = /\.s?css$/.test(file);
+  if (ctx.domain === 'scss') {
+    if (isStyle && !file.startsWith(sr + '/') && !(ctx.componentStyles && ctx.componentStyles.has(file)) && !/^src\/app\/.*\.component\.s?css$/.test(file) && !/^src\/assets\/themes\//.test(file)) return 'foundation-b';
+  }
+  if (file === 'angular.json' || file === 'src/index.html' || /^src\/environments\//.test(file) || /^src\/assets\/themes\//.test(file) || /^src\/assets\/config\//.test(file)) return ctx.domain === 'scss' ? 'foundation' : 'global';
+  if (project.isTranslationPath(file, profile)) return ctx.domain === 'scss' ? 'common' : 'global';
   if (file.startsWith(sr + '/')) {
     const seg = file.slice(sr.length + 1).split('/')[0];
-    if (['settings', 'tools', 'theme', 'packages'].includes(seg)) return 'foundation';
+    if (['settings', 'tools', 'theme', 'packages'].includes(seg) || file === sr + '/style.scss') return 'foundation';
     if (['generic', 'elements'].includes(seg)) return 'generic';
     if (seg === 'layout') return 'layouts';
     if (seg === 'pages') return 'pages';
     return 'common';
   }
-  if (/^src\/styles\.s?css$/.test(file)) return 'generic';
-  if (project.isTranslationPath(file, profile)) return 'common';
   const explicit = project.roleMap(profile).find((r) => u.globMatch(r.glob, file));
   if (explicit) return explicit.role === 'layout' ? 'layouts' : explicit.role === 'page' ? 'pages' : 'common';
   if (/^src\/app\/(shared|core|common)\//.test(file)) return 'common';
@@ -98,14 +107,18 @@ function labelText(labels) {
   return l.length <= 2 ? l.join(' + ') : `${l[0]} + ${l.length - 1} more`;
 }
 
-function buildPhases(findings, profile) {
+function buildPhases(findings, profile, ctx) {
   const confirmed = findings.filter((f) => f.status === 'confirmed');
   const byArea = {};
-  for (const f of confirmed) (byArea[areaOf(f.file, profile)] = byArea[areaOf(f.file, profile)] || []).push(f);
+  for (const f of confirmed) { const a = f.ruleId === 'STYLE-48' ? style48Area(f) : areaOf(f.file, profile, ctx); (byArea[a] = byArea[a] || []).push(f); }
   const phases = [];
-  for (const a of AREAS) {
-    const list = byArea[a.key];
-    if (!list || !list.length) continue;
+  for (const a of AREAS.filter((x) => !x.domains || x.domains.includes(ctx.domain))) {
+    const list = byArea[a.key] || [];
+    if (a.kind) { // Foundation A/B: one phase each, ALWAYS present for scss (scripts decide what is left to do)
+      phases.push({ area: a, label: null, files: [...new Set(list.map((f) => f.file))].sort(), findings: list });
+      continue;
+    }
+    if (!list.length) continue;
     const perFile = {};
     for (const f of list) perFile[f.file] = (perFile[f.file] || 0) + 1;
     const units = Object.keys(perFile).sort().map((file) => ({ file, n: perFile[file], parts: folderParts(file, profile) }));
@@ -117,6 +130,7 @@ function buildPhases(findings, profile) {
   }
   return phases;
 }
+const style48Area = (f) => (/^Misplaced/.test(f.message || '') ? 'foundation-b' : 'foundation-a');
 
 function topRules(fs_, n) {
   const byRule = {};
@@ -132,15 +146,16 @@ function render(plan, findingsById) {
   for (const f of all) { const k = f.ruleId.split(/[-:]/)[0]; fam[k] = (fam[k] || 0) + 1; }
   const famOrder = Object.keys(fam).sort((a, b) => fam[b] - fam[a]);
   const sev = (s) => all.filter((f) => f.severity === s).length;
+  const d = plan.domain || 'scss';
   const head = [
-    '# ui-guard plan', '',
-    `This project does not follow our rules in these areas: ${famOrder.map((k) => FAMILY[k] || k).join(', ') || 'none'}.`,
+    `# ui-guard ${d} plan`, '',
+    `This project does not follow our ${d} rules in these areas: ${famOrder.map((k) => FAMILY[k] || k).join(', ') || 'none found'}.`,
     `Total: ${new Set(all.map((f) => f.file)).size} files, ${all.length} findings (${sev('error')} errors, ${sev('warning')} warnings, ${sev('info')} info).`,
-    `By area: ${famOrder.map((k) => `${k} ${fam[k]}`).join(' · ') || '—'}.`,
-    `${ph.length} phases in a safe order, each at most ${MAX_FILES} files or ${MAX_FINDINGS} findings. Run them one at a time: \`/ui-guard:fix 1\`, then \`/ui-guard:fix 2\`, …`,
+    `${ph.length} phases in a safe order, each at most ${MAX_FILES} files or ${MAX_FINDINGS} findings. \`/ui-guard:fix ${d}\` runs them all, back to back, without asking; \`/ui-guard:fix ${d} <n>\` runs one.`,
+    d === 'scss' ? 'Foundation A and B always come first and are done by scripts (0 tokens); mechanical fixes in every later phase are scripts too — the agent gets only what needs judgment.' : 'Scripts first; the fixer agent gets only the findings that need judgment.',
     'Images and assets are not part of this plan — `/ui-guard:assets` checks referenced files exist.', '',
   ];
-  const foot = ['Full file lists and finding IDs per phase: `.ui-guard/plan.json` · details per area: `/ui-guard:scan --details <area>`.'];
+  const foot = [`Full file lists and finding IDs per phase: \`.ui-guard/${d}/plan.json\` · all findings by file: \`write-report.js --domain ${d} --details\`.`];
   const routeText = (p) => `${(p.routes || []).join(', ') || 'chosen when the phase runs'}${p.weakCoverage ? ' — weak coverage: these pages are checked by eye' : ''}`;
   const full = [];
   const seen = {};
@@ -170,7 +185,7 @@ function render(plan, findingsById) {
 
 /** renames.md from findings: normal classes → rows; library classes → "kept"; project state classes → "(decide)". */
 function renames(findings, phaseOf, root, ctx) {
-  const usage = u.readJSON(path.join(project.paths(root).scan, 'class-usage.json'), null);
+  const usage = u.readJSON(path.join(project.paths(root).scan, 'class-usage.json'), null) || u.readJSON(path.join(domains.paths(root, 'scss').scan, 'class-usage.json'), null);
   const count = (c) => (usage && usage[c] ? usage[c].length : null);
   const rows = new Map(), kept = new Map();
   for (const f of findings.filter((x) => x.status === 'confirmed')) {
@@ -216,45 +231,52 @@ function renames(findings, phaseOf, root, ctx) {
   return { text: L.join('\n') + '\n', count: rows.size, kept: kept.size };
 }
 
-function run(root) {
-  const p = project.paths(root);
+function run(root, domain) {
+  const dom = domains.get(domain);
+  const dp = domains.paths(root, dom.name);
   const profile = project.readProfile(root);
-  const raw = (u.readJSON(p.findings, []) || []);
-  const ctx = libs.context(root, profile);
-  const findings = libs.splitFindings(raw, ctx).rest; // STYLE-01 on library classes is not a finding
+  const raw = (u.readJSON(dp.findings, []) || []);
+  const lctx = libs.context(root, profile);
+  const findings = dom.name === 'scss' ? libs.splitFindings(raw, lctx).rest : raw; // STYLE-01 on library classes is not a finding
   const byId = Object.fromEntries(findings.map((f) => [f.id, f]));
-  const old = u.readJSON(path.join(p.ug, 'plan.json'), { phases: [] });
-  const defaults = ((profile.screenshots && profile.screenshots.routes) || profile.routesDetected || []).slice(0, 3);
+  const old = u.readJSON(dp.planJson, { phases: [] });
   const entries = route.routeMap(root);
-  const built = buildPhases(findings, profile);
+  // screenshot routes for global phases: REAL content routes of the app (utility pages like /no-connection come last)
+  const real = route.realRoutes(root, entries);
+  const defaults = ((profile.screenshots && profile.screenshots.routes) || real.filter((r) => !route.UTILITY_ROUTE.test(r)).concat(real.filter((r) => route.UTILITY_ROUTE.test(r)))).slice(0, 3);
+  const ctx = { domain: dom.name, componentStyles: dom.name === 'scss' ? require('./foundation').componentStyles(root) : new Set() };
+  const built = buildPhases(findings, profile, ctx);
+  const GLOBAL = ['foundation-a', 'foundation-b', 'foundation', 'generic', 'global'];
   const phases = built.map((x, i) => {
     const title = x.area.name + (x.label ? ` (${x.label})` : '');
     const prev = old.phases.find((o) => o.title === title && o.files && o.files.length === x.files.length && o.files.join() === x.files.join());
     const mapped = route.routesFor(root, x.files, entries);
-    const useMapped = mapped.length > 0 && (x.area.key === 'pages' || x.area.key === 'common' || x.area.key === 'layouts');
+    const useMapped = mapped.length > 0 && !GLOBAL.includes(x.area.key);
     const routes = (useMapped ? mapped : defaults).slice(0, 3);
     const weak = x.area.key === 'pages' && !mapped.length;
-    return { id: String(i + 1), title, area: x.area.key, status: prev ? prev.status : 'todo', why: x.area.why, how: x.area.how, files: x.files, extraFiles: [], findings: x.findings.map((f) => f.id), renames: [], routes, weakCoverage: weak, risk: x.area.key === 'foundation' || x.area.key === 'generic' ? 'touches every page — full visual pass' : '', dependsOn: i ? [String(i)] : [] };
+    return { id: String(i + 1), title, area: x.area.key, kind: x.area.kind || 'fix', status: prev ? prev.status : 'todo', why: x.area.why, how: x.area.how, files: x.files, extraFiles: [], findings: x.findings.map((f) => f.id), renames: [], routes, weakCoverage: weak, risk: GLOBAL.includes(x.area.key) ? 'touches every page — full visual pass' : '', dependsOn: i ? [String(i)] : [] };
   });
-  const plan = { generated: new Date().toISOString(), limits: { maxFiles: MAX_FILES, maxFindings: MAX_FINDINGS }, phases };
-  u.writeJSON(path.join(p.ug, 'plan.json'), plan);
+  const plan = { domain: dom.name, generated: new Date().toISOString(), limits: { maxFiles: MAX_FILES, maxFindings: MAX_FINDINGS }, phases };
+  u.writeJSON(dp.planJson, plan);
   const md = render(plan, byId);
-  u.writeText(p.plan, md);
-  const phaseOf = {};
-  for (const ph of phases) for (const id of ph.findings) phaseOf[id] = +ph.id;
-  const phaseOfRaw = { ...phaseOf };
-  for (const k of libs.splitFindings(raw, ctx).kept) phaseOfRaw[k.finding.id] = phaseOfRaw[k.finding.id] || null;
-  const rn = renames(raw, phaseOfRaw, root, ctx);
-  u.writeText(p.renames, rn.text);
+  u.writeText(dp.plan, md);
+  let rn = { count: 0, kept: 0 };
+  if (dom.name === 'scss') {
+    const phaseOf = {};
+    for (const ph of phases) for (const id of ph.findings) phaseOf[id] = +ph.id;
+    for (const k of libs.splitFindings(raw, lctx).kept) phaseOf[k.finding.id] = phaseOf[k.finding.id] || null;
+    rn = renames(raw, phaseOf, root, lctx);
+    u.writeText(dp.renames, rn.text);
+  }
   return { phases: phases.length, lines: md.split('\n').length, renames: rn.count, kept: rn.kept };
 }
 
-function renderOnly(root) {
-  const p = project.paths(root);
-  const plan = u.readJSON(path.join(p.ug, 'plan.json'), null);
-  if (!plan) throw new Error('No plan.json — run plan.js first.');
-  const byId = Object.fromEntries((u.readJSON(p.findings, []) || []).map((f) => [f.id, f]));
-  u.writeText(p.plan, render(plan, byId));
+function renderOnly(root, domain) {
+  const dp = domains.paths(root, domain);
+  const plan = u.readJSON(dp.planJson, null);
+  if (!plan) throw new Error(`No .ui-guard/${domain}/plan.json — run plan.js --domain ${domain} first.`);
+  const byId = Object.fromEntries((u.readJSON(dp.findings, []) || []).map((f) => [f.id, f]));
+  u.writeText(dp.plan, render(plan, byId));
 }
 
 module.exports = { run, render, renderOnly, areaOf, buildPhases, MAX_FILES, MAX_FINDINGS };
@@ -262,7 +284,8 @@ if (require.main === module) {
   const args = u.parseArgs(process.argv.slice(2));
   u.helpExit(args, HELP);
   const root = args.root ? path.resolve(args.root) : (project.findRoot() || process.cwd());
-  if (args._[0] === 'render') { renderOnly(root); console.log('plan.md re-rendered from plan.json'); process.exit(0); }
-  const r = run(root);
-  console.log(`plan → .ui-guard/plan.md (${r.phases} phases, ${r.lines} lines) + plan.json · renames → .ui-guard/renames.md (${r.renames} row(s), ${r.kept} library class(es) kept)`);
+  const dom = domains.fromArgs(args);
+  if (args._[0] === 'render') { renderOnly(root, dom.name); console.log(`.ui-guard/${dom.name}/plan.md re-rendered from plan.json`); process.exit(0); }
+  const r = run(root, dom.name);
+  console.log(`plan → .ui-guard/${dom.name}/plan.md (${r.phases} phases, ${r.lines} lines) + plan.json${dom.name === 'scss' ? ` · renames → .ui-guard/scss/renames.md (${r.renames} row(s), ${r.kept} library class(es) kept)` : ''}`);
 }

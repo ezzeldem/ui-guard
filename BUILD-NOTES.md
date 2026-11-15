@@ -51,12 +51,43 @@ The first real scan of a large project used ~6M tokens (96 agents, 3 rounds) and
 5. **fix without git** (`phase.js`): `gitcheck` (exit 5 + warning), `backup [--made-by-me]` (copy to `<project>-backup-<date>` without node_modules/dist/.angular/.git, only after the developer chose it), dirty-check skipped, snapshot/outside/diff work from file hashes and copies (own small diff), undo hints point at the backup path instead of `git restore`.
 6. Docs: every doc says the plugin has 5 commands (init, scan, fix, check, assets).
 
+## Domains, Foundation and design-preserving access (2026-11-15)
+1. **Per-domain commands.** `/ui-guard:scan <scss|access|lang|safe>` and `/ui-guard:fix <domain> [phase]` (still 5 commands: one file each,
+   the domain is the argument; no domain → the list of four). `scripts/lib/domains.js` maps scss→STYLE, access→ACCESS, lang→LANG,
+   safe→SAFE, each with its scripts and linter. Files per domain: `.ui-guard/<domain>/{findings.json,report.md,plan.md,plan.json,baseline.json,history/,fixes/}`,
+   temp in `.ui-guard/tmp/<domain>/`. `run-checks.js`, `merge-findings.js`, `write-report.js`, `plan.js`, `phase.js`, `ai-scan.js` take `--domain`.
+   `run-checks.js` without a domain still runs everything (used by `/ui-guard:check` and the hooks).
+2. **Baselines per domain**; `loadBaseline(root)` (hooks, check, git pre-push hook) reads the union of every domain baseline plus an older single file.
+3. **No questions, no estimate, no cap.** `ai-scan.js estimate` and the 1.5M cap are gone; `plan` picks only files with a script signal or an
+   `unverified` script finding; tokens are a silent log in the report. Invalid agent output → one rerun with the error, then skip.
+   Scan sets up lint inside `.ui-guard/lint/` only (`setup-project.js lint --internal`) and never installs.
+4. **Fix runs to the end** (`phase.js next` loop, `summary`), stopping only on build failure, 3 failed retries, unreadable/unwritable files or a usage limit.
+   Without git it makes the backup itself (before: a question). Script-only phases skip the Opus review (proven by compile); the review runs once per
+   phase the fixer touched, on the diff only (the diff file carries the phase findings in a `#` header).
+5. **STYLE-48 + Foundation A/B** (`scripts/foundation.js`, `lib/scss-text.js`): structure gap check; Foundation A creates the missing tree from the
+   templates (generic/elements as empty files, no button, the icon-filter utility only when the palette has filter tokens); Foundation B moves the
+   global stylesheets into segment files in cascade order (fine-grained rank per segment + index position; out-of-order rules stay with the previous
+   target and are listed), rebases `url()`s, and proves it by compiling every injected global + theme `<link>` with the project's sass before/after
+   (rules in order; tokens, @font-face, @keyframes as sets). Any difference → full rollback, exit 6 → the fixer.
+6. **Mechanical scss fixes** (`scripts/scss-fix.js`): charset, `@use "tools" as *`, px → px() (root font size aware, custom properties untouched),
+   logical properties (not for bidirectional apps), `@media` min/max width/height → `mq()` (missing breakpoint keys added; `max-width: X` ≡ `width < X+1`
+   at whole pixels), BEM nesting of contiguous top-level parts, prefix renames (SCSS + templates + TS, all-or-nothing per class). Each step is kept
+   only when the compiled CSS of the file is unchanged.
+7. **STYLE-11** no longer covers width/height/min-/max-* (rule text, rules.json, Stylelint plugin, fixer, skill, tests).
+8. **ACCESS**: `rules/access-fix-tiers.md`, `selector-impact.js`, `screens.js --styles` + `style-diff.js` (computed style + box), impact levels in
+   `lib/access-impact.js` (High/Medium/Low, non-problems rejected, repeats collapsed, fix-first list), `needs-decision.md` collected by `phase.js summary`.
+9. Plan fixes: global stylesheets are Foundation B, never Pages (`*.component.scss` counts as a component); screenshot routes come from real routes
+   (`route-files.realRoutes`: lazy children get their parent prefix, utility pages like `/no-connection` last). `tokens-check` ignores `var()` inside tools.
+10. **Not done:** MEDIA-01..06 belong to no domain (still in `/ui-guard:check` and the hooks). Hex → HSL token conversion (STYLE-13) is not mechanical yet.
+    The fixer/reviewer agents, `ng build`, screenshots and style-diff were not executed here (no Claude agents, Angular CLI or Playwright in the test env).
+    Lazy bundles (`inject: false`) are listed as a decision, not moved.
+
 ## Package versions verified (npm, 2026-11-13)
 stylelint 18.0.0 (17.16.0 used), stylelint-scss 7.5.0 (peer ^16.8.2‖^17‖^18), postcss-scss 4.0.9, eslint 10.15.0 (9.39.5 used — see Review fixes), angular-eslint 22.6.0 (eslint ^9‖^10), typescript-eslint 8.72.2 (TS <6.1 → 5.9.3), sass 1.108.2, playwright 1.65.1, pixelmatch 8.0.0 (ESM, loaded via dynamic import), pngjs 7.0.0.
 
 ## Self-test summary (`npm test`)
 ```
-60/60 tests passed.
+77/77 tests passed.
 ```
 Covers: plugin structure (5 commands, 4 agents), rules.json (78 rules), `--help` on every script, 17 custom Stylelint rules (valid + invalid), fixture expected IDs/counts, every in-scan stylelint/eslint/script rule fires, clean files clean, determinism, **no parallel agents in the scan command**, **images excluded from the inventory**, free scan (0 tokens, report/plan ≤ 150 lines), `--details`, **`--plan-only` (< 150 lines, MEDIA dropped, old files in history)**, **estimate printed before AI stages**, one-batch-at-a-time AI flow (valid result saved; rule outside the stage / missing file / unreadable output → STOP; resume), **token cap stops the run**, **ESLint crash → NOT CHECKED, retried once, not routed to AI**, **`/ui-guard:assets` finds a missing image and passes when present** (+ baseline/new-only), color-ramp, icon-filter, Sass tools, init scaffold, post-edit hook, git pre-push hook, Claude pre-push guard, check FAIL path, fix phase fail/complete, git read-only policy.
 

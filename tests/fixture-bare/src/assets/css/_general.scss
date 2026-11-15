@@ -1,0 +1,35 @@
+$brand: #1a73e8;
+$gap: 16px;
+
+@font-face {
+  font-family: "Bare Sans";
+  src: url("../fonts/bare-sans.woff2") format("woff2");
+  font-display: swap;
+}
+
+:root {
+  --brand: #1a73e8;
+  --text: #222222;
+}
+
+html {
+  font-size: 16px;
+}
+
+body {
+  margin: 0;
+  color: var(--text);
+}
+
+a {
+  color: var(--brand);
+}
+
+.tile {
+  padding: $gap;
+  border: 1px solid var(--brand);
+}
+
+.u-hidden {
+  display: none;
+}

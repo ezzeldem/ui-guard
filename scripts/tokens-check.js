@@ -63,7 +63,9 @@ function run(root, profile) {
     let m;
     const idx = u.lineIndexer(f.text);
     // blank out comments (keep offsets so line numbers stay right)
-    const code = f.text.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, (c) => c.replace(/[^\n]/g, ' '));
+    let code = f.text.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, (c) => c.replace(/[^\n]/g, ' '));
+    // a tool's mixin body emits nothing until it is included: its tokens are checked where the mixin is used
+    if (/(^|\/)tools\//.test(f.rel)) code = code.replace(/var\(/g, 'v__(');
     while ((m = re.exec(code))) {
       const name = m[1];
       if (defined.has(name) || VENDOR_PREFIX.test(name)) continue;

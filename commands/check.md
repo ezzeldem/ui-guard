@@ -12,7 +12,7 @@ Reply in the developer's language; files in English; short replies.
 **Plugin root.** `PLUGIN` = `${CLAUDE_PLUGIN_ROOT}` (if not replaced, Glob `**/ui-guard/scripts/changes.js` under `~/.claude/plugins`). Scripts: `node "PLUGIN/scripts/<name>.js" --root "<project root>"`.
 Read-only git only. **Never push** — not even after a PASS; the developer decides. **Never run two agents at the same time.**
 
-1. No `.ui-guard/profile.md` → say "ui-guard is not set up here — run `/ui-guard:init` (new project) or `/ui-guard:scan` (existing project)." and stop.
+1. No `.ui-guard/profile.md` → say "ui-guard is not set up here — run `/ui-guard:init` (new project) or `/ui-guard:scan <domain>` (existing project: scss, access, lang, safe)." and stop.
 2. `node PLUGIN/scripts/changes.js collect [--ref <ref>]` → changed UI files (commits not on the upstream + uncommitted + untracked), changed line ranges,
    lint + scripts on them, the `/ui-guard:assets` check (only problems not in the assets baseline count), reviewer batches in `.ui-guard/tmp/check/batches.json`.
    Exit 2 = no upstream and no default branch found → ask which ref to compare with, then run again with `--ref`.

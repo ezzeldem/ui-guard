@@ -1,0 +1,15 @@
+.home {
+  padding: 24px;
+  margin-left: 8px;
+  width: 320px;
+}
+
+.home-title {
+  font-size: 20px;
+}
+
+@media (max-width: 991px) {
+  .home {
+    padding: 12px;
+  }
+}

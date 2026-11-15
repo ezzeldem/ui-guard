@@ -66,7 +66,7 @@ async function stylelintUnitTests() {
   const cases = {
     'charset-first': { valid: ['@charset "UTF-8";\n.c-a { color: red; }'], invalid: ['.c-a { color: red; }', '// note\n@charset "UTF-8";\n.c-a {}'] },
     'px-only-1px': { valid: ['.c-a { border: 1px solid; padding: px(16); margin: -1px; }'], invalid: ['.c-a { padding: 16px; }', '.c-a { padding: px(16px); }'] },
-    'logical-properties': { valid: ['.c-a { margin-inline-start: 0; inline-size: 1rem; text-align: start; }'], invalid: ['.c-a { margin-left: 0; }', '.c-a { text-align: left; }', '.c-a { width: 1rem; }'] },
+    'logical-properties': { valid: ['.c-a { margin-inline-start: 0; inline-size: 1rem; text-align: start; }', '.c-a { width: 1rem; height: 2rem; min-width: 0; max-width: 100%; min-height: 0; max-height: 50vh; }'], invalid: ['.c-a { margin-left: 0; }', '.c-a { text-align: left; }', '.c-a { left: 0; }', '.c-a { padding-right: 0; }'] },
     'no-literal-color-fallback': { valid: ['.c-a { color: var(--a, var(--b)); gap: var(--g, 1rem); }'], invalid: ['.c-a { color: var(--a, #fff); }', '.c-a { color: var(--a, hsla(0, 0%, 100%, 1)); }'] },
     'mq-only': { valid: ['.c-a { @include mq(min, w, md) { color: red; } }', '@media (hover: hover) { .c-a:hover { color: red; } }', '@media (prefers-reduced-motion: reduce) { * { color: red; } }'], invalid: ['@media (max-width: 10rem) { .c-a { color: red; } }'] },
     'no-output': { valid: ['@charset "UTF-8";\n$a: 1;\n@mixin m { .c-x { color: red; } }\n@function f($x) { @return $x; }'], invalid: ['.c-a { color: red; }', '@media print { $x: 1; }'] },
@@ -136,9 +136,11 @@ async function main() {
     const hooks = u.readJSON(path.join(PLUGIN, 'hooks', 'hooks.json'));
     assert.ok(hooks.hooks.PostToolUse[0].matcher === 'Edit|Write|MultiEdit' && hooks.hooks.PreToolUse[0].matcher.includes('Bash'));
   });
-  await test('rules.json lists every rule in the rule files (78) with checker/group/lintRules', () => {
+  await test('rules.json lists every rule in the rule files (79, incl. STYLE-48) with checker/group/lintRules', () => {
     const idx = u.readJSON(path.join(PLUGIN, 'rules', 'rules.json'));
-    assert.strictEqual(idx.rules.length, 78);
+    assert.strictEqual(idx.rules.length, 79);
+    assert.ok(idx.rules.find((r) => r.id === 'STYLE-48' && r.checker.includes('script')), 'STYLE-48 is a script rule');
+    assert.ok(/width\/height/.test(idx.rules.find((r) => r.id === 'STYLE-11').title), 'STYLE-11 keeps width/height');
     const md = ['style', 'lang', 'safe', 'media', 'access'].map((f) => u.readText(path.join(PLUGIN, 'rules', f + '.md'))).join('\n');
     for (const r of idx.rules) { assert.ok(md.includes(`| ${r.id} |`), r.id + ' in rule file'); assert.ok(r.checker.length && r.group && Array.isArray(r.lintRules) && r.appliesTo.length); }
   });
@@ -191,11 +193,17 @@ async function main() {
   // ---------- scan pipeline ----------
   console.log('\nScan: free by default, one-pass AI with estimate + cap (agent output simulated)');
   /** The free scan's last steps: findings, report, plan (what /ui-guard:scan does without --ai). */
-  const freeScan = (dir) => {
-    let r = run('merge-findings.js', ['finalize'], dir); assert.strictEqual(r.code, 0, r.out);
-    r = run('write-report.js', [], dir); assert.strictEqual(r.code, 0, r.out);
-    r = run('plan.js', [], dir); assert.strictEqual(r.code, 0, r.out);
+  /** /ui-guard:scan <domain> without the AI part: domain scripts + lint, findings, report, plan (all four domains by default). */
+  const freeScan = (dir, list = ['scss', 'access', 'lang', 'safe'], { rerun = true } = {}) => {
+    for (const d of list) {
+      let r;
+      if (rerun) { r = run('run-checks.js', ['--domain', d], dir); assert.strictEqual(r.code, 0, r.out); }
+      r = run('merge-findings.js', ['finalize', '--domain', d], dir); assert.strictEqual(r.code, 0, r.out);
+      r = run('write-report.js', ['--domain', d], dir); assert.strictEqual(r.code, 0, r.out);
+      r = run('plan.js', ['--domain', d], dir); assert.strictEqual(r.code, 0, r.out);
+    }
   };
+  const UG = (dir, ...p) => path.join(dir, '.ui-guard', ...p);
   await test('scan command: one agent at a time — no parallel agents, no scanner B, no resolver, no rounds', () => {
     const scan = u.readText(path.join(PLUGIN, 'commands', 'scan.md'));
     assert.ok(/Never run two agents at the same time/.test(scan));
@@ -211,102 +219,110 @@ async function main() {
     const media = [...new Set(det().filter((f) => /^MEDIA-/.test(f.ruleId)).map((f) => f.ruleId))].sort();
     assert.deepStrictEqual(media, ['MEDIA-01', 'MEDIA-02', 'MEDIA-03', 'MEDIA-04', 'MEDIA-05', 'MEDIA-06'], 'free checks report MEDIA-01..06 (script only, no image is opened)');
   });
-  await test('free scan (default): findings, ≤150-line report, ≤150-line plan, baseline — 0 AI tokens, 0 agents', () => {
+  await test('scan scss (scripts + lint, whole project): own findings/report/plan/baseline under .ui-guard/scss/, 0 AI tokens', () => {
     freeScan(fx);
-    const report = u.readText(path.join(fx, '.ui-guard', 'report.md'));
-    const plan = u.readText(path.join(fx, '.ui-guard', 'plan.md'));
+    const report = u.readText(UG(fx, 'scss', 'report.md'));
+    const plan = u.readText(UG(fx, 'scss', 'plan.md'));
     assert.ok(report.split('\n').length <= 150, 'report lines ' + report.split('\n').length);
     assert.ok(plan.split('\n').length <= 150, 'plan lines ' + plan.split('\n').length);
-    assert.ok(/free checks only \(0 AI tokens\)/.test(report) && /0 agents, 0 AI tokens/.test(report));
-    assert.ok(/## NOT checked/.test(report) && /AI-only rules/.test(report));
-    assert.ok(/^## Phase 1 of \d+ — Foundation/m.test(plan) && /This project does not follow our rules in these areas/.test(plan));
-    assert.ok(!fs.existsSync(path.join(fx, '.ui-guard', 'tmp', 'scan', 'ai', 'state.json')), 'no AI state in a free scan');
-    const findings = u.readJSON(path.join(fx, '.ui-guard', 'findings.json'));
-    const bl = u.readJSON(path.join(fx, '.ui-guard', 'baseline.json'));
+    assert.ok(/Scripts \+ lint only: 0 agents, 0 AI tokens/.test(report) && /## NOT checked/.test(report) && /`scss` — SCSS architecture/.test(report), report);
+    assert.ok(/^## Phase 1 of \d+ — Foundation A — Structure/m.test(plan) && /^## Phase 2 of \d+ — Foundation B — Move/m.test(plan) && /does not follow our scss rules/.test(plan), plan);
+    assert.ok(!fs.existsSync(UG(fx, 'tmp', 'scss', 'scan', 'ai', 'state.json')), 'no AI state without the AI pass');
+    const findings = u.readJSON(UG(fx, 'scss', 'findings.json'));
+    assert.ok(findings.length && findings.every((f) => f.ruleId.startsWith('STYLE-') || f.ruleId.startsWith('LINT:')), 'scss findings hold only STYLE rules');
+    const bl = u.readJSON(UG(fx, 'scss', 'baseline.json'));
     assert.strictEqual(bl.fingerprints.length, new Set(findings.filter((f) => f.status === 'confirmed').map((f) => f.fingerprint)).size);
-    const pj = u.readJSON(path.join(fx, '.ui-guard', 'plan.json'));
-    const placed = new Set(pj.phases.flatMap((p) => p.findings));
+    const pj = u.readJSON(UG(fx, 'scss', 'plan.json'));
+    const placed = new Set(pj.phases.flatMap((x) => x.findings));
     assert.ok(findings.filter((f) => f.status === 'confirmed').every((f) => placed.has(f.id)), 'every finding is in a phase');
-    assert.deepStrictEqual(pj.phases.map((p) => p.id), pj.phases.map((_, i) => String(i + 1)), 'phases numbered 1..N');
+    assert.deepStrictEqual(pj.phases.map((x) => x.id), pj.phases.map((_, i) => String(i + 1)), 'phases numbered 1..N');
+    assert.deepStrictEqual(pj.phases.slice(0, 2).map((x) => x.kind), ['foundation-structure', 'foundation-move']);
   });
-  await test('--details <area> writes one detail page on request', () => {
-    const r = run('write-report.js', ['--details', 'style'], fx); assert.strictEqual(r.code, 0, r.out);
-    assert.ok(/## `src\/assets\/scss\/components\/_card.component.scss`/.test(u.readText(path.join(fx, '.ui-guard', 'details', 'style.md'))));
+  await test('each domain scans only its own rule family and writes only its own files', () => {
+    for (const [d, pre] of [['access', 'ACCESS-'], ['lang', 'LANG-'], ['safe', 'SAFE-']]) {
+      const f = u.readJSON(UG(fx, d, 'findings.json'));
+      assert.ok(f.every((x) => x.ruleId.startsWith(pre)), d + ': ' + [...new Set(f.map((x) => x.ruleId))].join(','));
+      for (const file of ['report.md', 'plan.md', 'plan.json', 'baseline.json']) assert.ok(fs.existsSync(UG(fx, d, file)), `${d}/${file}`);
+      assert.ok(!fs.existsSync(UG(fx, d, 'renames.md')), d + ' writes no renames.md');
+      assert.ok(!/Foundation/.test(u.readText(UG(fx, d, 'plan.md'))), d + ' has no Foundation phases');
+    }
+    assert.ok(u.exists(UG(fx, 'scss', 'renames.md')));
+    const det = readJSONL(UG(fx, 'tmp', 'lang', 'scan', 'deterministic.jsonl'));
+    assert.ok(det.length && det.every((x) => x.ruleId.startsWith('LANG-')), 'lang runs only LANG scripts');
+    assert.ok(!fs.existsSync(UG(fx, 'findings.json')) && !fs.existsSync(UG(fx, 'report.md')), 'no shared findings/report any more');
   });
-  await test('--plan-only: rebuilds report + plan from findings.json (no rescan), keeps MEDIA findings, keeps old files in history', () => {
-    const p = path.join(fx, '.ui-guard', 'findings.json');
+  await test('--details writes the domain detail page on request', () => {
+    const r = run('write-report.js', ['--domain', 'scss', '--details'], fx); assert.strictEqual(r.code, 0, r.out);
+    assert.ok(/## `src\/assets\/scss\/components\/_card.component.scss`/.test(u.readText(UG(fx, 'scss', 'details.md'))));
+  });
+  await test('--plan-only: rebuilds report + plan from findings.json (no rescan), keeps old files in the domain history', () => {
+    const p = UG(fx, 'scss', 'findings.json');
     const findings = u.readJSON(p);
-    findings.push({ id: 'F-999999', ruleId: 'MEDIA-03', severity: 'warning', file: 'src/assets/images/big.png', line: 1, message: 'old MEDIA finding', status: 'confirmed', fingerprint: 'm'.repeat(40), sources: ['script'] });
+    findings.push({ id: 'F-999999', ruleId: 'STYLE-21', severity: 'error', file: 'src/assets/scss/x.scss', line: 1, message: 'old finding', status: 'confirmed', fingerprint: 'm'.repeat(40), sources: ['lint'] });
     u.writeJSON(p, findings);
-    assert.strictEqual(run('write-report.js', ['--archive'], fx).code, 0);
-    assert.strictEqual(run('write-report.js', ['--plan-only'], fx).code, 0);
-    assert.strictEqual(run('plan.js', [], fx).code, 0);
-    const hist = fs.readdirSync(path.join(fx, '.ui-guard', 'history'));
-    assert.ok(hist.some((d) => fs.existsSync(path.join(fx, '.ui-guard', 'history', d, 'report.old.md')) && fs.existsSync(path.join(fx, '.ui-guard', 'history', d, 'findings.old.json'))));
-    const report = u.readText(path.join(fx, '.ui-guard', 'report.md'));
-    const plan = u.readText(path.join(fx, '.ui-guard', 'plan.md'));
-    assert.ok(plan.split('\n').length < 150 && report.split('\n').length < 150, `plan ${plan.split('\n').length} / report ${report.split('\n').length} lines`);
-        assert.ok(u.readJSON(path.join(fx, '.ui-guard', 'baseline.json')).fingerprints.includes('m'.repeat(40)), 'MEDIA is counted in the baseline');
-    assert.ok(/rebuilt from the existing findings\.json/.test(report));
+    assert.strictEqual(run('write-report.js', ['--domain', 'scss', '--archive'], fx).code, 0);
+    assert.strictEqual(run('write-report.js', ['--domain', 'scss', '--plan-only'], fx).code, 0);
+    assert.strictEqual(run('plan.js', ['--domain', 'scss'], fx).code, 0);
+    const hist = fs.readdirSync(UG(fx, 'scss', 'history'));
+    assert.ok(hist.some((d) => fs.existsSync(UG(fx, 'scss', 'history', d, 'report.old.md')) && fs.existsSync(UG(fx, 'scss', 'history', d, 'findings.old.json'))));
+    assert.ok(/rebuilt from the existing findings\.json/.test(u.readText(UG(fx, 'scss', 'report.md'))));
+    assert.ok(u.readJSON(UG(fx, 'scss', 'baseline.json')).fingerprints.includes('m'.repeat(40)));
     u.writeJSON(p, findings.filter((f) => f.id !== 'F-999999'));
   });
-  await test('AI: the estimate is printed before any AI stage (and next refuses without one)', () => {
-    const before = run('ai-scan.js', ['next'], fx);
-    assert.strictEqual(before.code, 1); assert.ok(/estimate/.test(before.out));
-    const e = run('ai-scan.js', ['estimate', '--max-tokens', '1500000'], fx);
+  await test('AI pass: no estimate, no cap, no question — only flagged files of the domain, one batch at a time', () => {
+    const before = run('ai-scan.js', ['next', '--domain', 'scss'], fx);
+    assert.strictEqual(before.code, 1); assert.ok(/plan/.test(before.out));
+    const e = run('ai-scan.js', ['plan', '--domain', 'scss'], fx);
     assert.strictEqual(e.code, 0, e.out);
-    assert.ok(/AI scan estimate \(before any AI work/.test(e.out) && /Stage 1 · SCSS\/CSS/.test(e.out) && /Stage 2 · Templates \+ Angular TS/.test(e.out) && /Stage 3 · Templates — ACCESS/.test(e.out) && /Total: about/.test(e.out), e.out);
-    assert.ok(/Pro 5-hour window/.test(e.out));
-    const s = u.readJSON(path.join(fx, '.ui-guard', 'tmp', 'scan', 'ai', 'state.json'));
-    const lintOwned = new Set(u.readJSON(path.join(PLUGIN, 'rules', 'rules.json')).rules.filter((r) => !r.checker.includes('ai')).map((r) => r.id));
-    assert.ok(s.stages.every((st) => st.rules.every((id) => !lintOwned.has(id))), 'stages only carry rules the free tools cannot check');
-    assert.ok(s.stages.every((st) => st.batches.every((b) => b.files.every((f) => !/\.(png|svg|jpe?g|woff2?)$/.test(f)))), 'no image in any stage');
+    assert.ok(!/estimate|Continue|cap |window/i.test(e.out), 'plan prints no estimate: ' + e.out);
+    const s = u.readJSON(UG(fx, 'tmp', 'scss', 'scan', 'ai', 'state.json'));
+    const idx = u.readJSON(path.join(PLUGIN, 'rules', 'rules.json'));
+    const lintOwned = new Set(idx.rules.filter((r) => !r.checker.includes('ai')).map((r) => r.id));
+    assert.ok(s.stages.every((st) => st.rules.every((id) => id.startsWith('STYLE-') && !lintOwned.has(id))), 'stages carry only the domain AI rules');
+    assert.ok(!('cap' in s), 'no token cap');
+    const inv = u.readJSON(UG(fx, 'tmp', 'scan', 'inventory.json'));
+    const scssFiles = inv.files.filter((f) => f.kind === 'scss' || f.kind === 'css').length;
+    assert.ok(s.stages[0].files < scssFiles, `only flagged style files go to the AI (${s.stages[0].files} of ${scssFiles})`);
+    for (const d of ['access', 'lang', 'safe']) assert.strictEqual(run('ai-scan.js', ['plan', '--domain', d], fx).code, 0);
+    assert.ok(u.readJSON(UG(fx, 'tmp', 'access', 'scan', 'ai', 'state.json')).stages.every((st) => st.rules.every((r) => r.startsWith('ACCESS-'))));
   });
-  await test('AI: one batch at a time — valid result saved; invalid result STOPS; resume continues from the exact batch', () => {
-    const next = () => { const r = run('ai-scan.js', ['next'], fx); assert.strictEqual(r.code, 0, r.out); return JSON.parse(r.stdout); };
+  await test('AI: valid result saved; invalid result → one rerun with the error, then skip (never a question); token log in the report', () => {
+    const next = () => { const r = run('ai-scan.js', ['next', '--domain', 'scss'], fx); assert.strictEqual(r.code, 0, r.out); return JSON.parse(r.stdout); };
     const b1 = next();
-    assert.strictEqual(b1.batch, '1-001');
-    const f0 = b1.files[0];
-    u.writeJSONL(b1.out, [{ ruleId: b1.rules[0], severity: 'error', file: f0, line: 1, message: 'simulated AI finding', checker: 'ai' }]);
+    assert.strictEqual(b1.batch, 'scss-1-001');
+    u.writeJSONL(b1.out, [{ ruleId: b1.rules[0], severity: 'error', file: b1.files[0], line: 1, message: 'simulated AI finding', checker: 'ai' }]);
     u.writeJSON(b1.done, { batch: b1.batch, files: b1.files });
-    const rec = run('ai-scan.js', ['record', b1.batch, '--tokens', '12000'], fx);
+    const rec = run('ai-scan.js', ['record', b1.batch, '--domain', 'scss', '--tokens', '12000'], fx);
     assert.strictEqual(rec.code, 0, rec.out);
     const b2 = next();
-    assert.notStrictEqual(b2.batch, b1.batch, 'the next batch starts only after the previous one is saved');
-    // contradiction: a rule owned by Stylelint (STYLE-21) is outside the stage's AI rules → STOP
+    assert.notStrictEqual(b2.batch, b1.batch);
     u.writeJSONL(b2.out, [{ ruleId: 'STYLE-21', severity: 'error', file: b2.files[0], line: 1, message: 'x' }]);
     u.writeJSON(b2.done, { batch: b2.batch, files: b2.files });
-    const bad = run('ai-scan.js', ['record', b2.batch, '--tokens', '9000'], fx);
-    assert.strictEqual(bad.code, 2, bad.out); assert.ok(/STOP/.test(bad.out) && /not an AI rule of stage/.test(bad.out));
-    // a file missing from the agent's result → STOP (never skipped silently)
-    u.writeJSONL(b2.out, []);
-    u.writeJSON(b2.done, { batch: b2.batch, files: b2.files.slice(1) });
-    if (b2.files.length > 1) { const miss = run('ai-scan.js', ['record', b2.batch, '--tokens', '1'], fx); assert.strictEqual(miss.code, 2); assert.ok(/did not check/.test(miss.out)); }
-    // unreadable output → STOP
+    const bad = run('ai-scan.js', ['record', b2.batch, '--domain', 'scss', '--tokens', '9000'], fx);
+    assert.strictEqual(bad.code, 2, bad.out); assert.ok(/INVALID/.test(bad.out) && /not an AI rule/.test(bad.out) && /once more/.test(bad.out), bad.out);
+    const again = next();
+    assert.strictEqual(again.batch, b2.batch); assert.ok(/not an AI rule/.test(again.retry), 'the rerun carries the error');
     fs.writeFileSync(b2.out, 'not json at all\n');
-    u.writeJSON(b2.done, { batch: b2.batch, files: b2.files });
-    const unread = run('ai-scan.js', ['record', b2.batch, '--tokens', '1'], fx);
-    assert.strictEqual(unread.code, 2); assert.ok(/unreadable/.test(unread.out));
-    // resume → same batch again
-    assert.strictEqual(next().batch, b2.batch);
-    const st = u.readJSON(path.join(fx, '.ui-guard', 'tmp', 'scan', 'ai', 'state.json'));
-    assert.strictEqual(st.used, 21002); assert.strictEqual(st.stages[0].batches[0].status, 'done');
-  });
-  await test('AI: the token cap stops the run, saves progress and says where to resume', () => {
-    const e = run('ai-scan.js', ['estimate', '--max-tokens', '22000'], fx);
-    assert.strictEqual(e.code, 0, e.out);
-    const r = run('ai-scan.js', ['next'], fx);
-    assert.strictEqual(r.code, 3, r.out); assert.ok(/CAP: token cap reached/.test(r.out) && /--resume/.test(r.out) && /batch 1-002/.test(r.out), r.out);
-    const st = u.readJSON(path.join(fx, '.ui-guard', 'tmp', 'scan', 'ai', 'state.json'));
-    assert.ok(st.stop && st.stop.batch === '1-002');
-    // AI findings + cost land in findings.json and the report footer
-    freeScan(fx);
-    const findings = u.readJSON(path.join(fx, '.ui-guard', 'findings.json'));
+    const unread = run('ai-scan.js', ['record', b2.batch, '--domain', 'scss', '--tokens', '1'], fx);
+    assert.strictEqual(unread.code, 2); assert.ok(/unreadable/.test(unread.out) && /skip it/.test(unread.out), unread.out);
+    assert.strictEqual(run('ai-scan.js', ['skip', b2.batch, '--domain', 'scss', '--reason', 'invalid agent output twice'], fx).code, 0);
+    const st = u.readJSON(UG(fx, 'tmp', 'scss', 'scan', 'ai', 'state.json'));
+    assert.strictEqual(st.used, 21001); assert.strictEqual(st.stages[0].batches[0].status, 'done');
+    freeScan(fx, ['scss'], { rerun: false });
+    const findings = u.readJSON(UG(fx, 'scss', 'findings.json'));
     assert.ok(findings.some((f) => f.message === 'simulated AI finding' && f.sources.includes('ai')));
-    const report = u.readText(path.join(fx, '.ui-guard', 'report.md'));
-    // 4 agent runs: batch 1-001 once, batch 1-002 three times (three simulated results, all stopped)
-    assert.ok(/AI stage 1: 4 agent run\(s\), 21k tokens \(measured\)/.test(report) && /Total AI: 4 agent run\(s\), 21k tokens \(measured; cap 22k\)/.test(report), report);
-    assert.ok(/AI scan stopped at batch 1-002: token cap reached/.test(report));
+    const report = u.readText(UG(fx, 'scss', 'report.md'));
+    assert.ok(/AI batches skipped \(scss-\d-\d+: invalid agent output twice\)/.test(report), report);
+    assert.ok(/## Token log \(silent — never a question\)/.test(report) && /AI: 3 agent run\(s\), 21k tokens \(measured\)/.test(report), report);
+  });
+  await test('AI: a usage limit stops the pass with the reason; the same command resumes at that batch', () => {
+    const st0 = u.readJSON(UG(fx, 'tmp', 'scss', 'scan', 'ai', 'state.json'));
+    const left = st0.stages.flatMap((x) => x.batches).find((b) => b.status !== 'done');
+    assert.ok(left, 'a batch is left to resume');
+    const r = run('ai-scan.js', ['stop', left.id, '--domain', 'scss', '--reason', 'usage limit'], fx);
+    assert.strictEqual(r.code, 0); assert.ok(/STOPPED/.test(r.out) && /\/ui-guard:scan scss/.test(r.out), r.out);
+    const nx = JSON.parse(run('ai-scan.js', ['next', '--domain', 'scss'], fx).stdout);
+    assert.strictEqual(nx.batch, left.id);
   });
   await test('ESLint crash: retried once, reported as NOT CHECKED (with the reason), never routed to the AI', () => {
     const dir = prepareFixture('eslint-crash', { beforeChecks: (d) => {
@@ -319,10 +335,10 @@ async function main() {
     assert.strictEqual(ls.eslint, false); assert.ok(/^ESLint failed: TypeError/.test(ls.notChecked.eslint), JSON.stringify(ls));
     const rows = readJSONL(path.join(dir, '.ui-guard', 'tmp', 'scan', 'deterministic.jsonl'));
     assert.ok(!rows.some((f) => f.checker === 'eslint'));
-    freeScan(dir);
-    const report = u.readText(path.join(dir, '.ui-guard', 'report.md'));
-    assert.ok(/NOT CHECKED \(ESLint failed: TypeError/.test(report) && /They were NOT sent to the AI/.test(report), report);
-    assert.ok(!fs.existsSync(path.join(dir, '.ui-guard', 'tmp', 'scan', 'ai', 'state.json')), 'no AI work started');
+    freeScan(dir, ['access']);
+    const report = u.readText(path.join(dir, '.ui-guard', 'access', 'report.md'));
+    assert.ok(/NOT CHECKED \(ESLint failed: TypeError/.test(report) && /They were not sent to the AI/.test(report), report);
+    assert.ok(!fs.existsSync(path.join(dir, '.ui-guard', 'tmp', 'access', 'scan', 'ai', 'state.json')), 'no AI work started');
     assert.ok(/known ESLint 10 problem/.test(report) && /npm install -D eslint@\^9 angular-eslint@\^22 typescript-eslint/.test(report), 'report names the ESLint 10 crash and the exact fix');
     const tl = run('setup-project.js', ['tools'], dir);
     assert.ok(/"status": "crashing"/.test(tl.out) && /Offer \(ask first\): npm install -D eslint@\^9/.test(tl.out), tl.out);
@@ -361,7 +377,7 @@ async function main() {
     freeScan(fx2);
     const fx3 = prepareFixture('scan3');
     freeScan(fx3);
-    assert.strictEqual(u.readText(path.join(fx2, '.ui-guard', 'findings.json')), u.readText(path.join(fx3, '.ui-guard', 'findings.json')));
+    for (const d of ['scss', 'access', 'lang', 'safe']) assert.strictEqual(u.readText(path.join(fx2, '.ui-guard', d, 'findings.json')), u.readText(path.join(fx3, '.ui-guard', d, 'findings.json')), d);
   });
 
   // ---------- review fixes (second pass) ----------
@@ -379,17 +395,17 @@ async function main() {
     // plan: findings as an older scan (Stylelint wording) would have written them
     const cls = ['form-control', 'show', 'ngx-skeleton-loader', 'tile', 'open', 'lib-inner'];
     const findings = cls.map((c, i) => ({ id: 'F-' + String(i + 1).padStart(6, '0'), ruleId: 'STYLE-01', severity: 'error', file: 'src/app/x.component.scss', line: i + 2, endLine: i + 2, message: `Class ".${c}" needs the prefix c- (or is-/has-/js-) for this file's segment/role. (selector-class-pattern)`, checker: 'stylelint', sources: ['lint'], status: 'confirmed', fingerprint: c.padEnd(40, 'x') }));
-    u.writeJSON(path.join(np, '.ui-guard', 'findings.json'), findings);
-    const r = run('plan.js', [], np); assert.strictEqual(r.code, 0, r.out);
-    const md = u.readText(path.join(np, '.ui-guard', 'renames.md'));
+    u.writeJSON(path.join(np, '.ui-guard', 'scss', 'findings.json'), findings);
+    const r = run('plan.js', ['--domain', 'scss'], np); assert.strictEqual(r.code, 0, r.out);
+    const md = u.readText(path.join(np, '.ui-guard', 'scss', 'renames.md'));
     const [main, kept] = md.split('## Library classes (kept as they are)');
     for (const lib of ['form-control', 'show', 'ngx-skeleton-loader', 'lib-inner']) { assert.ok(!main.includes('`.' + lib + '`'), lib + ' must not have a rename row'); assert.ok(kept.includes('`.' + lib + '`'), lib + ' must be in the kept section'); }
     assert.ok(/`\.tile` \| `\.c-tile`/.test(main), main);
     assert.ok(/`\.open` \| \(decide: state class, check TS usages\)/.test(main) && !/\.c-open/.test(md), main);
     assert.ok(/Bootstrap class/.test(kept) && /library prefix `ngx-`/.test(kept) && /::ng-deep/.test(kept));
-    const plan = u.readJSON(path.join(np, '.ui-guard', 'plan.json'));
+    const plan = u.readJSON(path.join(np, '.ui-guard', 'scss', 'plan.json'));
     assert.strictEqual(plan.phases.reduce((n, p) => n + p.findings.length, 0), 2, 'library STYLE-01 findings are not counted in the plan');
-    assert.ok(/kept as they are/.test(md) && !/form-control/.test(u.readText(path.join(np, '.ui-guard', 'plan.md'))));
+    assert.ok(/kept as they are/.test(md) && !/form-control/.test(u.readText(path.join(np, '.ui-guard', 'scss', 'plan.md'))));
   });
   await test('2. phases are split by files AND findings (≤ 15 files or ≤ 300 findings), one feature group per part, plan.md ≤ 150 lines', () => {
     const sp = freshCopy(path.join(__dirname, 'fixture-new'), 'split-proj');
@@ -401,52 +417,48 @@ async function main() {
       for (let k = 0; k < count; k++) { idn++; findings.push({ id: 'F-' + String(idn).padStart(6, '0'), ruleId: k % 2 ? 'STYLE-10' : 'STYLE-11', severity: 'error', file, line: k + 1, endLine: k + 1, message: 'x', checker: 'stylelint', sources: ['lint'], status: 'confirmed', fingerprint: String(idn).padStart(40, '0') }); }
     }
     assert.strictEqual(findings.length, 1300);
-    u.writeJSON(path.join(sp, '.ui-guard', 'findings.json'), findings);
-    const r = run('plan.js', [], sp); assert.strictEqual(r.code, 0, r.out);
-    const plan = u.readJSON(path.join(sp, '.ui-guard', 'plan.json'));
+    u.writeJSON(path.join(sp, '.ui-guard', 'scss', 'findings.json'), findings);
+    const r = run('plan.js', ['--domain', 'scss'], sp); assert.strictEqual(r.code, 0, r.out);
+    const full = u.readJSON(path.join(sp, '.ui-guard', 'scss', 'plan.json'));
+    assert.deepStrictEqual(full.phases.slice(0, 2).map((p) => p.title), ['Foundation A — Structure', 'Foundation B — Move'], 'the scss plan always starts with Foundation A and B');
+    const plan = { phases: full.phases.slice(2) };
     assert.ok(plan.phases.length >= 4, 'several phases, got ' + plan.phases.length);
     for (const p of plan.phases) assert.ok(p.files.length <= 15 && p.findings.length <= 300, `phase ${p.id}: ${p.files.length} files / ${p.findings.length} findings`);
     assert.strictEqual(plan.phases.reduce((n, p) => n + p.files.length, 0), 55); assert.strictEqual(plan.phases.reduce((n, p) => n + p.findings.length, 0), 1300);
-    assert.deepStrictEqual(plan.phases.map((p) => p.id), plan.phases.map((_, i) => String(i + 1)));
+    assert.deepStrictEqual(full.phases.map((p) => p.id), full.phases.map((_, i) => String(i + 1)));
     const featureParts = {};
     for (const p of plan.phases) for (const f of p.files) { const feat = /feat\d+/.exec(f)[0]; (featureParts[feat] = featureParts[feat] || new Set()).add(p.id); }
     assert.ok(Object.values(featureParts).every((s) => s.size === 1), 'a feature group is never split across phases');
     assert.ok(plan.phases.every((p) => /^Pages \(feat\d+( \+ feat\d+|)\)$/.test(p.title)), plan.phases.map((p) => p.title).join(' | '));
-    const md = u.readText(path.join(sp, '.ui-guard', 'plan.md'));
+    const md = u.readText(path.join(sp, '.ui-guard', 'scss', 'plan.md'));
     assert.ok(md.split('\n').length <= 150, 'plan.md lines ' + md.split('\n').length);
-    assert.ok(new RegExp(`## Phase 1 of ${plan.phases.length} — Pages \\(`).test(md));
+    assert.ok(new RegExp(`Phase 3 of ${full.phases.length} \\| Pages \\(|## Phase 3 of ${full.phases.length} — Pages \\(`).test(md), md.slice(0, 600));
     assert.ok(plan.phases.every((p) => p.weakCoverage) && /weak coverage: these pages are checked by eye/.test(md), 'no route for these files → weak coverage');
     assert.ok(!/p0\.component\.scss/.test(md.replace(/e\.g\. [^\n]*/g, '')), 'no per-file lists');
   });
   await test('2b. routes of a phase come from the app routes (no weak coverage when found)', () => {
-    const pj = u.readJSON(path.join(fx, '.ui-guard', 'plan.json'));
+    const pj = u.readJSON(path.join(fx, '.ui-guard', 'scss', 'plan.json'));
     const pages = pj.phases.find((p) => p.area === 'pages');
     assert.ok(pages && pages.routes.includes('/about') && pages.routes.includes('/') && !pages.weakCoverage, JSON.stringify(pages && pages.routes));
-    assert.ok(!/weak coverage/.test(u.readText(path.join(fx, '.ui-guard', 'plan.md'))));
+    assert.ok(!/weak coverage/.test(u.readText(path.join(fx, '.ui-guard', 'scss', 'plan.md'))));
   });
-  await test('3. token cap works without measured tokens: record without --tokens counts the estimate, the cap stops the run', () => {
+  await test('3. tokens are only logged: record without --tokens counts the estimate silently; nothing ever stops on tokens', () => {
     const cdir = prepareFixture('cap2');
-    const e = run('ai-scan.js', ['estimate', '--max-tokens', '1500000'], cdir);
-    assert.strictEqual(e.code, 0, e.out); assert.ok(/up to .* in practice/.test(e.out), e.out);
-    const nb = JSON.parse(run('ai-scan.js', ['next'], cdir).stdout);
-    u.writeJSONL(nb.out, [{ ruleId: nb.rules[0], severity: 'error', file: nb.files[0], line: 1, message: 'simulated', checker: 'ai' }]);
-    u.writeJSON(nb.done, { batch: nb.batch, files: nb.files });
-    const rec = run('ai-scan.js', ['record', nb.batch], cdir); // no --tokens
-    assert.strictEqual(rec.code, 0, rec.out); assert.ok(/\(estimated/.test(rec.out), rec.out);
-    const st = u.readJSON(path.join(cdir, '.ui-guard', 'tmp', 'scan', 'ai', 'state.json'));
-    assert.ok(st.used > 0 && st.used === nb.estTokens, `used ${st.used} vs estimate ${nb.estTokens}`);
-    // 0 behaves like missing
-    const nb2 = JSON.parse(run('ai-scan.js', ['next'], cdir).stdout);
-    u.writeJSONL(nb2.out, []); u.writeJSON(nb2.done, { batch: nb2.batch, files: nb2.files });
-    assert.strictEqual(run('ai-scan.js', ['record', nb2.batch, '--tokens', '0'], cdir).code, 0);
-    const st2 = u.readJSON(path.join(cdir, '.ui-guard', 'tmp', 'scan', 'ai', 'state.json'));
-    assert.strictEqual(st2.used, nb.estTokens + nb2.estTokens);
-    // cap just above the usage → the next batch is refused
-    assert.strictEqual(run('ai-scan.js', ['estimate', '--max-tokens', String(st2.used + 1)], cdir).code, 0);
-    const capped = run('ai-scan.js', ['next'], cdir);
-    assert.strictEqual(capped.code, 3, capped.out); assert.ok(/CAP: token cap reached/.test(capped.out) && /--resume/.test(capped.out));
-    freeScan(cdir);
-    assert.ok(/\(estimated; cap /.test(u.readText(path.join(cdir, '.ui-guard', 'report.md'))), 'report footer says estimated');
+    assert.strictEqual(run('run-checks.js', ['--domain', 'lang'], cdir).code, 0);
+    assert.strictEqual(run('ai-scan.js', ['plan', '--domain', 'lang'], cdir).code, 0);
+    const nb = JSON.parse(run('ai-scan.js', ['next', '--domain', 'lang'], cdir).stdout);
+    u.writeJSONL(nb.out, []); u.writeJSON(nb.done, { batch: nb.batch, files: nb.files });
+    const rec = run('ai-scan.js', ['record', nb.batch, '--domain', 'lang'], cdir); // no --tokens
+    assert.strictEqual(rec.code, 0, rec.out);
+    const st = u.readJSON(path.join(cdir, '.ui-guard', 'tmp', 'lang', 'scan', 'ai', 'state.json'));
+    assert.ok(st.used > 0 && st.used === st.stages[0].batches[0].estimatedTokens, 'estimate counted when no measured tokens');
+    for (const f of ['commands/scan.md', 'commands/fix.md']) {
+      const t = u.readText(path.join(PLUGIN, f));
+      assert.ok(!/AskUserQuestion|max-tokens|--resume|1\.5M|1500000|estimate first|Continue with/i.test(t.replace(/no token\s+estimate|never show a token estimate|no estimate|Never show a token estimate/gi, '')), f + ' must not ask or estimate');
+      assert.ok(/Never ask a question/i.test(t), f + ' says it never asks');
+    }
+    freeScan(cdir, ['lang'], { rerun: false });
+    assert.ok(/AI: 1 agent run\(s\), [\d.k]+ tokens \(estimated\)/.test(u.readText(path.join(cdir, '.ui-guard', 'lang', 'report.md'))), 'report footer says estimated');
   });
   await test('4. ESLint 9: install commands pin eslint@^9, a crashing ESLint is named exactly, rules are never routed to AI, devDependency is 9', () => {
     for (const f of ['commands/scan.md', 'commands/init.md', 'README.md', 'USAGE.md']) {
@@ -466,29 +478,29 @@ async function main() {
     u.mkdirp(path.join(ng, 'node_modules', 'x')); u.writeText(path.join(ng, 'node_modules', 'x', 'big.js'), 'x');
     const scssRel = 'src/app/a.scss', otherRel = 'src/app/b.scss';
     u.writeText(path.join(ng, ...scssRel.split('/')), '.a {\n  gap: 0;\n}\n'); u.writeText(path.join(ng, ...otherRel.split('/')), '.b {\n  gap: 0;\n}\n');
-    u.writeJSON(path.join(ng, '.ui-guard', 'findings.json'), [{ id: 'F-000001', ruleId: 'STYLE-10', severity: 'error', file: scssRel, line: 2, message: 'x', status: 'confirmed', sources: ['lint'], fingerprint: 'a'.repeat(40) }]);
-    u.writeJSON(path.join(ng, '.ui-guard', 'plan.json'), { phases: [{ id: '1', title: 'Pages', status: 'todo', area: 'pages', files: [scssRel], extraFiles: [], findings: ['F-000001'], routes: ['/'], dependsOn: [] }] });
+    u.writeJSON(path.join(ng, '.ui-guard', 'scss', 'findings.json'), [{ id: 'F-000001', ruleId: 'STYLE-10', severity: 'error', file: scssRel, line: 2, message: 'x', status: 'confirmed', sources: ['lint'], fingerprint: 'a'.repeat(40) }]);
+    u.writeJSON(path.join(ng, '.ui-guard', 'scss', 'plan.json'), { domain: 'scss', phases: [{ id: '1', title: 'Pages', status: 'todo', area: 'pages', files: [scssRel], extraFiles: [], findings: ['F-000001'], routes: ['/'], dependsOn: [] }] });
     const gc = run('phase.js', ['gitcheck'], ng, undefined, env);
     assert.strictEqual(gc.code, 5, gc.out); assert.ok(/NO way to undo/.test(gc.out), gc.out);
-    const sh = run('phase.js', ['show', '1'], ng, undefined, env);
+    const sh = run('phase.js', ['show', '1', '--domain', 'scss'], ng, undefined, env);
     assert.strictEqual(sh.code, 0, sh.out); assert.ok(/NO way to undo/.test(sh.out));
-    const dirty = run('phase.js', ['dirty', '1'], ng, undefined, env);
+    const dirty = run('phase.js', ['dirty', '1', '--domain', 'scss'], ng, undefined, env);
     assert.strictEqual(dirty.code, 0, dirty.out); assert.ok(/skipped/.test(dirty.out));
-    assert.strictEqual(run('phase.js', ['list'], ng, undefined, env).code, 0);
+    assert.strictEqual(run('phase.js', ['list', '--domain', 'scss'], ng, undefined, env).code, 0);
     assert.ok(!fs.existsSync(`${ng}-backup-${new Date().toISOString().slice(0, 10)}`), 'nothing is copied before the developer chooses it');
     const bk = run('phase.js', ['backup'], ng, undefined, env);
     assert.strictEqual(bk.code, 0, bk.out);
     const dest = `${ng}-backup-${new Date().toISOString().slice(0, 10)}`;
     assert.ok(fs.existsSync(path.join(dest, 'src', 'app', 'a.scss')) && !fs.existsSync(path.join(dest, 'node_modules')), 'backup copies the project without node_modules');
-    assert.strictEqual(run('phase.js', ['snapshot', '1'], ng, undefined, env).code, 0);
+    assert.strictEqual(run('phase.js', ['snapshot', '1', '--domain', 'scss'], ng, undefined, env).code, 0);
     fs.writeFileSync(path.join(ng, ...scssRel.split('/')), '.a {\n  gap: 1rem;\n}\n'); fs.writeFileSync(path.join(ng, ...otherRel.split('/')), '.b {\n  gap: 2rem;\n}\n');
-    const out = run('phase.js', ['outside', '1'], ng, undefined, env);
+    const out = run('phase.js', ['outside', '1', '--domain', 'scss'], ng, undefined, env);
     assert.strictEqual(out.code, 1, out.out); assert.ok(/src\/app\/b\.scss/.test(out.out) && !/a\.scss/.test(out.out));
-    assert.strictEqual(run('phase.js', ['diff', '1'], ng, undefined, env).code, 0);
-    const diff = u.readText(path.join(ng, '.ui-guard', 'tmp', 'fix', 'phase-1.diff'));
+    assert.strictEqual(run('phase.js', ['diff', '1', '--domain', 'scss'], ng, undefined, env).code, 0);
+    const diff = u.readText(path.join(ng, '.ui-guard', 'tmp', 'scss', 'fix', 'phase-1.diff'));
     assert.ok(/\+\+\+ b\/src\/app\/a\.scss/.test(diff) && /^-  gap: 0;$/m.test(diff) && /^\+  gap: 1rem;$/m.test(diff), diff);
-    assert.strictEqual(run('phase.js', ['fail', '1', '--reason', 'forced', '--retries', '3'], ng, undefined, env).code, 0);
-    const log = u.readText(path.join(ng, '.ui-guard', 'fixes', 'phase-1.md'));
+    assert.strictEqual(run('phase.js', ['fail', '1', '--reason', 'forced', '--retries', '3', '--domain', 'scss'], ng, undefined, env).code, 0);
+    const log = u.readText(path.join(ng, '.ui-guard', 'scss', 'fixes', 'phase-1.md'));
     assert.ok(log.includes(dest) && !/git restore/.test(log), log);
   });
   await test('6. every doc says the plugin has 5 commands (init, scan, fix, check, assets)', () => {
@@ -499,6 +511,235 @@ async function main() {
     }
     for (const c of ['init', 'scan', 'fix', 'check', 'assets']) assert.ok(u.exists(path.join(PLUGIN, 'commands', c + '.md')));
   });
+
+  // ---------- domains, foundation, design-preserving fixes ----------
+  console.log('\nDomains: per-domain commands, SCSS foundation on a project with NO structure, ACCESS impact');
+  await test('commands: /ui-guard:scan and /ui-guard:fix take a domain; without one they list the four domains; no questions', () => {
+    for (const c of ['scan', 'fix']) {
+      const t = u.readText(path.join(PLUGIN, 'commands', c + '.md'));
+      assert.ok(/argument-hint: "scss \| access \| lang \| safe/.test(t), c + ' argument hint');
+      for (const d of ['scss', 'access', 'lang', 'safe']) assert.ok(t.includes(`/ui-guard:${c === 'scan' ? 'scan' : 'scan'} ${d}`) || t.includes(`/ui-guard:fix ${d}`) || t.includes('`' + d + '`'), `${c} names ${d}`);
+      assert.ok(!/allowed-tools:[^\n]*AskUserQuestion/.test(t), c + ' cannot ask questions');
+    }
+    const fix = u.readText(path.join(PLUGIN, 'commands', 'fix.md'));
+    assert.ok(/back to back/.test(fix) && /STOP only for a real problem/.test(fix) && /3 retries/.test(fix) && /phase\.js summary/.test(fix), 'fix runs to the end and stops only on real problems');
+    assert.ok(/foundation\.js structure --apply/.test(fix) && /foundation\.js move --apply/.test(fix) && /scss-fix\.js apply --phase/.test(fix), 'scripts first');
+    const scan = u.readText(path.join(PLUGIN, 'commands', 'scan.md'));
+    assert.ok(/print exactly this list and stop \(no scanning\)/.test(scan));
+    const pj = u.readJSON(path.join(PLUGIN, 'agents', 'ui-fixer.md').replace(/\.md$/, '.md'), null);
+    void pj;
+    const fixer = u.readText(path.join(PLUGIN, 'agents', 'ui-fixer.md'));
+    assert.ok(/except `width`\/`height`/.test(fixer) && /access-fix-tiers\.md/.test(fixer) && /model: sonnet/.test(fixer));
+    assert.ok(/model: opus/.test(u.readText(path.join(PLUGIN, 'agents', 'ui-fix-reviewer.md'))) && /only input/.test(u.readText(path.join(PLUGIN, 'agents', 'ui-fix-reviewer.md'))));
+  });
+  let bare;
+  await test('bare project: /ui-guard:scan scss reports STYLE-48 (missing structure + misplaced global stylesheets)', () => {
+    bare = freshCopy(path.join(__dirname, 'fixture-bare'), 'bare');
+    assert.strictEqual(run('profile.js', ['--refresh'], bare).code, 0);
+    assert.strictEqual(run('setup-project.js', ['lint', '--internal'], bare).code, 0);
+    assert.ok(!fs.existsSync(path.join(bare, 'stylelint.config.mjs')) && !fs.existsSync(path.join(bare, 'eslint.config.mjs')), 'scan writes nothing outside .ui-guard/');
+    assert.strictEqual(run('inventory.js', ['build'], bare).code, 0);
+    freeScan(bare, ['scss']);
+    const f = u.readJSON(UG(bare, 'scss', 'findings.json'));
+    const s48 = f.filter((x) => x.ruleId === 'STYLE-48');
+    assert.ok(s48.some((x) => /Missing from our structure: `tools\/mixins\/_mq\.tools\.scss`/.test(x.message)), 'missing tools listed');
+    assert.ok(s48.some((x) => x.file === 'src/styles.scss' && /^Misplaced/.test(x.message)) && s48.some((x) => x.file === 'src/assets/css/_general.scss'), 'misplaced global stylesheets listed');
+    assert.ok(s48.some((x) => x.file === 'angular.json' && /includePaths/.test(x.message)) && s48.some((x) => x.file === 'src/index.html'), 'wiring listed');
+    const pj = u.readJSON(UG(bare, 'scss', 'plan.json'));
+    assert.deepStrictEqual(pj.phases.slice(0, 2).map((x) => x.kind), ['foundation-structure', 'foundation-move']);
+    const b = pj.phases[1];
+    assert.ok(b.files.includes('src/styles.scss') && b.files.includes('src/assets/css/_general.scss'), 'global stylesheets go to Foundation B');
+    assert.ok(!pj.phases.filter((x) => x.area === 'pages').some((x) => x.files.some((ff) => /styles\.scss|_general/.test(ff))), 'global stylesheets are never classed as Pages');
+    for (const ph of pj.phases.filter((x) => /^foundation/.test(x.area))) assert.ok(!ph.routes.includes('/no-connection') && ph.routes.includes('/'), 'real routes for global phases: ' + ph.routes);
+    assert.ok(pj.phases.some((x) => x.routes.includes('/admin/users')), 'lazy child routes carry their parent prefix');
+  });
+  await test('bare project: /ui-guard:fix scss runs every phase by script, no question — structure first, then move, then components', () => {
+    const D = ['--domain', 'scss'];
+    const order = [];
+    for (let guard = 0; guard < 20; guard++) {
+      const nx = run('phase.js', ['next', ...D], bare);
+      if (nx.code === 10) break;
+      assert.strictEqual(nx.code, 0, nx.out);
+      const id = nx.stdout.trim();
+      const pj = u.readJSON(UG(bare, 'scss', 'plan.json'));
+      const ph = pj.phases.find((x) => x.id === id);
+      order.push(ph.kind);
+      assert.ok([0, 4].includes(run('phase.js', ['show', id, ...D, '--verification', 'static'], bare).code));
+      assert.strictEqual(run('phase.js', ['snapshot', id, ...D], bare).code, 0);
+      let r;
+      if (ph.kind === 'foundation-structure') r = run('foundation.js', ['structure', '--apply'], bare);
+      else if (ph.kind === 'foundation-move') r = run('foundation.js', ['move', '--apply'], bare);
+      else r = run('scss-fix.js', ['apply', '--phase', id, ...D], bare);
+      assert.strictEqual(r.code, 0, ph.kind + ': ' + r.out);
+      if (ph.kind === 'foundation-move') assert.ok(/proof: compiled global CSS before and after renders the same/.test(r.out), r.out);
+      const v = run('phase.js', ['verify', id, ...D], bare); assert.strictEqual(v.code, 0, ph.kind + ' verify: ' + v.out);
+      const o = run('phase.js', ['outside', id, ...D], bare); assert.strictEqual(o.code, 0, o.out);
+      assert.strictEqual(run('phase.js', ['complete', id, ...D, '--verdict', 'pass', '--review', 'skipped'], bare).code, 0);
+    }
+    assert.deepStrictEqual(order.slice(0, 2), ['foundation-structure', 'foundation-move']);
+    assert.ok(order.length >= 3 && order.slice(2).every((k) => k === 'fix'));
+    // the structure equals ours, the old global files are gone, the entry is the one global stylesheet
+    assert.ok(/0 missing, 0 wiring, 0 misplaced/.test(run('foundation.js', ['check'], bare).out));
+    assert.ok(!fs.existsSync(path.join(bare, 'src', 'styles.scss')) && !fs.existsSync(path.join(bare, 'src', 'assets', 'css', '_general.scss')));
+    const ng = u.readJSON(path.join(bare, 'angular.json')).projects.bare.architect.build.options;
+    assert.deepStrictEqual(ng.styles, ['src/assets/scss/style.scss']);
+    assert.ok(ng.stylePreprocessorOptions.includePaths.includes('src/assets/scss'));
+    assert.ok(/--brand: #1a73e8;/.test(u.readText(path.join(bare, 'src', 'assets', 'scss', 'theme', 'colors', 'colors.palette.theme.css'))), 'tokens moved, value unchanged');
+    assert.ok(/url\("\.\.\/\.\.\/fonts\/bare-sans\.woff2"\)/.test(u.readText(path.join(bare, 'src', 'assets', 'scss', 'generic', '_fonts.generic.scss'))), 'url() rebased to the same file');
+    // no extra files: every file in the scss root follows our segment naming
+    const after = run('run-checks.js', ['--domain', 'scss'], bare);
+    const left = readJSONL(UG(bare, 'tmp', 'scss', 'scan', 'deterministic.jsonl'));
+    for (const id of ['STYLE-48', 'STYLE-17', 'STYLE-26', 'STYLE-10', 'STYLE-11', 'STYLE-15', 'STYLE-30', 'STYLE-47', 'STYLE-01']) assert.ok(!left.some((x) => x.ruleId === id), `${id} left: ${left.filter((x) => x.ruleId === id).map((x) => x.file + ':' + x.line + ' ' + x.message).join(' | ')}`);
+    void after;
+    // component style in our style: charset + tools, px(), logical except width/height, mq(), BEM nested, prefix + template usage
+    const home = u.readText(path.join(bare, 'src', 'app', 'pages', 'home', 'home.component.scss'));
+    assert.ok(/^@charset "UTF-8";\n@use "tools" as \*;\n\.p-home \{/.test(home), home);
+    assert.ok(/margin-inline-start: px\(8\)/.test(home) && /width: px\(320\)/.test(home) && !/inline-size/.test(home), 'width stays width');
+    assert.ok(/@include mq\(max, w, w-992\)/.test(home) && /&-title \{/.test(home), home);
+    assert.ok(/class="p-home"/.test(u.readText(path.join(bare, 'src', 'app', 'pages', 'home', 'home.component.html'))), 'template usage renamed');
+    assert.ok(/height: px\(40\)/.test(u.readText(path.join(bare, 'src', 'app', 'pages', 'grid', 'grid.component.scss'))), 'height stays height');
+    const sum = run('phase.js', ['summary', ...D], bare);
+    assert.ok(/\*\*Finished\*\*/.test(sum.out) && /Phases done: (\d+) of \1/.test(sum.out) && /static only/.test(sum.out) && /\.ui-guard\/scss\/plan\.md/.test(sum.out) && /Nothing was committed/.test(sum.out), sum.out);
+    assert.ok(u.exists(UG(bare, 'scss', 'fix-summary.md')));
+  });
+  await test('Foundation B rolls back everything when the compiled CSS would change (and leaves it to the fixer)', () => {
+    const fb = freshCopy(path.join(__dirname, 'fixture-bare'), 'bare-rollback');
+    run('profile.js', ['--refresh'], fb);
+    assert.strictEqual(run('foundation.js', ['structure', '--apply'], fb).code, 0);
+    // a variable redefined later: in one settings file the last value wins for every rule → the compiled CSS changes
+    fs.appendFileSync(path.join(fb, 'src', 'assets', 'css', '_general.scss'), '\n$gap: 4px;\n.tile-y {\n  padding: $gap;\n}\n');
+    const before = u.readText(path.join(fb, 'src', 'styles.scss'));
+    const r = run('foundation.js', ['move', '--apply'], fb);
+    assert.strictEqual(r.code, 6, r.out); assert.ok(/rolled back/.test(r.out), r.out);
+    assert.strictEqual(u.readText(path.join(fb, 'src', 'styles.scss')), before, 'old files restored');
+    assert.ok(!fs.existsSync(path.join(fb, 'src', 'assets', 'scss', 'tools', 'mixins', '_project.tools.scss')), 'created files removed');
+    assert.deepStrictEqual(u.readJSON(path.join(fb, 'angular.json')).projects.bare.architect.build.options.styles, ['src/styles.scss', 'src/assets/scss/style.scss']);
+  });
+  await test('scss-fix: a bidirectional app keeps physical properties (listed as a decision); width/height are never converted', () => {
+    const sf = require(S('scss-fix'));
+    assert.strictEqual(sf.dirMode({ i18n: { languages: ['ar', 'en'] } }), 'both');
+    assert.strictEqual(sf.dirMode({ index: { dir: 'rtl' } }), 'rtl');
+    assert.strictEqual(sf.tLogical('.a {\n  margin-left: 1px;\n  width: 2px;\n  max-height: 3px;\n}', 'rtl'), '.a {\n  margin-inline-end: 1px;\n  width: 2px;\n  max-height: 3px;\n}');
+    assert.strictEqual(sf.tPx('.a { padding: 16px 1px 0px; --x: 16px; }', 16), '.a { padding: px(16) 1px 0; --x: 16px; }');
+    assert.strictEqual(sf.tPx('.a { gap: 10px; }', 10), '.a { gap: px(16); }', 'root font size 10px → same computed value');
+  });
+  await test('ACCESS report: High/Medium/Low counts add up, repeats from one source collapse to ×N, fix-first list, non-problems dropped', () => {
+    const ap = freshCopy(path.join(__dirname, 'fixture-bare'), 'access-proj');
+    run('profile.js', ['--refresh'], ap);
+    const f = (file, line, ruleId, message) => ({ ruleId, severity: 'warning', file, line, message, checker: 'eslint', sources: ['lint'], status: 'confirmed' });
+    const rows = [];
+    for (let i = 1; i <= 5; i++) rows.push(f('src/app/layout/header/header.component.html', i, 'ACCESS-02', `Image \`logo-${i}\` without alt (@angular-eslint/template/alt-text)`));
+    rows.push(f('src/app/pages/home/home.component.html', 4, 'ACCESS-04', 'div with (click) used as a button: clickable div without keyboard (click-events-have-key-events)'));
+    rows.push(f('src/app/pages/home/home.component.html', 2, 'ACCESS-04', 'Skipped heading level: h1 then h4'));
+    rows.push(f('src/app/pages/grid/grid.component.html', 1, 'ACCESS-03', 'Minor: aria-describedby could also point at the hint'));
+    rows.push(f('src/app/pages/grid/grid.component.html', 2, 'ACCESS-03', 'Native <button> has no explicit role'));
+    rows.push(f('src/app/pages/grid/grid.component.html', 1, 'ACCESS-02', 'Decorative image with alt="" is fine but flagged'));
+    rows.push(f('src/app/pages/admin/users/users.component.ts', 1, 'ACCESS-04', 'No h1 in this component'));
+    rows.push(f('src/app/shared/badge/badge.component.html', 1, 'ACCESS-04', 'Missing h1 in this template'));
+    u.writeJSONL(UG(ap, 'tmp', 'access', 'scan', 'deterministic.jsonl'), rows);
+    assert.strictEqual(run('merge-findings.js', ['finalize', '--domain', 'access'], ap).code, 0);
+    const r = run('write-report.js', ['--domain', 'access'], ap); assert.strictEqual(r.code, 0, r.out);
+    const findings = u.readJSON(UG(ap, 'access', 'findings.json'));
+    const ok = findings.filter((x) => x.status === 'confirmed');
+    assert.deepStrictEqual(findings.filter((x) => x.status === 'rejected').map((x) => x.rejectReason).sort(), ['component fragment: the page around it owns the <h1>', 'decorative image with alt="" is correct', 'native element: its role is implicit']);
+    assert.strictEqual(findings.find((x) => /No h1/.test(x.message)).status, 'confirmed', 'a routed page without h1 is still reported');
+    const rep = u.readText(UG(ap, 'access', 'report.md'));
+    const n = (lvl) => +new RegExp(`\\| ${lvl} \\| (\\d+) \\|`).exec(rep)[1];
+    assert.strictEqual(n('High') + n('Medium') + n('Low'), ok.length, 'counts add up');
+    assert.ok(n('High') >= 6 && n('Medium') >= 1, rep);
+    assert.ok(/×5/.test(rep) && /## Fix these first/.test(rep) && /shared source|×5/.test(rep), rep);
+    // needs-decision: one grouped list with options, written at the end of the run
+    assert.strictEqual(run('plan.js', ['--domain', 'access'], ap).code, 0);
+    u.writeJSONL(UG(ap, 'tmp', 'access', 'fix', 'decisions-1.jsonl'), [
+      { topic: 'Image purpose unknown', file: 'src/app/pages/home/home.component.html', line: 3, issue: 'hero.png has no alt and its meaning is not in the code', options: ['decorative: alt=""', 'alt text you provide (translation key)'] },
+      { topic: 'Focus outline removed', file: 'src/app/layout/header/header.component.scss', line: 2, issue: 'outline: none on links', options: ['brand-color :focus-visible outline', '2px inset box-shadow', 'keep, documented'] },
+    ]);
+    const sum = run('phase.js', ['summary', '--domain', 'access'], ap);
+    assert.ok(/Needs your decision: 2/.test(sum.out), sum.out);
+    const nd = u.readText(UG(ap, 'access', 'needs-decision.md'));
+    assert.ok(/## Focus outline removed/.test(nd) && /## Image purpose unknown/.test(nd) && /- A\. /.test(nd) && /- C\. keep, documented/.test(nd), nd);
+  });
+  await test('ACCESS tiers: the tiers file exists in our wording, the selector-impact check finds structural/tag/type selectors', () => {
+    const tiers = u.readText(path.join(PLUGIN, 'rules', 'access-fix-tiers.md'));
+    for (const t of ['Tier A', 'Tier B', 'Tier C', 'Tier D', 'Selector-impact check', 'Visually-hidden toolkit', 'needs-decision', 'min-inline-size: 0', 'display: contents']) assert.ok(tiers.includes(t), t);
+    const sp = freshCopy(path.join(__dirname, 'fixture-bare'), 'impact-proj');
+    u.writeText(path.join(sp, 'src', 'app', 'pages', 'home', 'home.component.scss'), '.home > div:first-child {\n  color: var(--text);\n}\n.home-action + .x {\n  gap: 0;\n}\nbutton {\n  margin: 0;\n}\n.home :required {\n  border: 0;\n}\n');
+    const r = run('selector-impact.js', ['--file', 'src/app/pages/home/home.component.html', '--class', 'home', '--tag', 'div', '--to', 'button', '--root', sp], sp);
+    assert.strictEqual(r.code, 1, r.out);
+    assert.ok(/structural pseudo-class/.test(r.out) && /bare `button` selector/.test(r.out) && /required\/type\/validity/.test(r.out), r.out);
+    const sd = require(S('style-diff'));
+    const a = { 'div:1>div:2': { box: [0, 0, 10, 10], st: { margin: '0', display: 'block' } } };
+    assert.deepStrictEqual(sd.compare(a, { 'div:1>button:2': { box: [0, 0, 10, 10], st: { margin: '0', display: 'block' } } }), [], 'a neutralized swap compares clean');
+    assert.ok(sd.compare(a, { 'div:1>button:2': { box: [0, 0, 12, 10], st: { margin: '2px', display: 'block' } } }).length === 2);
+  });
+  await test('hooks keep working per domain: the git pre-push hook and the edit hook read the union of every domain baseline', () => {
+    const fp = require(S('lib/fingerprint'));
+    const d = freshCopy(path.join(__dirname, 'fixture-new'), 'bl-union');
+    fp.saveBaseline(d, ['a'.repeat(40)], {}, 'scss');
+    fp.saveBaseline(d, ['b'.repeat(40)], {}, 'access');
+    const all = fp.loadBaseline(d);
+    assert.ok(all.has('a'.repeat(40)) && all.has('b'.repeat(40)));
+    assert.strictEqual(fp.loadBaseline(d, 'scss').size, 1);
+    assert.ok(/scss\/baseline\.json/.test(u.readText(path.join(PLUGIN, 'templates', 'git', 'pre-push.js'))));
+  });
+
+  await test('no sass (no node_modules): Foundation B stops and moves nothing; scss-fix applies nothing, every file "skipped (unsure: cannot compile)"', () => {
+    // a copy OUTSIDE the plugin folder, so `sass` cannot be resolved from it
+    const os = require('os');
+    const out = fs.mkdtempSync(path.join(os.tmpdir(), 'ug-nosass-'));
+    try {
+      const d = path.join(out, 'proj');
+      fs.cpSync(path.join(__dirname, 'fixture-bare'), d, { recursive: true });
+      assert.ok(!require(S('lib/scss-text')).loadSass(d), 'sass must not resolve here');
+      assert.strictEqual(run('foundation.js', ['structure', '--apply'], d).code, 0);
+      const ngBefore = u.readText(path.join(d, 'angular.json'));
+      const r = run('foundation.js', ['move', '--apply'], d);
+      assert.strictEqual(r.code, 7, r.out);
+      assert.ok(/run `npm install`/.test(r.out) && /Nothing was moved/.test(r.out), r.out);
+      assert.ok(fs.existsSync(path.join(d, 'src', 'styles.scss')) && fs.existsSync(path.join(d, 'src', 'assets', 'css', '_general.scss')), 'old files kept');
+      assert.strictEqual(u.readText(path.join(d, 'angular.json')), ngBefore, 'angular.json unchanged');
+      assert.ok(!fs.existsSync(path.join(d, 'src', 'assets', 'scss', 'settings', '_project.settings.scss')), 'no target file created');
+      const home = path.join(d, 'src', 'app', 'pages', 'home', 'home.component.scss');
+      const before = u.readText(home);
+      const f = run('scss-fix.js', ['apply', '--files', 'src/app/pages/home/home.component.scss'], d);
+      assert.strictEqual(f.code, 7, f.out);
+      assert.ok(/skipped \(unsure: cannot compile\)/.test(f.out) && /npm install/.test(f.out), f.out);
+      assert.strictEqual(u.readText(home), before, 'component file untouched');
+      const rep = u.readJSON(path.join(d, '.ui-guard', 'tmp', 'scss', 'fix', 'mechanical-files.json'));
+      assert.ok(rep.skipped.length === 1 && rep.files.every((x) => !x.applied.length));
+      assert.ok(/Exit 7 = sass cannot be loaded[\s\S]*\*\*STOP\*\*/.test(u.readText(path.join(PLUGIN, 'commands', 'fix.md'))), 'fix.md stops Foundation B without sass');
+    } finally { fs.rmSync(out, { recursive: true, force: true }); }
+  });
+  for (const dom of ['lang', 'safe']) {
+    await test(`fix ${dom} end to end (bookkeeping): scan → plan → phase loop with no question → summary`, () => {
+      const d = prepareFixture('e2e-' + dom);
+      freeScan(d, [dom]);
+      const pre = dom === 'lang' ? 'LANG-' : 'SAFE-';
+      const findings = u.readJSON(UG(d, dom, 'findings.json'));
+      assert.ok(findings.length && findings.every((x) => x.ruleId.startsWith(pre)), dom + ' findings');
+      const pj = u.readJSON(UG(d, dom, 'plan.json'));
+      assert.ok(pj.phases.length && pj.phases.every((x) => x.kind === 'fix') && !/Foundation/.test(u.readText(UG(d, dom, 'plan.md'))));
+      const D = ['--domain', dom];
+      let n = 0;
+      for (let guard = 0; guard < 20; guard++) {
+        const nx = run('phase.js', ['next', ...D], d);
+        if (nx.code === 10) break;
+        const id = nx.stdout.trim();
+        assert.ok([0, 4].includes(run('phase.js', ['show', id, ...D], d).code));
+        assert.strictEqual(run('phase.js', ['snapshot', id, ...D], d).code, 0);
+        // (the fixer agent would edit here — not available in the test env)
+        assert.strictEqual(run('phase.js', ['outside', id, ...D], d).code, 0);
+        assert.strictEqual(run('phase.js', ['diff', id, ...D], d).code, 0);
+        assert.ok(/^# ui-guard \w+ phase \d+/.test(u.readText(UG(d, 'tmp', dom, 'fix', `phase-${id}.diff`))), 'diff header for the reviewer');
+        assert.strictEqual(run('phase.js', ['complete', id, ...D, '--verdict', 'pass'], d).code, 0);
+        n++;
+      }
+      assert.strictEqual(n, pj.phases.length, 'every phase ran in one loop');
+      const sum = run('phase.js', ['summary', ...D], d);
+      assert.ok(new RegExp(`/ui-guard:fix ${dom} — summary`).test(sum.out) && /\*\*Finished\*\*/.test(sum.out) && new RegExp(`\\.ui-guard/${dom}/report\\.md`).test(sum.out), sum.out);
+      assert.strictEqual(u.readJSON(UG(d, dom, 'baseline.json')).fingerprints.length, 0, 'baseline emptied by complete');
+    });
+  }
 
   // ---------- colors ----------
   console.log('\nColors and icon filters');
@@ -672,53 +913,54 @@ async function main() {
   // ---------- fix phase bookkeeping ----------
   console.log('\n/ui-guard:fix phase bookkeeping (fixer/reviewer/build/screenshots need Claude, Angular CLI and Playwright)');
   await test('fix: unknown id lists valid ids; order warning; forced failure leaves changes and marks failed', () => {
-    const findings = u.readJSON(path.join(repo, '.ui-guard', 'findings.json'));
+    const findings = u.readJSON(path.join(repo, '.ui-guard', 'scss', 'findings.json'));
     const ids = (pred) => findings.filter((f) => f.status === 'confirmed' && pred(f)).map((f) => f.id);
     const plan = { generated: new Date().toISOString(), phases: [
       { id: '1', title: 'Foundation — settings', status: 'todo', files: ['src/assets/scss/settings/_breakpoints.settings.scss'], extraFiles: [], findings: ids((f) => f.file.endsWith('_breakpoints.settings.scss')), renames: [], routes: ['/'], risk: '', dependsOn: [] },
       { id: '2', title: 'Foundation — utilities', status: 'todo', files: ['src/assets/scss/utilities/spacing/_spacing.utility.scss'], extraFiles: [], findings: ids((f) => f.file.endsWith('_spacing.utility.scss')), renames: [], routes: ['/'], risk: '', dependsOn: [] },
       { id: '3', title: 'Common', status: 'todo', files: ['src/assets/scss/common/common.scss'], extraFiles: [], findings: [], renames: [], routes: ['/'], risk: '', dependsOn: ['1'] },
     ] };
-    u.writeJSON(path.join(repo, '.ui-guard', 'plan.json'), plan);
+    plan.domain = 'scss';
+    u.writeJSON(path.join(repo, '.ui-guard', 'scss', 'plan.json'), plan);
     gitRun(repo, ['add', '-A']); gitRun(repo, ['commit', '-m', 'plan']);
-    assert.strictEqual(run('phase.js', ['render'], repo).code, 0);
-    const unk = run('phase.js', ['show', '9'], repo); assert.strictEqual(unk.code, 1); assert.ok(/Valid ids: 1, 2, 3/.test(unk.out), unk.out);
-    assert.strictEqual(run('phase.js', ['show', '3'], repo).code, 4, 'earlier phases not done');
-    assert.strictEqual(run('phase.js', ['show', '2'], repo).code, 4, '1 not done yet');
-    assert.strictEqual(run('phase.js', ['show', '1'], repo).code, 0);
-    assert.strictEqual(run('phase.js', ['dirty', '1'], repo).code, 0);
-    assert.strictEqual(run('phase.js', ['snapshot', '1'], repo).code, 0);
+    assert.strictEqual(run('phase.js', ['render', '--domain', 'scss'], repo).code, 0);
+    const unk = run('phase.js', ['show', '9', '--domain', 'scss'], repo); assert.strictEqual(unk.code, 1); assert.ok(/Valid ids: 1, 2, 3/.test(unk.out), unk.out);
+    assert.strictEqual(run('phase.js', ['show', '3', '--domain', 'scss'], repo).code, 4, 'earlier phases not done');
+    assert.strictEqual(run('phase.js', ['show', '2', '--domain', 'scss'], repo).code, 4, '1 not done yet');
+    assert.strictEqual(run('phase.js', ['show', '1', '--domain', 'scss'], repo).code, 0);
+    assert.strictEqual(run('phase.js', ['dirty', '1', '--domain', 'scss'], repo).code, 0);
+    assert.strictEqual(run('phase.js', ['snapshot', '1', '--domain', 'scss'], repo).code, 0);
     // forced failure: the "fixer" only adds a comment, and also touches a file outside the phase
     const settings = path.join(repo, 'src', 'assets', 'scss', 'settings', '_breakpoints.settings.scss');
     fs.writeFileSync(settings, u.readText(settings).replace('$breakpoints', '// half fix\n$breakpoints'));
     const outsideFile = path.join(repo, 'src', 'assets', 'scss', 'common', 'common.scss');
     fs.writeFileSync(outsideFile, u.readText(outsideFile) + '\n');
-    assert.strictEqual(run('phase.js', ['outside', '1'], repo).code, 1, 'edit outside the phase detected');
+    assert.strictEqual(run('phase.js', ['outside', '1', '--domain', 'scss'], repo).code, 1, 'edit outside the phase detected');
     gitRun(repo, ['restore', '--', 'src/assets/scss/common/common.scss']); // test cleanup of the outside edit (test harness, temp repo)
-    const v = run('phase.js', ['verify', '1'], repo);
+    const v = run('phase.js', ['verify', '1', '--domain', 'scss'], repo);
     assert.strictEqual(v.code, 1, v.out); assert.ok(/not fixed: .*STYLE-16/.test(v.out), v.out);
-    assert.strictEqual(run('phase.js', ['diff', '1'], repo).code, 0);
-    assert.ok(/half fix/.test(u.readText(path.join(repo, '.ui-guard', 'tmp', 'fix', 'phase-1.diff'))));
-    for (let i = 1; i <= 3; i++) assert.strictEqual(run('phase.js', ['verify', '1'], repo).code, 1, 'retry ' + i + ' still failing');
-    assert.strictEqual(run('phase.js', ['fail', '1', '--reason', 'STYLE-16 not fixed after 3 retries', '--retries', '3'], repo).code, 0);
+    assert.strictEqual(run('phase.js', ['diff', '1', '--domain', 'scss'], repo).code, 0);
+    assert.ok(/half fix/.test(u.readText(path.join(repo, '.ui-guard', 'tmp', 'scss', 'fix', 'phase-1.diff'))));
+    for (let i = 1; i <= 3; i++) assert.strictEqual(run('phase.js', ['verify', '1', '--domain', 'scss'], repo).code, 1, 'retry ' + i + ' still failing');
+    assert.strictEqual(run('phase.js', ['fail', '1', '--reason', 'STYLE-16 not fixed after 3 retries', '--retries', '3', '--domain', 'scss'], repo).code, 0);
     assert.ok(/half fix/.test(u.readText(settings)), 'changes left in the working tree');
-    const plan2 = require(S('phase')).readPlan(repo).data;
+    const plan2 = require(S('phase')).readPlan(repo, 'scss').data;
     assert.strictEqual(plan2.phases[0].status, 'failed');
-    const log = u.readText(path.join(repo, '.ui-guard', 'fixes', 'phase-1.md'));
+    const log = u.readText(path.join(repo, '.ui-guard', 'scss', 'fixes', 'phase-1.md'));
     assert.ok(/failed/.test(log) && /git restore -- src\/assets\/scss\/settings\/_breakpoints\.settings\.scss/.test(log));
   });
   await test('fix: a real fix verifies clean and completes (findings fixed, baseline shrinks, log written)', () => {
     const settings = path.join(repo, 'src', 'assets', 'scss', 'settings', '_breakpoints.settings.scss');
     fs.writeFileSync(settings, '@charset "UTF-8";\n// Breakpoints map. Read by tools/mixins/_mq.tools.scss.\n$breakpoints: (\n  sm: 47.9375rem,\n  md: 61.9375rem\n);\n');
-    const v = run('phase.js', ['verify', '1'], repo); assert.strictEqual(v.code, 0, v.out);
-    const blBefore = u.readJSON(path.join(repo, '.ui-guard', 'baseline.json')).fingerprints.length;
-    const c = run('phase.js', ['complete', '1', '--verdict', 'pass', '--retries', '0'], repo); assert.strictEqual(c.code, 0, c.out);
-    const blAfter = u.readJSON(path.join(repo, '.ui-guard', 'baseline.json')).fingerprints.length;
+    const v = run('phase.js', ['verify', '1', '--domain', 'scss'], repo); assert.strictEqual(v.code, 0, v.out);
+    const blBefore = u.readJSON(path.join(repo, '.ui-guard', 'scss', 'baseline.json')).fingerprints.length;
+    const c = run('phase.js', ['complete', '1', '--verdict', 'pass', '--retries', '0', '--domain', 'scss'], repo); assert.strictEqual(c.code, 0, c.out);
+    const blAfter = u.readJSON(path.join(repo, '.ui-guard', 'scss', 'baseline.json')).fingerprints.length;
     assert.ok(blAfter < blBefore, `baseline ${blBefore} → ${blAfter}`);
-    const fixed = u.readJSON(path.join(repo, '.ui-guard', 'findings.json')).filter((f) => f.status === 'fixed');
+    const fixed = u.readJSON(path.join(repo, '.ui-guard', 'scss', 'findings.json')).filter((f) => f.status === 'fixed');
     assert.ok(fixed.length >= 2 && fixed.every((f) => f.file.endsWith('_breakpoints.settings.scss')));
-    assert.strictEqual(run('phase.js', ['show', '1'], repo).code, 3, 'done phase says so');
-    assert.ok(u.exists(path.join(repo, '.ui-guard', 'fixes', 'phase-1.md')));
+    assert.strictEqual(run('phase.js', ['show', '1', '--domain', 'scss'], repo).code, 3, 'done phase says so');
+    assert.ok(u.exists(path.join(repo, '.ui-guard', 'scss', 'fixes', 'phase-1.md')));
   });
 
   // ---------- policy greps ----------

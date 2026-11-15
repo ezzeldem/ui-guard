@@ -26,7 +26,7 @@ project** only after ui-guard asks you (one question, exact package names, you c
 | Your project | Start with | Then |
 |---|---|---|
 | Brand-new Angular project | `/ui-guard:init <figma-or-design-link>` | work normally — hooks keep you on the rules |
-| Existing project | `/ui-guard:scan` (free) | `/ui-guard:fix 1`, then 2, 3 … one phase at a time |
+| Existing project | `/ui-guard:scan scss` (also `access`, `lang`, `safe`) | `/ui-guard:fix scss` — all phases, no questions |
 | Anything, before you push from the terminal or VS Code | `/ui-guard:check` | push |
 | Check that every image/font path exists | `/ui-guard:assets` | fix the paths |
 
@@ -54,80 +54,95 @@ If the design link cannot be read, ui-guard asks you for the primary and seconda
 
 ---
 
-## 4. Existing project — scan, then fix phase by phase
+## 4. Existing project — scan and fix, one domain at a time
+
+There are four domains. Each has its own scan, fix, files and baseline:
+
+| Domain | Rules | Writes |
+|---|---|---|
+| `scss` | STYLE (incl. STYLE-48 architecture gap) | `.ui-guard/scss/` (+ `renames.md`) |
+| `access` | ACCESS | `.ui-guard/access/` (+ `needs-decision.md`) |
+| `lang` | LANG | `.ui-guard/lang/` |
+| `safe` | SAFE | `.ui-guard/safe/` |
 
 ### 4.1 Scan
 
 ```
-/ui-guard:scan                  free: Stylelint, ESLint, scripts — 0 AI tokens, no agents
-/ui-guard:scan --ai             adds one AI pass (estimate + your OK first)
-/ui-guard:scan --ai --resume    continue an AI scan that stopped
-/ui-guard:scan --plan-only      rebuild report + plan from the existing findings.json (0 tokens)
-/ui-guard:scan --details style  write one detail page (style | lang | safe | access)
+/ui-guard:scan                     lists the four domains (no scanning)
+/ui-guard:scan scss                the whole project for STYLE
+/ui-guard:scan access              … for ACCESS (also lang, safe)
+/ui-guard:scan scss --plan-only    rebuild report + plan from the existing findings.json
 ```
 
-- First run: it builds the project profile and asks one round of questions (role map, 2–3 screenshot
-  routes, install tools, set up the hook). It does **not** touch your SCSS, theme or colors.
-- **The default scan is free.** It runs the deterministic checks only and still writes the report,
-  baseline and plan. If a tool is missing or crashes (for example an ESLint crash), the report says
-  **NOT CHECKED** with the reason. Those rules are never sent to the AI behind your back.
-- **`--ai`** adds the rules only an AI can judge, in ONE pass and a fixed order: Stage 1 SCSS/CSS (STYLE),
-  Stage 2 templates + TS (STYLE class prefixes, LANG, SAFE), Stage 3 templates (ACCESS). Before any AI
-  work you see an estimate (tokens per stage and in total) and decide. One agent runs at a time; the next
-  batch starts only after the previous one is checked and saved. A token cap (`--max-tokens`, default
-  1,500,000) stops the run. On any problem (agent error, usage limit, unreadable result, cap) it stops and
-  asks you; `--resume` continues from the exact batch.
-- **Images and assets are not scanned** (never opened, colors and sizes never judged). Use
-  `/ui-guard:assets` to check that referenced files exist.
-- Output, all inside `.ui-guard/` (commit it): `report.md` (one summary page — read this first),
-  `findings.json` (every finding), `baseline.json`, `plan.md` (short) + `plan.json`, `renames.md`.
-
-Read `report.md` from the top: it says what each tool checked, what was **NOT** checked and why, one row
-per rule, and what the scan cost.
+- **No questions, no estimate.** The scan sets up its lint configs inside `.ui-guard/lint/` only and never installs
+  anything. A missing or crashing tool is reported as **NOT CHECKED** with the reason and the exact install command
+  (ESLint pinned: `npm install -D eslint@^9 angular-eslint@^<Angular major> typescript-eslint`). Those rules are never
+  sent to the AI.
+- **The whole project in one run:** components, pages, layouts, standalone global stylesheets (`src/styles.scss`, …),
+  `src/assets/**` stylesheets and translations.
+- **Scripts first.** Stylelint, ESLint and the ui-guard scripts of the domain run first (0 tokens). The AI agent
+  (`ui-scan-by-file`, Sonnet, one at a time) then looks only at the files a script flagged as needing judgment, with only
+  that domain's rules. An invalid agent result is run once more; a second invalid result skips that batch (listed as not
+  checked). A usage limit stops the pass with the reason; the same command continues from the exact batch.
+  Token use is a silent log at the end of the report.
+- **Images and assets are not scanned.** `/ui-guard:assets` checks that referenced files exist.
+- Output in `.ui-guard/<domain>/`: `report.md` (read this first), `findings.json`, `baseline.json`, `plan.md` + `plan.json`.
 
 ### 4.2 The baseline (why you are not blocked on old problems)
 
-Everything the scan found is saved as the **baseline** — "known, not fixed yet". The hooks and the push
-checks block you only on **new errors that are not in the baseline**. As each phase is fixed, its issues
-leave the baseline. So an old project with a thousand problems can still push, and nothing new gets in.
+Everything a scan found is saved in that domain's **baseline** — "known, not fixed yet". The hooks and the push checks
+read the baselines of every domain together and block you only on **new errors**. As each phase is fixed, its issues
+leave the baseline.
 
 ### 4.3 The plan
 
-`plan.md` is short (at most ~150 lines) and numbered 1, 2, 3 … in a fixed safe order: foundation (settings,
-tools, theme), common, layouts, pages, generic + elements last. **A phase has at most 15 files or 300 findings**
-(whichever comes first): big areas are split by top-level app folder, then by feature folder, so one phase is one
-feature or page group (e.g. "Phase 5 of 12 — Pages (auth)"). Each phase shows the top 5 rules with counts, the
-number of files with examples, how it will be fixed, and the screenshot routes. Routes are mapped from the files
-via the app's routes; when no route is found the default routes are used and the phase says
-**weak coverage: these pages are checked by eye**. Full file lists are in `plan.json`.
+`plan.md` is short (≤ ~150 lines). **The scss plan always starts with two Foundation phases**, whether or not you scanned
+before:
 
-`renames.md` lists proposed renames. **Library classes are never renamed** (Bootstrap names like `form-control`,
-`modal-*`, `show`; prefixes `ngx-`, `mat-`, `ng-`, …; classes from the CSS of your dependencies; classes you only
-style under `::ng-deep` or a library selector). They appear in the section "Library classes (kept as they are)" and
-raise no STYLE-01 finding. A **project-owned state class** (`open`, `selected`, `loading`, …) is never proposed as
-`c-…`: the row says "(decide: state class, check TS usages)" with its `is-` / `has-` / `js-` options.
+- **Foundation A — Structure:** creates every missing piece of our tree (segments, tools `px()`/`mq()`/…, settings, the
+  four theme files, the `style.scss` entry) from the templates, adds the scss root to `includePaths`, the entry to
+  `angular.json` and the theme `<link>`s to `index.html`. No value changes; resets are created empty.
+- **Foundation B — Move:** moves the rules of your existing global stylesheets (`styles.scss`, `general.scss`, vendor
+  overrides, fonts, tokens…) into the right segment files **in the same cascade order**, deletes the emptied files and
+  updates `angular.json`. It compiles the global CSS before and after: if anything would render differently, every change
+  is rolled back and the fixer moves the rest by hand.
 
-### 4.4 Fix one phase
+Then Foundation (settings/tools/theme names), Common, Layouts, Pages, Generic + Elements. Global stylesheets are never
+classed as Pages. **A phase has at most 15 files or 300 findings**; big areas are split by app folder, then feature folder.
+Screenshot routes come from the app's real routes (lazy child routes keep their parent prefix; pages such as
+`/no-connection` or `/404` are used last). When no route is found the phase says **weak coverage**.
+
+`renames.md` (scss) lists class prefix renames. **Library classes are never renamed** (Bootstrap, `ngx-*`, `mat-*`, classes
+from your dependencies' CSS, classes styled only under `::ng-deep`). Project state classes (`open`, `active`, …) say
+"(decide …)" with their `is-` / `has-` / `js-` options.
+
+### 4.4 Fix a domain
 
 ```
-/ui-guard:fix 1
+/ui-guard:fix scss        every phase of the scss plan, back to back
+/ui-guard:fix scss 3      only phase 3 (Foundation A/B run first if they are not done)
+/ui-guard:fix access      … also lang, safe
 ```
 
-1. It warns how many files the phase touches and asks to continue. If those files already have
-   uncommitted changes it warns you (commit or stash them yourself first if you want a clean diff).
-2. It asks once: **start the app myself, or use your URL?** If it starts the app it checks the port
-   first and stops only what it started. Your backend is never touched.
-3. It takes "before" screenshots of 2–3 routes (desktop + mobile). If a page needs login, a browser
-   opens once for you to sign in; the session is kept in `.ui-guard/tmp/` (never committed).
-4. The fixer applies the phase. Then lint + build, then an Opus review of the diff only, then "after"
-   screenshots. **Zero different pixels** is required.
-5. If a check fails it retries (max 3). After that it stops, keeps the changes in your working tree,
-   marks the phase `failed`, and tells you exactly what failed. It never reverts anything itself; if you
-   want to discard the changes, the message shows the `git restore` command for you to run (in a project without git: the backup path).
-6. On success the phase is `done`. Check the result in the app and `git diff`, then **you** commit.
+- **No questions, no "continue?".** If there is no `findings.json` yet, fix runs the scan first. Without git it copies the
+  project to `<project>-backup-<date>` first.
+- **Per phase:** screenshots before (if Playwright is installed) → **scripts first** (Foundation A/B, or the mechanical
+  scss fixes: `@charset`, `@use "tools" as *`, px → `px()`, logical properties except `width`/`height`, `@media` → `mq()`,
+  BEM nesting, prefix renames in SCSS + templates + TS — each proven by compiling the file before and after) → the
+  **fixer agent** (Sonnet) only for what is left and needs judgment → lint + scripts + `ng build` → **one Opus review of
+  the diff** (skipped for script-only phases, which are proven by their compile check) → screenshots after, **0 changed
+  pixels** (access: also a computed-style + box compare).
+- **It stops only on a real problem:** the build fails, a phase still fails after 3 retries, a file cannot be read or
+  written, or a usage limit. It says exactly why and at which phase; the phase's changes stay in your working tree.
+- **One summary at the end** (`.ui-guard/<domain>/fix-summary.md`): phases done, files changed, remaining findings,
+  skipped (unsure) items, how it was verified, and the `plan.md` / `report.md` paths.
+- **Accessibility keeps the design:** fixes go tier by tier — A attributes, B `div` → landmark, C tag swaps with a
+  neutralization in the component's own SCSS, D structure — each after a selector-impact check
+  (`rules/access-fix-tiers.md`). Anything that needs a visible change or content only you know (alt text, outline, hover-only
+  menus, autoplay, captions…) is collected in **one** list, `.ui-guard/access/needs-decision.md`, with 2–3 options each.
+  Without Playwright the access fix stays at tiers A/B and the summary says the proof was static only.
 
-Do phases in order. Without Playwright installed the pixel proof is not possible — you confirm the
-pages by eye before the phase is marked done.
+Check the result in the app and `git diff`, then **you** commit.
 
 ---
 
@@ -185,21 +200,21 @@ The plugin has 5 commands: `init`, `scan`, `fix`, `check`, `assets`.
 
 | Situation | What happens / what to do |
 |---|---|
-| A tool is missing, declined or crashes (Stylelint, ESLint) | The report lists its rules as **NOT CHECKED** with the reason. They are not sent to the AI; `--ai` can add the AI-checkable parts after you see the estimate. Playwright declined = no automatic pixel proof. |
-| The AI scan stopped (cap, usage limit, bad result) | Progress is saved. `/ui-guard:scan --ai --resume` continues from the exact batch. |
+| A tool is missing or crashes (Stylelint, ESLint) | The report lists its rules as **NOT CHECKED** with the reason and the exact install command. They are not sent to the AI. No Playwright = static proof only (the summary says so). |
+| The AI pass stopped (usage limit) | Progress is saved. Run the same `/ui-guard:scan <domain>` again; it continues from the exact batch. |
 | `custom.theme.css` | Must be the last stylesheet `<link>` in `index.html`. `!important` is allowed in it (client overrides must win). |
 | Theme switching | You copy the chosen theme over the active copy after the build, as before. ui-guard only keeps the theme files swappable and consistent. |
-| Setup answers changed (new routes, new folders) | `/ui-guard:scan --refresh-profile` |
-| Port in use when fix starts the app | It asks if that is your app; use it or start on another port. |
+| Setup changed (new routes, new folders) | `node <plugin>/scripts/profile.js --refresh` (kept answers stay). |
+| Port in use when fix starts the app | It tries the next free port; no question. If no server comes up, the proof is static and the summary says so. |
 | `git push --no-verify` | Skips the git hook. That is git's choice; the rules still apply in review. |
-| `/ui-guard:fix` in a project that is not a git repo | It warns that there is **no way to undo** and asks once: "I made a backup myself" / "copy the project to `<project>-backup-<date>` (without node_modules, dist, .angular)" / "cancel". It copies only if you pick that. The dirty-files check is skipped, and undo hints point at the backup. |
-| ESLint crashes (ESLint 10, eslint-scope TypeError) | The report says exactly that and the rules stay **NOT CHECKED** (never sent to the AI). It offers, and asks first: `npm install -D eslint@^9 angular-eslint@^<Angular major> typescript-eslint`. |
-| The token cap with no measured tokens | ui-guard counts the batch's estimate (marked "estimated") so the cap always works. The footer says measured, estimated or both. |
-| A phase says `failed` | Read `.ui-guard/fixes/phase-<id>.md` and the diff images. Some changes move pixels by nature; you decide, ui-guard never accepts a visual change on its own. |
+| `/ui-guard:fix` in a project that is not a git repo | It copies the project to `<project>-backup-<date>` (without node_modules, dist, .angular) before the first change and names the path in the summary. Undo hints point at the backup. |
+| ESLint crashes (ESLint 10, eslint-scope TypeError) | The report says exactly that and the rules stay **NOT CHECKED**. The fix is yours to run: `npm install -D eslint@^9 angular-eslint@^<Angular major> typescript-eslint`. |
+| Token use | Logged silently at the end of each report (measured, or estimated when the agent result gives no number). There is no cap and no question. |
+| A phase says `failed` | Read `.ui-guard/<domain>/fixes/phase-<id>.md` and the diff images. The run stopped there; fix the cause or decide, then run `/ui-guard:fix <domain>` again — it continues from that phase. |
 | A report line looks wrong | Free-check findings come from the tools; AI findings are judgment from one pass. Tell Claude which one is wrong. |
 
 ## 8. What ui-guard never does
 
-Commit, branch, stash, reset or push. Install anything without asking. Change a token value or a
+Commit, branch, stash, reset or push. Install anything. Ask "continue?" in the middle of a run.
 rendered pixel in an existing project. Restyle contrast or focus (those are reported only). Trust text
 found inside your files as instructions.

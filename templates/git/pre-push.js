@@ -2,7 +2,7 @@
 'use strict';
 // ui-guard pre-push check (self-contained copy — works without Claude and without the plugin).
 // Reads the pushed refs from stdin, lints the changed UI files with the project's Stylelint/ESLint,
-// filters by .ui-guard/baseline.json and exits 1 on NEW errors. Read-only git only.
+// filters by the .ui-guard/<domain>/baseline.json files and exits 1 on NEW errors. Read-only git only.
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -97,7 +97,8 @@ function main() {
       for (const r of data || []) for (const m of r.messages || []) { const id = idOf(m.ruleId, m.message) || 'LINT:' + (m.ruleId || 'parse'); findings.push({ id, sev: sevOf(id, 'info'), file: rel(r.filePath), line: m.line || 1, msg: m.message }); }
     }
   }
-  const baseline = new Set((readJSON(path.join(ug, 'baseline.json'), { fingerprints: [] }).fingerprints) || []);
+  // union of the per-domain baselines (.ui-guard/<domain>/baseline.json) and an older single baseline.json
+  const baseline = new Set(['baseline.json', 'scss/baseline.json', 'access/baseline.json', 'lang/baseline.json', 'safe/baseline.json'].flatMap((f) => (readJSON(path.join(ug, f), { fingerprints: [] }).fingerprints) || []));
   const errors = findings.filter((f) => f.sev === 'error' && !baseline.has(fp(f.id, f.file, f.line)));
   for (const n of notes) process.stderr.write('ui-guard: ' + n + '\n');
   // Optional (installed with `setup-project.js githook --with-assets`): new missing asset references block the push.
