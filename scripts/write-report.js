@@ -81,7 +81,7 @@ function build(root, domain, { mode = 'scan' } = {}) {
   const L = [];
   const files = inv ? inv.files.length : new Set(all.map((f) => f.file)).size;
   L.push(`# ui-guard ${domain} report — ${(profile.angular && profile.angular.project) || path.basename(root)}`, '');
-  L.push('| | |', '|---|---|', `| Domain | \`${domain}\` — ${dom.title} (${dom.prefix} rules only) |`, `| Date | ${u.today()} |`, `| Commit | ${git.head(root) || 'not a git repo'} |`,
+  L.push('| | |', '|---|---|', `| Domain | \`${domain}\` — ${dom.title} (${dom.prefix} rules only) |`, '| Recommended order | scss → access → lang → safe |', `| Date | ${u.today()} |`, `| Commit | ${git.head(root) || 'not a git repo'} |`,
     `| Files in the project | ${files} (whole project: components, pages, layouts, global stylesheets, assets references) |`,
     `| Scan | ${mode === 'plan-only' ? 'rebuilt from the existing findings.json (no rescan)' : ai ? 'scripts + lint, then AI on the files that need judgment' : 'scripts + lint'} |`,
     `| Findings | ${confirmed.length} (${['error', 'warning', 'info'].map((s) => `${confirmed.filter((f) => f.severity === s).length} ${s}`).join(', ')}) — full list in \`.ui-guard/${domain}/findings.json\` |`, '');

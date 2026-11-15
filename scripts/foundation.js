@@ -23,6 +23,9 @@ Usage (all accept --root <dir>):
         Foundation A: create the missing segment/tools/settings/theme/entry files from templates/, add the scss root to
         includePaths, the entry to angular.json styles (when nothing loads it yet) and the theme <link>s to index.html.
         No value changes; resets/element rules are created as empty segment files (nothing that changes the page).
+  node foundation.js sr-only [--apply]
+        before /ui-guard:fix access: reuse the project's visually-hidden class, or create ONLY .u-sr-only in the utilities layer
+        (loaded from the global entry). Exit 8 = STOP: no utility and the global entry is not loaded (run /ui-guard:fix scss first).
   node foundation.js move [--apply]
         Foundation B: move the rules of the existing global stylesheets into the segment files in cascade order, update the
         entry and angular.json styles, delete emptied old files. Verified by compiling before/after with the project's sass.
@@ -575,7 +578,38 @@ function move(root, profile, { apply }) {
   }
 }
 
-module.exports = { run, gaps, expected, structure, move, snapshot, componentStyles, THEME_FILES };
+// ---------- visually-hidden utility (before /ui-guard:fix access) ----------
+const VH_CLASSES = ['u-sr-only', 'sr-only', 'visually-hidden', 'cdk-visually-hidden'];
+/**
+ * Make sure a visually-hidden utility exists. Reuse the project's own (or a dependency's) class; otherwise create ONLY
+ * utilities/accessibility/_sr-only.utility.scss and load it through utilities/utils.scss from the global entry. Nothing else
+ * is created or moved. Returns { status: 'exists'|'created'|'missing'|'stop', className, reason, created[] }.
+ */
+function srOnly(root, profile, { apply }) {
+  const sr = project.scssRoot(profile);
+  const own = definedClasses(root, profile);
+  const vendor = libs.vendorMap(root, profile);
+  const found = VH_CLASSES.find((c) => own.has(c) || vendor.has(c));
+  if (found) return { status: 'exists', className: found, created: [] };
+  const a = readNg(root, profile);
+  const entry = `${sr}/${ENTRY}`;
+  if (!a || !(a.options.styles || []).some((s) => inputOf(s) === entry && isInjected(s))) {
+    return { status: 'stop', reason: `no visually-hidden utility, and the global entry \`${entry}\` is not loaded — run \`/ui-guard:fix scss\` first (Foundation A creates the utilities layer), then \`/ui-guard:fix access\`` };
+  }
+  if (!apply) return { status: 'missing', created: [] };
+  const created = [];
+  const file = u.fromPosix(root, `${sr}/utilities/accessibility/_sr-only.utility.scss`);
+  u.writeText(file, u.readText(path.join(T, 'scss', 'utilities', 'accessibility', '_sr-only.utility.scss')));
+  created.push(u.relPosix(root, file));
+  const utils = u.fromPosix(root, `${sr}/utilities/utils.scss`);
+  if (!u.exists(utils)) { u.writeText(utils, '@charset "UTF-8";\n// Utilities entry — loaded last in style.scss so utilities win by load order (never by specificity).\n'); created.push(u.relPosix(root, utils)); }
+  u.writeText(utils, ensureLine(utils, '@use "accessibility/sr-only.utility";'));
+  const entryAbs = u.fromPosix(root, entry);
+  if (!/@use\s+["']utilities\/utils["']/.test(u.readText(entryAbs) || '')) u.writeText(entryAbs, ensureLine(entryAbs, '@use "utilities/utils";'));
+  return { status: 'created', className: 'u-sr-only', created };
+}
+
+module.exports = { run, gaps, expected, structure, move, snapshot, componentStyles, srOnly, THEME_FILES };
 if (require.main === module) {
   const args = u.parseArgs(process.argv.slice(2), ['apply', 'json']);
   u.helpExit(args, HELP);
@@ -599,6 +633,14 @@ if (require.main === module) {
     for (const c of r.changed) console.log('  ~ ' + c);
     for (const s of r.skipped) console.log('  skipped (unsure): ' + s);
     process.exit(0);
+  }
+  if (cmd === 'sr-only') {
+    const r = srOnly(root, profile, { apply: !!args.apply });
+    if (r.status === 'exists') console.log(`visually-hidden utility: the project already has \`.${r.className}\` — reused, nothing created.`);
+    else if (r.status === 'created') console.log(`visually-hidden utility: created \`.u-sr-only\` (utilities layer only): ${r.created.join(', ')}`);
+    else if (r.status === 'missing') console.log('visually-hidden utility: missing — run with --apply to create .u-sr-only in the utilities layer.');
+    else console.log(`STOP: ${r.reason}`);
+    process.exit(r.status === 'stop' ? 8 : 0);
   }
   if (cmd === 'move') {
     const { report, code } = move(root, profile, { apply: !!args.apply });

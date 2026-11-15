@@ -155,6 +155,36 @@ function writeLog(root, ph, { ok, verdict, reason, retries, review }) {
   return out;
 }
 
+// elements a Tier B/C/D access fix may swap or move (rules/access-fix-tiers.md)
+const SWAP_TAGS = ['div', 'span', 'p', 'a', 'button', 'td', 'li', 'ul', 'ol', 'section', 'img', 'table'];
+/**
+ * { "<template>": { "<class>": { tag, hits: [{ file, line, selector, why }] } } } for every class on a swappable element of the
+ * phase's templates (html files, and the inline template of a component .ts). The fixer reads this; it cannot run scripts.
+ */
+function selectorImpactFor(root, files) {
+  const si = require('./selector-impact');
+  const out = {};
+  const cache = new Map();
+  for (const rel of files) {
+    if (!/\.(html|ts)$/.test(rel)) continue;
+    let t = u.readText(u.fromPosix(root, rel)) || '';
+    if (/\.ts$/.test(rel)) t = ((/template\s*:\s*(`[\s\S]*?`|'[^']*'|"[^"]*")/.exec(t) || [])[1]) || '';
+    const res = {};
+    for (const m of t.matchAll(/<([a-z][\w-]*)\b[^>]*?\sclass\s*=\s*["']([^"']+)["']/gi)) {
+      const tag = m[1].toLowerCase();
+      if (!SWAP_TAGS.includes(tag)) continue;
+      for (const cls of m[2].replace(/\{\{[^}]*\}\}/g, ' ').split(/\s+/).filter((c) => /^-?[_a-zA-Z][\w-]*$/.test(c))) {
+        if (res[cls]) continue;
+        const key = `${cls}|${tag}`;
+        if (!cache.has(key)) cache.set(key, si.check(root, { cls, tag }));
+        res[cls] = { tag, hits: cache.get(key) };
+      }
+    }
+    if (Object.keys(res).length) out[rel] = res;
+  }
+  return out;
+}
+
 /** skipped (unsure) items of every source (scripts + fixer) and the access decisions, collected for the summary. */
 function collect(root) {
   const d = fixDir(root);
@@ -176,7 +206,7 @@ function collect(root) {
 /** .ui-guard/access/needs-decision.md — ONE list, grouped, each with 2–3 concrete options. */
 function writeDecisions(root, decisions) {
   const file = dp(root).needsDecision;
-  const L = ['# Needs your decision (accessibility)', '', 'These changes would change what the page looks like, or need content only you know. Nothing here was changed.',
+  const L = [`# Needs your decision (${DOMAIN === 'scss' ? 'colours' : 'accessibility'})`, '', 'These changes would change what the page looks like, or need content only you know. Nothing here was changed.',
     'Pick an option per item (or write your own), then run `/ui-guard:fix access` again.', ''];
   const by = {};
   for (const x of decisions) (by[x.topic || 'Other'] = by[x.topic || 'Other'] || []).push(x);
@@ -195,6 +225,17 @@ function writeDecisions(root, decisions) {
   return n;
 }
 
+/** One warning line (never a question, never a stop) when access runs before the scss structure is clean. */
+function orderWarning(root) {
+  if (DOMAIN !== 'access') return [];
+  const sf = u.readJSON(domains.paths(root, 'scss').findings, null);
+  if (!sf) return ['> Warning: `/ui-guard:scan scss` has not run — recommended order is scss → access → lang → safe.'];
+  const open = sf.filter((f) => f.status === 'confirmed' && /^STYLE-/.test(f.ruleId));
+  if (!open.length) return [];
+  const s48 = open.filter((f) => f.ruleId === 'STYLE-48').length;
+  return [`> Warning: scss is not done (${s48 ? `STYLE-48 ×${s48}, ` : ''}${open.length} open STYLE finding(s)) — recommended order is scss → access → lang → safe.`];
+}
+
 function summary(root, args) {
   const plan = readPlan(root);
   const p = dp(root);
@@ -210,17 +251,18 @@ function summary(root, args) {
     if (foundationMove) for (const f of [...(foundationMove.created || []), ...(foundationMove.deleted || [])]) changed.add(f);
   }
   const { skipped, decisions } = collect(root);
-  const nDecide = DOMAIN === 'access' ? writeDecisions(root, decisions) : 0;
+  const nDecide = DOMAIN === 'access' || DOMAIN === 'scss' ? writeDecisions(root, decisions) : 0;
   const shots = phases.some((x) => u.exists(path.join(project.paths(root).tmp, 'screens', `phase-${DOMAIN}-${x.id}`, 'diff', 'results.json')));
-  const L = [`# /ui-guard:fix ${DOMAIN} — summary`, '',
+  const L = [`# /ui-guard:fix ${DOMAIN} — summary`, '', ...orderWarning(root), '',
     args.stopped ? `**Stopped** at phase ${args.at || '?'}: ${args.stopped}` : (done.length === phases.length ? '**Finished**: every phase ran.' : `**Partial**: ${done.length} of ${phases.length} phases done.`), '',
     `- Phases done: ${done.length} of ${phases.length}${done.length ? ` (${done.map((x) => x.id).join(', ')})` : ''}`,
     `- Files changed: ${changed.size}`,
     `- Remaining findings: ${remaining.length} (${['error', 'warning', 'info'].map((s) => `${remaining.filter((f) => f.severity === s).length} ${s}`).join(', ')})`,
     `- Skipped (unsure — not proven neutral, left as they are): ${skipped.length}`,
-    ...(DOMAIN === 'access' ? [`- Needs your decision: ${nDecide} → \`.ui-guard/access/needs-decision.md\``] : []),
+    ...(DOMAIN === 'access' || DOMAIN === 'scss' ? [`- Needs your decision: ${nDecide} → \`.ui-guard/${DOMAIN}/needs-decision.md\``] : []),
     `- Visual proof: ${shots ? 'screenshots with 0-pixel diff per phase (see .ui-guard/' + DOMAIN + '/fixes/)' : 'static only (compile/lint/build) — Playwright is not installed, no screenshot was compared'}`,
-    `- Plan: \`.ui-guard/${DOMAIN}/plan.md\` · Report: \`.ui-guard/${DOMAIN}/report.md\``, ''];
+    `- Plan: \`.ui-guard/${DOMAIN}/plan.md\` · Report: \`.ui-guard/${DOMAIN}/report.md\``,
+    '- Recommended order of domains: scss → access → lang → safe', ''];
   if (skipped.length) L.push('## Skipped (unsure)', '', ...skipped.slice(0, 60).map((s) => `- ${s}`), ...(skipped.length > 60 ? [`- … ${skipped.length - 60} more`] : []), '');
   L.push('Nothing was committed.');
   u.writeText(p.summary, L.join('\n') + '\n');
@@ -265,7 +307,10 @@ if (require.main === module) {
   if (cmd === 'show') {
     const findings = (u.readJSON(dp(root).findings, []) || []).filter((f) => (ph.findings || []).includes(f.id));
     // verification: 'visual' (Playwright installed → screenshots + style compare) or 'static' (no Playwright: access stays Tier A/B)
-    u.writeJSON(path.join(fixDir(root), `phase-${ph.id}.json`), { domain: DOMAIN, verification: args.verification === 'static' ? 'static' : 'visual', phase: ph, findings });
+    const out = { domain: DOMAIN, verification: args.verification === 'static' ? 'static' : 'visual', phase: ph, findings };
+    // the fixer has no shell: the selector-impact check of every block a Tier B/C/D change may touch is precomputed here
+    if (DOMAIN === 'access') out.selectorImpact = selectorImpactFor(root, ph.files || []);
+    u.writeJSON(path.join(fixDir(root), `phase-${ph.id}.json`), out);
     console.log(`${DOMAIN} phase ${ph.id} "${ph.title}" (${ph.kind || 'fix'}) — status ${ph.status}, ${(ph.files || []).length} files, ${findings.length} findings, routes ${(ph.routes || []).join(', ') || '(none)'} → ${u.relPosix(root, path.join(fixDir(root), `phase-${ph.id}.json`))}`);
     if (!hasGit(root)) console.log(NO_GIT_WARNING);
     if (ph.status === 'done') { console.log('Already done.'); process.exit(3); }

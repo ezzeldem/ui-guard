@@ -32,11 +32,15 @@ The scripts already ran on this phase (mechanical fixes, 0 tokens). You get only
   Logical properties everywhere **except `width`/`height` and `min-/max-width/height`** (they stay). No plain `@media`: use `mq()`.
   `.block { .block__x {} }` → `&__x` only when `.block__x` is defined once and used only in the block's own template.
   Foundation B leftovers: move the rule into its segment file **keeping the cascade order**; never reorder rules.
-- **access:** follow `rules/access-fix-tiers.md` strictly — tier by tier (A, B, C, D), run `selector-impact.js` before every
-  Tier B/C/D change, add the neutralization SCSS with every Tier C swap, reuse the visually-hidden utility, keep ACCESS-00
+- **access:** follow `rules/access-fix-tiers.md` strictly — tier by tier (A, B, C, D). Before every Tier B/C/D
+  change READ `selectorImpact[<template>][<class>]` in the phase JSON (precomputed — you cannot run scripts): hits → adjust
+  those selectors in the same change, or skip the item into the skipped file with the hit as reason. Add the neutralization SCSS with every Tier C swap, reuse the visually-hidden utility, keep ACCESS-00
   (`[attr.aria-*]`, bind `null`, no positive tabindex, translation keys, no new dependency, no hand-rolled focus trap).
   If the phase JSON says `"verification": "static"`, do only Tier A and Tier B where the elements layer has no rule for the tag.
   Never invent alt text or labels. Anything visible or content-dependent → the decisions file (below), with 2–3 options.
+  Each finding carries `tier` and `impact`; follow the "Fix map for ACCESS-06..22" in the tiers file. ACCESS-21 (image box): never guess an
+  intrinsic size; `aspect-ratio` only when the ratio is already written in the project and the box provably stays the same; width/height
+  attributes are Tier C (visual proof) — otherwise write the decision.
 - **lang:** add every new key to **every** language file in the profile; never change existing translations.
 - **safe:** never change behaviour beyond the finding (no new dependency, no removed feature); a secret is reported, not deleted.
 - Never change token **values**, never add new visual rules (resets, outlines, colors) to an existing project,

@@ -13,9 +13,10 @@ const SIGNALS = {
   lang: { text: />\s*[^<{\s][^<{]*[A-Za-z؀-ۿ][^<]*</, ts: /\b(toast|toastr|snack|alert|confirm|dialog|title|setTitle|Validators|message|notify|swal|error)\b[^\n]*['"`][^'"`\n]*[A-Za-z؀-ۿ]{2,}|\?\s*['"`][^'"`]+['"`]\s*:\s*['"`]|lang\s*===?/i, html: /\s(placeholder|title|alt|aria-label|aria-placeholder|label)\s*=\s*"[^"{]*[A-Za-z؀-ۿ]/ },
   safe: { text: /innerHTML|outerHTML|bypassSecurityTrust|\beval\s*\(|Function\s*\(|localStorage|sessionStorage|document\.cookie|console\.|insertAdjacentHTML|document\.write|setTimeout\s*\(\s*['"`]|setInterval\s*\(\s*['"`]|javascript:|\b(key|secret|token|password|passwd|apikey)\b/i, kinds: ['config'] },
   'access-labels': { text: /<input|<select|<textarea|formControlName|ngModel|ControlValueAccessor|<label|<button[^>]*>\s*<(i|img|svg|mat-icon|fa-icon)/i },
-  'access-alt': { text: /<img|<svg|<i\s+class=|<mat-icon|<fa-icon|background-image|icon/i },
+  'access-alt': { text: /<img|<svg|<i\s+class=|<mat-icon|<fa-icon|background-image|icon|<video|<audio|<iframe|<canvas|<object|<embed/i },
   'access-aria': { text: /aria-|role\s*=|dropdown|tab|dialog|modal|menu|combobox|listbox|tree|Validators|toast|@HostBinding|\[attr\./i },
   'access-semantics': { text: /\(click\)|<table|<ul|<ol|<h[1-6]|<nav|<main|<form|\slang\s*=|\sdir\s*=|<header|<footer|<section|routerLink/i, kinds: ['index'] },
+  'access-motion': { text: /autoplay|carousel|swiper|slick|marquee|setTimeout|setInterval|timeout|toast|snack|animation|@keyframes/i },
   'access-keyboard': { text: /tabindex|\(keydown|\(keyup|@HostListener|\.focus\(|modal|overlay|dropdown|tabs|\(click\)|autofocus/i },
 };
 

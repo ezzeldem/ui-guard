@@ -25,6 +25,8 @@ const MEDIUM = [
 function impactOf(f) {
   if (f && ['high', 'medium', 'low'].includes(String(f.impact || '').toLowerCase())) return String(f.impact).toLowerCase();
   const text = `${f.message || ''} ${f.evidence || ''}`;
+  const ruleDefault = (require('./project').ruleById(f.ruleId) || {}).impact;
+  if (f.ruleId && /^ACCESS-(0[6-9]|1\d|2\d)$/.test(f.ruleId) && ['high', 'medium', 'low'].includes(ruleDefault)) return ruleDefault;
   if (HIGH.some(([re]) => re.test(text))) return 'high';
   if (MEDIUM.some(([re]) => re.test(text))) return 'medium';
   return 'low';

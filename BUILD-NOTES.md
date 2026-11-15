@@ -82,12 +82,25 @@ The first real scan of a large project used ~6M tokens (96 agents, 3 rounds) and
     The fixer/reviewer agents, `ng build`, screenshots and style-diff were not executed here (no Claude agents, Angular CLI or Playwright in the test env).
     Lazy bundles (`inject: false`) are listed as a decision, not moved.
 
+## ACCESS-06..22, image box and colours (2026-11-16)
+1. **17 new ACCESS rules** (rules.json: 96 rules; `impact` + `tier` per rule) from a coverage comparison with the team's accessibility material: forms (types/autofill, structure, errors), landmarks, headings, links,
+   document (lang, zoom, titles), role misuse, live regions, widgets, tab stops, motion/timing, audio/video, iframes/objects/canvas, tables, image box, name vs visible text. Rule text is our own wording and examples.
+   The comparison matrix (112 checks: 45 already covered, 55 added, 12 weaker and now fixed) is a private note in `local/access-coverage.md` — git-ignored, named in no published file (a test greps for it).
+2. **`scripts/access-check.js` + `lib/html-scan.js`**: a small Angular-template reader (elements, bound attributes, text, `@if`/`*ngIf` position) and the script part of ACCESS-06, 07, 09–16, 18–22 (+ the document part of 12 on index.html and the routes).
+   ACCESS-08 and 17 are AI-only (route-files signal group `access-motion`); the AI part of 09, 12, 14–16, 18–20 stays in the access AI stage. Each script finding carries `impact` and `tier` through merge-findings into the report.
+3. **ACCESS-21 image box** (same condition as MEDIA-01, which stays for `/ui-guard:check` and the hooks): reports an image whose box is not reserved; a class that fixes only the width is reported separately. Fix rule: never guess an intrinsic size;
+   `aspect-ratio` in the component SCSS only when the ratio is already written and the box provably stays the same; width/height attributes are Tier C (visual proof) or a decision.
+4. **Colours in `fix scss`** (`lib/colors-fix.js`, step `colors` of `scss-fix.js`): hex / rgb() / rgba() in `$variables` and `--tokens` → `hsl(H, S%, L%[, A])` with up to 4 decimals — only when the round trip gives exactly the same 8-bit channels (tested on random colours);
+   kept and listed when not exact (percent or fractional channels, or a variable read by a Sass colour function). A component colour equal to exactly one palette colour becomes `var(--token)`; no match or several matches → `.ui-guard/scss/needs-decision.md`
+   (add to the palette / keep the literal). Named colours, url(), strings, comments, selectors and interpolation are never touched. The CSS compare now treats any plain colour literal by its 8-bit result, and `var(--token)` by the colour it stands for.
+5. Settings, tools and theme files get the colour step only; every other scss file gets all steps. `phase.js summary` writes the scss needs-decision list too.
+
 ## Package versions verified (npm, 2026-11-13)
 stylelint 18.0.0 (17.16.0 used), stylelint-scss 7.5.0 (peer ^16.8.2‖^17‖^18), postcss-scss 4.0.9, eslint 10.15.0 (9.39.5 used — see Review fixes), angular-eslint 22.6.0 (eslint ^9‖^10), typescript-eslint 8.72.2 (TS <6.1 → 5.9.3), sass 1.108.2, playwright 1.65.1, pixelmatch 8.0.0 (ESM, loaded via dynamic import), pngjs 7.0.0.
 
 ## Self-test summary (`npm test`)
 ```
-77/77 tests passed.
+94/94 tests passed.
 ```
 Covers: plugin structure (5 commands, 4 agents), rules.json (78 rules), `--help` on every script, 17 custom Stylelint rules (valid + invalid), fixture expected IDs/counts, every in-scan stylelint/eslint/script rule fires, clean files clean, determinism, **no parallel agents in the scan command**, **images excluded from the inventory**, free scan (0 tokens, report/plan ≤ 150 lines), `--details`, **`--plan-only` (< 150 lines, MEDIA dropped, old files in history)**, **estimate printed before AI stages**, one-batch-at-a-time AI flow (valid result saved; rule outside the stage / missing file / unreadable output → STOP; resume), **token cap stops the run**, **ESLint crash → NOT CHECKED, retried once, not routed to AI**, **`/ui-guard:assets` finds a missing image and passes when present** (+ baseline/new-only), color-ramp, icon-filter, Sass tools, init scaffold, post-edit hook, git pre-push hook, Claude pre-push guard, check FAIL path, fix phase fail/complete, git read-only policy.
 

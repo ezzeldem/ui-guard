@@ -23,6 +23,8 @@ The first word of the arguments is the domain: `scss` (STYLE rules), `access` (A
   /ui-guard:scan access   accessibility (ACCESS)
   /ui-guard:scan lang     translation (LANG)
   /ui-guard:scan safe     UI security (SAFE)
+
+  Recommended order: scss → access → lang → safe
   ```
 - Below, `D` is the domain. A scan loads only D's rules (`PLUGIN/rules/<style|access|lang|safe>.md`) and writes only D's files.
 - `--plan-only` → section A only.
@@ -69,5 +71,5 @@ The first word of the arguments is the domain: `scss` (STYLE rules), `access` (A
 3. `plan.js --domain D` → `.ui-guard/D/plan.md` + `plan.json` (+ `.ui-guard/scss/renames.md`). The scss plan always starts with
    Foundation A (structure) and Foundation B (move the global stylesheets).
 4. Reply briefly: findings per rule (ACCESS: per impact), what was NOT checked and why, the phase list (number · title · files),
-   the token log line from the report, and the paths `.ui-guard/D/report.md`, `.ui-guard/D/plan.md`. Next step: `/ui-guard:fix D`.
+   the token log line from the report, and the paths `.ui-guard/D/report.md`, `.ui-guard/D/plan.md`. Next step: `/ui-guard:fix D`. Say the recommended order once: scss → access → lang → safe.
    **Do not commit.**

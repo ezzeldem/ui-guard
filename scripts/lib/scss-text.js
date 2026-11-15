@@ -117,7 +117,7 @@ function normMedia(params) {
   return p.split(' and ').map((x) => x.trim()).sort().join(' and ');
 }
 
-function declNorm(decl, { rootPx, dir }) {
+function declNorm(decl, { rootPx, dir, tokens }) {
   const k = decl.indexOf(':');
   if (k < 0) return decl.trim();
   let prop = decl.slice(0, k).trim().toLowerCase();
@@ -128,6 +128,9 @@ function declNorm(decl, { rootPx, dir }) {
   if (!prop.startsWith('--')) val = remToPx(val, rootPx);
   val = val.replace(/url\(\s*(['"]?)([^'")]+)\1\s*\)/g, (m, q, p) => `url(${path.posix.basename(p.split('?')[0].split('#')[0])})`);
   val = val.replace(/\b0px\b/g, '0');
+  // every plain colour literal compares by its 8-bit result (#fff, rgb(255,255,255) and hsl(0, 0%, 100%) are the same colour);
+  // with `tokens` (name → canonical colour) a var(--token) compares by the colour it stands for
+  val = require('./colors-fix').canonicalValue(val, tokens);
   return `${prop}:${val}`;
 }
 
@@ -147,9 +150,10 @@ function splitDecls(inner) {
 }
 
 /** Normalize compiled CSS into { ordered: [...], free: { tokens, fontFaces, keyframes } }. */
-function normalize(css, { rootPx = 16, dir = 'ltr' } = {}) {
+function normalize(css, { rootPx = 16, dir = 'ltr', tokens: tokenColors = null } = {}) {
   const ordered = [];
   const tokens = {}, fontFaces = [], keyframes = [];
+  const cv = (v) => require('./colors-fix').canonicalValue(v, tokenColors);
   const walk = (text, ctx) => {
     for (const s of splitTop(text, { scss: false })) {
       if (s.trailing) continue;
@@ -157,17 +161,17 @@ function normalize(css, { rootPx = 16, dir = 'ltr' } = {}) {
       if (/^@charset/i.test(head)) continue;
       if (!s.block) { ordered.push(ctx + head); continue; }
       const inner = blockInner(s);
-      if (/^@font-face/i.test(head) && !ctx) { fontFaces.push(splitDecls(inner).map((d) => declNorm(d, { rootPx, dir })).sort().join(';')); continue; }
+      if (/^@font-face/i.test(head) && !ctx) { fontFaces.push(splitDecls(inner).map((d) => declNorm(d, { rootPx, dir, tokens: tokenColors })).sort().join(';')); continue; }
       if (/^@(-webkit-)?keyframes/i.test(head) && !ctx) { keyframes.push(head + '{' + inner.replace(/\s+/g, ' ').trim() + '}'); continue; }
       if (/^@media/i.test(head)) { walk(inner, ctx + '@media ' + normMedia(head.slice(6)) + '|'); continue; }
       if (/^@(supports|layer|container|document)/i.test(head)) { walk(inner, ctx + head + '|'); continue; }
       const decls = splitDecls(inner);
       if (/^:root$/.test(head) && !ctx && decls.length && decls.every((d) => d.startsWith('--'))) {
-        for (const d of decls) { const k = d.indexOf(':'); const name = d.slice(0, k).trim(); (tokens[name] = tokens[name] || []).push(d.slice(k + 1).trim().replace(/\s+/g, ' ')); }
+        for (const d of decls) { const k = d.indexOf(':'); const name = d.slice(0, k).trim(); (tokens[name] = tokens[name] || []).push(cv(d.slice(k + 1).trim().replace(/\s+/g, ' '))); }
         continue;
       }
       const sel = head.split(',').map((x) => x.trim()).join(',');
-      ordered.push(ctx + sel + '{' + decls.map((d) => declNorm(d, { rootPx, dir })).join(';') + '}');
+      ordered.push(ctx + sel + '{' + decls.map((d) => declNorm(d, { rootPx, dir, tokens: tokenColors })).join(';') + '}');
     }
   };
   walk(css, '');

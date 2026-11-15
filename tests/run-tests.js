@@ -141,9 +141,9 @@ async function main() {
     const hooks = u.readJSON(path.join(PLUGIN, 'hooks', 'hooks.json'));
     assert.ok(hooks.hooks.PostToolUse[0].matcher === 'Edit|Write|MultiEdit' && hooks.hooks.PreToolUse[0].matcher.includes('Bash'));
   });
-  await test('rules.json lists every rule in the rule files (79, incl. STYLE-48) with checker/group/lintRules', () => {
+  await test('rules.json lists every rule in the rule files (96: STYLE-48, ACCESS-06..22) with checker/group/lintRules', () => {
     const idx = u.readJSON(path.join(PLUGIN, 'rules', 'rules.json'));
-    assert.strictEqual(idx.rules.length, 79);
+    assert.strictEqual(idx.rules.length, 96);
     assert.ok(idx.rules.find((r) => r.id === 'STYLE-48' && r.checker.includes('script')), 'STYLE-48 is a script rule');
     assert.ok(/width\/height/.test(idx.rules.find((r) => r.id === 'STYLE-11').title), 'STYLE-11 keeps width/height');
     const md = ['style', 'lang', 'safe', 'media', 'access'].map((f) => u.readText(path.join(PLUGIN, 'rules', f + '.md'))).join('\n');
@@ -745,6 +745,259 @@ async function main() {
       assert.strictEqual(u.readJSON(UG(d, dom, 'baseline.json')).fingerprints.length, 0, 'baseline emptied by complete');
     });
   }
+
+  await test('access phase JSON carries the precomputed selectorImpact; a block with :first-child produces a hit', () => {
+    const ap = freshCopy(path.join(__dirname, 'fixture-bare'), 'si-proj');
+    run('profile.js', ['--refresh'], ap);
+    u.writeText(path.join(ap, 'src', 'app', 'pages', 'home', 'home.component.scss'), '.home-action:first-child {\n  color: var(--text);\n}\n');
+    const html = 'src/app/pages/home/home.component.html';
+    u.writeJSON(UG(ap, 'access', 'findings.json'), [{ id: 'F-000001', ruleId: 'ACCESS-04', severity: 'warning', file: html, line: 4, message: 'clickable div', status: 'confirmed', sources: ['lint'], fingerprint: 'c'.repeat(40) }]);
+    u.writeJSON(UG(ap, 'access', 'plan.json'), { domain: 'access', phases: [{ id: '1', title: 'Pages', kind: 'fix', status: 'todo', area: 'pages', files: [html], extraFiles: [], findings: ['F-000001'], routes: ['/'], dependsOn: [] }] });
+    assert.strictEqual(run('phase.js', ['show', '1', '--domain', 'access'], ap).code, 0);
+    const pj = u.readJSON(UG(ap, 'tmp', 'access', 'fix', 'phase-1.json'));
+    assert.ok(pj.selectorImpact && pj.selectorImpact[html], 'selectorImpact field for the template');
+    const e = pj.selectorImpact[html]['home-action'];
+    assert.ok(e && e.tag === 'div' && e.hits.some((h) => /:first-child/.test(h.selector) && /structural/.test(h.why)), JSON.stringify(pj.selectorImpact));
+    assert.ok(pj.selectorImpact[html].home && Array.isArray(pj.selectorImpact[html].home.hits), 'every class on a swappable element has an entry');
+    const fixer = u.readText(path.join(PLUGIN, 'agents', 'ui-fixer.md'));
+    assert.ok(/READ `selectorImpact/.test(fixer) && !/run `selector-impact\.js`/.test(fixer), 'the fixer reads the field, it does not run the script');
+    assert.ok(/under \*\*`selectorImpact`\*\*/.test(u.readText(path.join(PLUGIN, 'rules', 'access-fix-tiers.md'))));
+  });
+  await test('fix access: the visually-hidden utility — reused when present, created alone when missing, STOP without a global entry', () => {
+    // no structure at all → stop with a clear message, nothing written
+    const a = freshCopy(path.join(__dirname, 'fixture-bare'), 'vh-none');
+    run('profile.js', ['--refresh'], a);
+    const stop = run('foundation.js', ['sr-only', '--apply'], a);
+    assert.strictEqual(stop.code, 8, stop.out); assert.ok(/STOP/.test(stop.out) && /\/ui-guard:fix scss/.test(stop.out), stop.out);
+    assert.ok(!fs.existsSync(path.join(a, 'src', 'assets', 'scss')), 'nothing created');
+    // structure in place but no sr-only utility → creates ONLY the utility and loads it
+    assert.strictEqual(run('foundation.js', ['structure', '--apply'], a).code, 0);
+    const sr = path.join(a, 'src', 'assets', 'scss');
+    fs.rmSync(path.join(sr, 'utilities', 'accessibility', '_sr-only.utility.scss'));
+    fs.writeFileSync(path.join(sr, 'utilities', 'utils.scss'), u.readText(path.join(sr, 'utilities', 'utils.scss')).replace('@use "accessibility/sr-only.utility";\n', ''));
+    const before = u.walk(a).length;
+    const c = run('foundation.js', ['sr-only', '--apply'], a);
+    assert.strictEqual(c.code, 0, c.out); assert.ok(/created `\.u-sr-only`/.test(c.out), c.out);
+    assert.strictEqual(u.walk(a).length, before + 1, 'exactly one new file');
+    const css = require('sass').compile(path.join(sr, 'style.scss'), { loadPaths: [sr] }).css;
+    assert.ok(/\.u-sr-only \{[\s\S]*clip-path: inset\(50%\)/.test(css), 'the utility is loaded by the global entry');
+    // a project that has its own visually-hidden class → reused, nothing created
+    const b = freshCopy(path.join(__dirname, 'fixture-bare'), 'vh-own');
+    fs.appendFileSync(path.join(b, 'src', 'assets', 'css', '_general.scss'), '\n.visually-hidden {\n  position: absolute;\n}\n');
+    run('profile.js', ['--refresh'], b);
+    const r = run('foundation.js', ['sr-only', '--apply'], b);
+    assert.strictEqual(r.code, 0); assert.ok(/already has `\.visually-hidden`/.test(r.out), r.out);
+    assert.ok(/foundation\.js sr-only --apply/.test(u.readText(path.join(PLUGIN, 'commands', 'fix.md'))));
+  });
+  await test('domain order scss → access → lang → safe: documented; fix access warns once in the summary when scss is not clean', () => {
+    for (const f of ['README.md', 'USAGE.md', 'commands/scan.md', 'commands/fix.md']) assert.ok(u.readText(path.join(PLUGIN, f)).includes('scss → access → lang → safe'), f);
+    const d = freshCopy(path.join(__dirname, 'fixture-bare'), 'order-proj');
+    run('profile.js', ['--refresh'], d);
+    u.writeJSON(UG(d, 'access', 'plan.json'), { domain: 'access', phases: [] });
+    let s = run('phase.js', ['summary', '--domain', 'access'], d).out;
+    assert.ok(/Warning: `\/ui-guard:scan scss` has not run/.test(s), s);
+    u.writeJSON(UG(d, 'scss', 'findings.json'), [{ id: 'F-1', ruleId: 'STYLE-48', status: 'confirmed', file: 'angular.json', line: 1 }, { id: 'F-2', ruleId: 'STYLE-10', status: 'confirmed', file: 'a.scss', line: 1 }]);
+    s = run('phase.js', ['summary', '--domain', 'access'], d).out;
+    const warn = s.split('\n').filter((l) => /Warning:/.test(l));
+    assert.strictEqual(warn.length, 1); assert.ok(/STYLE-48 ×1, 2 open STYLE finding/.test(warn[0]) && s.indexOf('Warning') < s.indexOf('Phases done'), s);
+    u.writeJSON(UG(d, 'scss', 'findings.json'), [{ id: 'F-1', ruleId: 'STYLE-48', status: 'fixed', file: 'angular.json', line: 1 }]);
+    assert.ok(!/Warning:/.test(run('phase.js', ['summary', '--domain', 'access'], d).out), 'clean scss → no warning');
+    u.writeJSON(UG(d, 'lang', 'plan.json'), { domain: 'lang', phases: [] });
+    assert.ok(!/Warning:/.test(run('phase.js', ['summary', '--domain', 'lang'], d).out) && /scss → access → lang → safe/.test(run('phase.js', ['summary', '--domain', 'lang'], d).out));
+  });
+
+  // ---------- ACCESS-06..22 and colours ----------
+  console.log('\nACCESS-06..22 (own rules, one positive + one negative case each) and the colour step');
+  const ac = require(S('access-check'));
+  const check = (html, box = () => null) => { const out = []; ac.checkTemplate('/x', 'x.component.html', { text: html, lineOffset: 0 }, (id, file, line, msg, fix, extra) => out.push({ id, line, msg, fix, ...extra }), { box }); return out; };
+  const CASES = {
+    'ACCESS-06': ['<input type="text" name="email">', '<input type="email" name="email" autocomplete="email">'],
+    'ACCESS-07': ['<input type="image" src="a.svg">', '<input type="image" src="a.svg" alt="Search">'],
+    'ACCESS-09': ['<main>a</main><main>b</main>', '<main>a</main>'],
+    'ACCESS-10': ['<h1>a</h1><h1>b</h1>', '<h1>a</h1><h2>b</h2>'],
+    'ACCESS-11': ['<a href="/x">read more</a>', '<a href="/x">Pricing plans</a>'],
+    'ACCESS-13': ['<button role="presentation">x</button>', '<button type="button">x</button>'],
+    'ACCESS-14': ['@if (e) {\n<p role="alert">{{ e }}</p>\n}', '<p role="alert">@if (e) { {{ e }} }</p>'],
+    'ACCESS-15': ['<input role="combobox" aria-expanded="false" aria-controls="l">', '<input role="combobox" aria-expanded="false" aria-controls="l" aria-activedescendant="o1">'],
+    'ACCESS-16': ['<button type="button" tabindex="-1">x</button>', '<div role="tablist"><button type="button" role="tab" tabindex="-1">x</button></div>'],
+    'ACCESS-18': ['<video src="a.mp4" controls aria-label="Intro"></video>', '<video src="a.mp4" controls aria-label="Intro"><track kind="captions" src="c.vtt" srclang="en" label="English"></video>'],
+    'ACCESS-19': ['<iframe src="https://example.com"></iframe>', '<iframe src="https://example.com" title="Office map"></iframe>'],
+    'ACCESS-20': ['<table><caption>c</caption><tr><td>a</td></tr></table>', '<table><caption>c</caption><thead><tr><th scope="col">A</th></tr></thead><tbody><tr><td>a</td></tr></tbody></table>'],
+    'ACCESS-21': ['<img src="a.png" alt="Team photo">', '<img src="a.png" alt="Team photo" width="320" height="180">'],
+    'ACCESS-22': ['<button type="button" aria-label="Close dialog">Save</button>', '<button type="button" aria-label="Save changes">Save</button>'],
+  };
+  await test('ACCESS-06..22: every script rule fires on its positive case and stays silent on its negative case (with impact + tier)', () => {
+    for (const [id, [pos, neg]] of Object.entries(CASES)) {
+      const p = check(pos).filter((x) => x.id === id);
+      assert.ok(p.length >= 1, `${id}: positive case not reported: ${pos}`);
+      assert.ok(['high', 'medium', 'low'].includes(p[0].impact) && ['A', 'B', 'C', 'D', 'needs-decision'].includes(p[0].tier), `${id}: impact/tier missing ${JSON.stringify(p[0])}`);
+      assert.strictEqual(check(neg).filter((x) => x.id === id).length, 0, `${id}: negative case reported: ${neg}`);
+    }
+    // more cases of the same rules (second shapes)
+    assert.ok(check('<input type="password" name="pw">').some((x) => x.id === 'ACCESS-06'), 'password autocomplete');
+    assert.ok(check('<label for="n">Name *</label><input id="n" type="text">').some((x) => x.id === 'ACCESS-06' && /required/.test(x.msg)));
+    assert.ok(!check('<label for="n">Name *</label><input id="n" type="text" required>').some((x) => /required/.test(x.msg || '')));
+    assert.ok(check('<input type="number" name="phone">').some((x) => x.id === 'ACCESS-06' && /number/.test(x.msg)));
+    assert.ok(check('<fieldset><div>x</div><legend>L</legend></fieldset>').some((x) => x.id === 'ACCESS-07'));
+    assert.ok(!check('<fieldset><legend>L</legend><div>x</div></fieldset>').some((x) => x.id === 'ACCESS-07'));
+    assert.ok(check('<select aria-label="x" (change)="router.navigate([$event])"></select>').some((x) => x.id === 'ACCESS-07' && x.tier === 'needs-decision'));
+    assert.ok(check('<nav>a</nav><nav>b</nav>').filter((x) => x.id === 'ACCESS-09').length === 2 && !check('<nav aria-label="Main">a</nav><nav aria-label="Footer">b</nav>').some((x) => x.id === 'ACCESS-09'));
+    assert.ok(check('<h2></h2>').some((x) => x.id === 'ACCESS-10') && !check('<h2>{{ t }}</h2>').some((x) => x.id === 'ACCESS-10'));
+    assert.ok(check('<a href="/a">Docs</a><a href="/b">Docs</a>').some((x) => x.id === 'ACCESS-11' && /different places/.test(x.msg)) && !check('<a href="/a">Docs</a><a href="/a">Docs</a>').some((x) => x.id === 'ACCESS-11'));
+    assert.ok(check('<a href="/a" target="_blank">Docs</a>').some((x) => x.id === 'ACCESS-11') && !check('<a href="/a" target="_blank" aria-label="Docs, opens in a new tab">Docs</a>').some((x) => x.id === 'ACCESS-11'));
+    assert.ok(check('<button class="is-disabled" [class.disabled]="off">x</button>').some((x) => x.id === 'ACCESS-13') && !check('<button [class.disabled]="off" [disabled]="off">x</button>').some((x) => x.id === 'ACCESS-13'));
+    assert.ok(check('<div role="tablist"><span>x</span></div>').some((x) => x.id === 'ACCESS-13') && !check('<div role="tablist"><button role="tab">x</button></div>').some((x) => x.id === 'ACCESS-13'));
+    assert.ok(check('<div role="tooltip">t</div>').some((x) => x.id === 'ACCESS-15') && !check('<input aria-describedby="t1"><div id="t1" role="tooltip">t</div>').some((x) => x.id === 'ACCESS-15'));
+    assert.ok(check('<video autoplay></video>').some((x) => x.id === 'ACCESS-18' && x.impact === 'high') && !check('<video autoplay muted loop aria-label="Background" controls></video>').some((x) => x.id === 'ACCESS-18' && /sound/.test(x.msg)));
+    assert.ok(check('<canvas (click)="d()"></canvas>').some((x) => x.id === 'ACCESS-19' && x.impact === 'high') && !check('<canvas aria-label="Chart of sales">Sales by month</canvas>').some((x) => x.id === 'ACCESS-19'));
+    assert.ok(check('<table><tr><td>a</td></tr></table>').some((x) => x.id === 'ACCESS-20') && check('<table><caption>c</caption><tr><th></th></tr></table>').some((x) => x.id === 'ACCESS-20' && /empty/.test(x.msg)));
+    assert.ok(check('<button aria-label="Save">Save</button>').some((x) => x.id === 'ACCESS-22' && x.impact === 'low'));
+  });
+  await test('ACCESS-12 (document): lang, zoom lock, title and shared route titles — positive and negative', () => {
+    const d = freshCopy(path.join(__dirname, 'fixture-bare'), 'doc-proj');
+    const idx = path.join(d, 'src', 'index.html');
+    const ids = () => readJSONL((run('access-check.js', ['--out', path.join(d, 'out.jsonl')], d), path.join(d, 'out.jsonl'))).filter((x) => x.ruleId === 'ACCESS-12');
+    fs.writeFileSync(idx, '<!doctype html>\n<html>\n<head><meta name="viewport" content="width=device-width, user-scalable=no"><title></title></head>\n<body><app-root></app-root></body></html>\n');
+    const bad = ids().map((x) => x.message).join(' | ');
+    assert.ok(/no language/.test(bad) && /blocks zooming/.test(bad) && /no <title>/.test(bad) && /routes share one page title/.test(bad), bad);
+    assert.ok(ids().every((x) => x.impact && x.tier));
+    fs.writeFileSync(idx, '<!doctype html>\n<html lang="en" dir="ltr">\n<head><meta name="viewport" content="width=device-width, initial-scale=1"><title>App</title></head>\n<body><app-root></app-root></body></html>\n');
+    fs.appendFileSync(path.join(d, 'src', 'app', 'app.routes.ts'), "\nexport const T = [{ path: 'a', title: 'A' }];\n");
+    assert.deepStrictEqual(ids().map((x) => x.message), [], 'a clean document reports nothing');
+  });
+  await test('ACCESS-21 image box: width-only class is reported (never an invented size); a fully fixed box and aspect-ratio are not', () => {
+    const d = freshCopy(path.join(__dirname, 'fixture-bare'), 'box-proj');
+    fs.writeFileSync(path.join(d, 'src', 'app', 'pages', 'home', 'home.component.scss'), '.p-wide { inline-size: 20rem; }\n.p-fixed { inline-size: 20rem; block-size: 10rem; }\n.p-ratio { aspect-ratio: 16 / 9; inline-size: 100%; }\n');
+    run('profile.js', ['--refresh'], d);
+    const profile = u.readJSON(UG(d, 'profile.md')) || require(S('lib/project')).readProfile(d);
+    const box = require(S('media-check')).boxInfoClasses(d, profile);
+    assert.deepStrictEqual(['p-wide', 'p-fixed', 'p-ratio'].map(box), ['width-only', 'fixed', 'fixed']);
+    const f = (cls) => check(`<img class="${cls}" src="a.png" alt="x">`, box).filter((x) => x.id === 'ACCESS-21');
+    assert.ok(f('p-wide').length === 1 && /Only the width/.test(f('p-wide')[0].msg) && f('p-wide')[0].tier === 'C');
+    assert.strictEqual(f('p-fixed').length + f('p-ratio').length, 0);
+    assert.strictEqual(check('<img src="a.png" alt="x" style="aspect-ratio: 1">', box).filter((x) => x.id === 'ACCESS-21').length, 0);
+    assert.ok(/Never guess/.test(u.readText(path.join(PLUGIN, 'rules', 'access-fix-tiers.md'))) && /never guess an\s+intrinsic size/i.test(u.readText(path.join(PLUGIN, 'agents', 'ui-fixer.md'))));
+  });
+  await test('ACCESS-08 and ACCESS-17 (AI rules): registered in rules.md + rules.json, routed to the access AI stage, motion signals reach the agent', () => {
+    const idx = u.readJSON(path.join(PLUGIN, 'rules', 'rules.json'));
+    const md = u.readText(path.join(PLUGIN, 'rules', 'access.md'));
+    const ai = require(S('ai-scan'));
+    const route = require(S('route-files'));
+    const stage = ai.STAGES.access[0];
+    for (let n = 6; n <= 22; n++) {
+      const id = 'ACCESS-' + String(n).padStart(2, '0');
+      const r = idx.rules.find((x) => x.id === id);
+      assert.ok(r && md.includes(`| ${id} |`), id + ' registered');
+      assert.ok(['high', 'medium', 'low'].includes(r.impact) && ['A', 'B', 'C', 'D', 'needs-decision'].includes(r.tier), id + ' impact + tier');
+      assert.ok(md.includes(`| ${id} | ${r.impact[0].toUpperCase() + r.impact.slice(1)} | ${r.tier} |`), id + ' in the impact/tier table');
+      if (r.checker.includes('ai')) assert.ok(stage.rules.includes(id), id + ' is an AI rule of the access stage');
+      else assert.ok(!stage.rules.includes(id), id + ' belongs to the scripts');
+    }
+    for (const id of ['ACCESS-08', 'ACCESS-17']) assert.deepStrictEqual(idx.rules.find((x) => x.id === id).checker, ['ai']);
+    const d = freshCopy(path.join(__dirname, 'fixture-bare'), 'motion-proj');
+    fs.writeFileSync(path.join(d, 'src', 'app', 'pages', 'home', 'home.component.html'), '<div class="p-home"><swiper-container autoplay="true"></swiper-container></div>\n');
+    assert.ok(route.groupsFor(d, { path: 'src/app/pages/home/home.component.html', kind: 'html' }).includes('access-motion'));
+    assert.ok(stage.groups.includes('access-motion') && idx.aiGroups['access-motion'].rules.includes('ACCESS-17'));
+  });
+  await test('ACCESS report from the real fixture: counts add up with the new rules, nothing outside ACCESS, impact set on every script finding', () => {
+    const f = u.readJSON(UG(fx, 'access', 'findings.json')).filter((x) => x.status === 'confirmed');
+    const ids = new Set(f.map((x) => x.ruleId));
+    for (const id of Object.keys(CASES)) if (id !== 'ACCESS-12') assert.ok(ids.has(id) || id === 'ACCESS-12', id + ' appears in the fixture scan');
+    assert.ok(f.filter((x) => /^ACCESS-(0[6-9]|1\d|2\d)$/.test(x.ruleId)).every((x) => x.impact && x.tier), 'impact + tier on script findings');
+    const rep = u.readText(UG(fx, 'access', 'report.md'));
+    const n = (lvl) => +new RegExp(`\\| ${lvl} \\| (\\d+) \\|`).exec(rep)[1];
+    assert.strictEqual(n('High') + n('Medium') + n('Low'), f.length, 'High + Medium + Low = total');
+  });
+  await test('the private matrix stays private: local/ is git-ignored and no published file names the source material', () => {
+    assert.ok(/^local\/$/m.test(u.readText(path.join(PLUGIN, '.gitignore'))));
+    const bad = [];
+    const pub = u.walk(PLUGIN, (n, rel) => ['node_modules', '.git', 'local', '.tmp', 'tests/.tmp'].includes(n) || rel === 'tests/.tmp').filter((x) => /\.(md|js|mjs|json|html|scss|css|ts)$/.test(x) && !/package-lock/.test(x));
+    for (const f of pub) {
+      const t = u.readText(f) || '';
+      for (const re of [/accessibility-(test|fix|runner)\b/i, /accessibility-framework/i, /C:\\Skills/i, /Downloads[\\/]accessibility/i, /\bQSSO\b/i]) if (re.test(t) && !/tests[\\/]run-tests\.js$/.test(f)) bad.push(`${path.relative(PLUGIN, f)}: ${re}`);
+    }
+    assert.deepStrictEqual(bad, []);
+  });
+
+  // ---------- colours (fix scss, 0 tokens) ----------
+  const cf = require(S('lib/colors-fix'));
+  const pal = (pairs) => { const byKey = new Map(); const canon = {}; for (const [name, lit] of pairs) { const c = cf.parseLiteral(lit); const k = cf.key(c); (byKey.get(k) || byKey.set(k, []).get(k)).push(name); canon[name] = cf.canonicalValue(lit); } return { byKey, canon }; };
+  const conv = (text, p = pal([]), extra = {}) => cf.convert(text, { palette: p, fnVars: new Set(), rel: 'a.scss', ...extra });
+  await test('colours: exact conversion to hsl — hex (3/4/6/8 digits), rgb(), rgba() — and the round trip is checked for every value', () => {
+    assert.strictEqual(conv('$a: #1a73e8;').text, '$a: hsl(214.1, 81.7%, 50.6%);');
+    assert.strictEqual(conv('$a: #fff;').text, '$a: hsl(0, 0%, 100%);', 'shorthand hex');
+    assert.strictEqual(conv('$a: #f0f;').text, '$a: hsl(300, 100%, 50%);');
+    assert.strictEqual(conv('--x: rgb(26, 115, 232);').text, '--x: hsl(214.1, 81.7%, 50.6%);');
+    // property: 3000 random colours round-trip exactly, or the original is kept
+    let kept = 0;
+    for (let i = 0; i < 3000; i++) {
+      const r = (i * 53) % 256, g = (i * 97 + 11) % 256, b = (i * 193 + 5) % 256;
+      const out = conv(`$c: rgb(${r}, ${g}, ${b});`).text;
+      if (/rgb\(/.test(out)) { kept++; continue; }
+      const back = cf.parseLiteral(/\$c: (.*);/.exec(out)[1]);
+      assert.deepStrictEqual([back.r, back.g, back.b], [r, g, b], out);
+    }
+    assert.strictEqual(kept, 0, 'with up to 4 decimals every 8-bit colour converts exactly');
+  });
+  await test('colours: alpha is kept exactly (rgba, hex8, hex4); a colour that cannot be proven is kept and listed in skipped', () => {
+    assert.strictEqual(conv('--s: rgba(0, 0, 0, .08);').text, '--s: hsl(0, 0%, 0%, .08);');
+    assert.strictEqual(conv('--s: #00000080;').text, '--s: hsl(0, 0%, 0%, 0.5);', 'hex alpha byte 128 → 0.5 (round(0.5×255) = 128)');
+    assert.strictEqual(conv('--s: #0000;').text, '--s: hsl(0, 0%, 0%, 0);');
+    assert.strictEqual(conv('--s: rgba(10, 20, 30, 1);').text, '--s: hsl(210, 50%, 7.8%);', 'alpha 1 is dropped');
+    const lim = conv('$a: #1a73e8;', pal([]), { maxDecimals: 0 });
+    assert.strictEqual(lim.text, '$a: #1a73e8;'); assert.ok(/does not give exactly the same colour/.test(lim.skipped[0].reason), 'non-exact → kept + listed');
+    const pct = conv('$a: rgb(10%, 20%, 30%);'); assert.strictEqual(pct.text, '$a: rgb(10%, 20%, 30%);'); assert.ok(/percentages/.test(pct.skipped[0].reason));
+    const frac = conv('$a: rgb(10.5, 20, 30);'); assert.strictEqual(frac.text, '$a: rgb(10.5, 20, 30);'); assert.ok(/whole number/.test(frac.skipped[0].reason));
+    const fn = cf.convert('$brand: #1a73e8;\n.a { color: darken($brand, 10%); }', { palette: pal([]), fnVars: cf.colourFnVars(['.a { color: darken($brand, 10%); }']), rel: 'a.scss' });
+    assert.ok(/#1a73e8/.test(fn.text) && /Sass colour function/.test(fn.skipped[0].reason), 'a variable read by a Sass colour function is kept');
+  });
+  await test('colours: named colours, url(), strings, comments, selectors and interpolation are never touched; hsl stays as written', () => {
+    const src = '.a { color: white; border: 1px solid red; background: url(#fff); content: "#fff"; /* #000 */ }\n#fff-id { margin: 0; }\n.b { width: #{$x}; }\n$h: hsl(215, 9%, 65%);\n';
+    const r = conv(src);
+    assert.strictEqual(r.text, src); assert.deepStrictEqual(r.decisions, []); assert.deepStrictEqual(r.skipped, []);
+  });
+  await test('colours: a component colour that equals a palette colour becomes the token; no match → needs-decision (no token invented); several → decision', () => {
+    const p = pal([['--neutral-25', 'hsl(0, 0%, 100%)'], ['--main-500', 'hsl(214.1, 81.7%, 50.6%)'], ['--a-1', '#336699'], ['--a-2', '#336699']]);
+    const r = conv('.c { color: #fff; border-color: rgb(26, 115, 232); background: #123456; fill: #336699; outline-color: rgba(255, 255, 255, .5); }', p);
+    assert.ok(/color: var\(--neutral-25\)/.test(r.text) && /border-color: var\(--main-500\)/.test(r.text), r.text);
+    assert.ok(/background: #123456/.test(r.text) && /fill: #336699/.test(r.text) && /rgba\(255, 255, 255, \.5\)/.test(r.text), 'unmatched literals stay: ' + r.text);
+    assert.strictEqual(r.tokenized, 2);
+    const topics = r.decisions.map((d) => d.topic);
+    assert.deepStrictEqual(topics.sort(), ['Colour matches several palette tokens', 'Colour not in the palette', 'Colour not in the palette']);
+    assert.ok(r.decisions.every((d) => d.options.length >= 2 && d.file === 'a.scss' && d.line === 1));
+    assert.ok(r.decisions.find((d) => /add it to colors\.palette/.test(d.options[0])), 'options: add to palette / keep literal');
+  });
+  await test('colours (full run on a project): palette tokens keep their names, the compiled CSS renders the same, decisions land in needs-decision.md', () => {
+    const d = freshCopy(path.join(__dirname, 'fixture-bare'), 'colors-proj');
+    run('profile.js', ['--refresh'], d);
+    assert.strictEqual(run('foundation.js', ['structure', '--apply'], d).code, 0);
+    assert.strictEqual(run('foundation.js', ['move', '--apply'], d).code, 0);
+    const palFile = 'src/assets/scss/theme/colors/colors.palette.theme.css';
+    const namesBefore = [...u.readText(path.join(d, palFile)).matchAll(/(--[\w-]+)\s*:/g)].map((m) => m[1]);
+    const comp = 'src/app/pages/home/home.component.scss';
+    fs.appendFileSync(path.join(d, comp), '.p-home__badge {\n  color: #1a73e8;\n  background: #123456;\n}\n');
+    const r = run('scss-fix.js', ['apply', '--files', `${palFile},src/assets/scss/settings/_project.settings.scss,${comp}`], d);
+    assert.strictEqual(r.code, 0, r.out);
+    const rep = u.readJSON(UG(d, 'tmp', 'scss', 'fix', 'mechanical-files.json'));
+    assert.ok(rep.files.find((x) => x.file === palFile).applied.includes('colors'), 'palette converted');
+    const pal2 = u.readText(path.join(d, palFile));
+    assert.ok(/--brand: hsl\(214\.1, 81\.7%, 50\.6%\);/.test(pal2) && /--text: hsl\(0, 0%, 13\.3%\);/.test(pal2), pal2);
+    assert.deepStrictEqual([...pal2.matchAll(/(--[\w-]+)\s*:/g)].map((m) => m[1]), namesBefore, 'token names unchanged');
+    assert.ok(/\$brand: hsl\(214\.1, 81\.7%, 50\.6%\);/.test(u.readText(path.join(d, 'src', 'assets', 'scss', 'settings', '_project.settings.scss'))));
+    const cs = u.readText(path.join(d, comp));
+    assert.ok(/color: var\(--brand\);/.test(cs) && /background: #123456;/.test(cs), cs);
+    assert.ok(rep.files.find((x) => x.file === comp).colors.tokenized === 1);
+    assert.ok(rep.decisions.some((x) => /#123456/.test(x.issue) && x.topic === 'Colour not in the palette'));
+    // proven: before/after compile compare treats #1a73e8 and var(--brand) as the same colour
+    const st = require(S('lib/scss-text')); const cfx = require(S('lib/colors-fix'));
+    const tokens = cfx.palette(d, require(S('lib/project')).readProfile(d)).canon;
+    assert.ok(st.sameRender(st.normalize('.x{color:#1a73e8}'), st.normalize('.x{color:var(--brand)}', { tokens })).same);
+    // the end-of-run list
+    u.writeJSON(UG(d, 'scss', 'plan.json'), { domain: 'scss', phases: [] });
+    const sum = run('phase.js', ['summary', '--domain', 'scss'], d);
+    assert.ok(/Needs your decision: 1/.test(sum.out), sum.out);
+    assert.ok(/## Colour not in the palette/.test(u.readText(UG(d, 'scss', 'needs-decision.md'))) && /keep the literal/.test(u.readText(UG(d, 'scss', 'needs-decision.md'))));
+  });
 
   // ---------- colors ----------
   console.log('\nColors and icon filters');

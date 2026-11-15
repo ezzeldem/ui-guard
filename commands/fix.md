@@ -16,6 +16,9 @@ Scripts: `node "PLUGIN/scripts/<name>.js" --root "<project root>"`; every `phase
 **Never run two agents at the same time.**
 
 ## 0. Domain and mode
+Recommended order: **scss → access → lang → safe** (access fixes rely on the scss structure: segments, tools, utilities).
+The order is advice, not a gate: `phase.js summary` prints one warning line when access runs before scss is clean.
+
 - First word = the domain `D` (`scss`, `access`, `lang`, `safe`). Missing/unknown → print the four `/ui-guard:fix <domain>` lines
   (same list as `/ui-guard:scan`) and stop.
 - Second word, if a number = run that phase only. Otherwise run **every** phase that is not done, in order, back to back.
@@ -32,7 +35,10 @@ Scripts: `node "PLUGIN/scripts/<name>.js" --root "<project root>"`; every `phase
    verification"). Never claim a verification that did not run.
 4. `visual` only — dev server: profile `devServer.url` → `dev-server.js wait <url> --timeout 30`; else `dev-server.js start --port <p>`
    (exit 3 = port busy → try the next free port). If no server comes up, switch to `static` and say why in the summary.
-5. Build once before any change: `npx ng build --configuration development` (timeout 10 min, background if needed).
+5. **access only — visually-hidden utility:** `foundation.js sr-only --apply`. It reuses the project's class (`.u-sr-only`,
+   `.sr-only`, `.visually-hidden`, …) or creates ONLY `.u-sr-only` in the utilities layer; nothing else is created or moved.
+   Exit 8 → **STOP** with its message (no utility and no global entry yet: run `/ui-guard:fix scss` first).
+6. Build once before any change: `npx ng build --configuration development` (timeout 10 min, background if needed).
    It fails → **STOP**: "the project does not build before the fix" (with the first error lines). Nothing was changed.
 
 ## 2. The phase loop — `phase.js next --domain D` (exit 10 = all done → section 3)

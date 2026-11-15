@@ -8,6 +8,8 @@
 //             has ONE direction (a bidirectional app would flip in the other direction → listed as "decide")
 //   mq        @media (min-width/max-width …) → @include mq(…) with the project's breakpoints (missing keys are added)
 //   bem       top-level .block__x / .block-variant rules right after .block → nested &__x / &-variant (same compiled CSS)
+//   colors    hex / rgb() / rgba() in variables and tokens → hsl(H, S%, L%[, A]) when the round trip is exact; a colour in a component that
+//             equals a palette colour → var(--token); anything else is listed (needs-decision), never invented
 //   rename    class prefix renames from renames.md (rows without "decide"), in SCSS + templates + TS
 // Every file is proven: compiled with the project's sass before and after, the normalized CSS must render the same.
 // A transform that cannot be proven is undone for that file and listed under "skipped (unsure)".
@@ -19,6 +21,7 @@ const ng = require('./lib/angular');
 const st = require('./lib/scss-text');
 const domains = require('./lib/domains');
 const classUsage = require('./class-usage');
+const cf = require('./lib/colors-fix');
 
 const HELP = `scss-fix.js — mechanical, proven SCSS fixes (0 tokens) for /ui-guard:fix scss.
 Usage (all accept --root <dir>):
@@ -259,26 +262,32 @@ function applyFile(root, rel, opts) {
   if (before == null) return { ...res, noSass: true };
   if (before.error) { res.skipped.push({ what: 'all transforms', reason: `the file does not compile on its own (${u.clip(before.error, 120)})` }); return res; }
   const renameCss = (css) => { let c = css; for (const r of opts.renames) c = c.replace(new RegExp(`\\.${esc(r.from)}(?![\\w-])`, 'g'), '.' + r.to); return c; };
-  const nopt = { rootPx: opts.rootPx, dir: opts.dir === 'rtl' ? 'rtl' : 'ltr' };
+  const nopt = { rootPx: opts.rootPx, dir: opts.dir === 'rtl' ? 'rtl' : 'ltr', tokens: opts.palette.canon };
+  const colorOnly = opts.colorOnly(rel);
+  res.decisions = [];
   // the reference is the original CSS; once the rename step is applied, the original with the planned renames
   const refPlain = st.normalize(before.css, nopt), refRenamed = st.normalize(renameCss(before.css), nopt);
   let renamed = false;
   let cur = original;
   const steps = [];
-  if (opts.renames.length) steps.push(['rename', (t) => opts.renames.reduce((x, r) => renameInScss(x, r.from, r.to), t)]);
-  steps.push(['charset', (t) => tCharset(t)]);
-  if (isScss && (comp || /\b(px|mq|dir|after|before|hover|scroll)\(|@include\s+(px|mq|dir|after|before|hover|scroll)\b/.test(original) || /\d+px\b/.test(original) || /@media\s/.test(original))) {
+  let lastColors = null;
+  const colorStep = ['colors', (t) => { const c = cf.convert(t, { palette: opts.palette, fnVars: opts.fnVars, rel }); lastColors = c; for (const k of c.skipped) res.skipped.push({ what: `L${k.line} ${k.what}`, reason: k.reason }); res.decisions.push(...c.decisions); return c.text; }];
+  if (colorOnly) steps.push(colorStep);
+  if (!colorOnly && opts.renames.length) steps.push(['rename', (t) => opts.renames.reduce((x, r) => renameInScss(x, r.from, r.to), t)]);
+  if (!colorOnly) steps.push(['charset', (t) => tCharset(t)]);
+  if (!colorOnly && isScss && (comp || /\b(px|mq|dir|after|before|hover|scroll)\(|@include\s+(px|mq|dir|after|before|hover|scroll)\b/.test(original) || /\d+px\b/.test(original) || /@media\s/.test(original))) {
     const own = definesTool(original);
     if (own) res.skipped.push({ what: 'use-tools', reason: `the file defines its own \`${own}\` — STYLE-38: remove it and @use the tools (judgment)` });
     else steps.push(['use-tools', (t) => tUseTools(t)]);
   }
-  if (isScss) steps.push(['px', (t) => tPx(t, opts.rootPx)]);
-  if (opts.dir === 'both') { if (Object.keys(PHYS).some((p) => new RegExp(`(^|[;{\\s])${p}\\s*:`).test(original)) || /text-align\s*:\s*(left|right)/.test(original)) res.skipped.push({ what: 'logical', reason: 'the app switches direction (rtl + ltr): a logical property would flip in the other direction — decide per rule' }); }
+  if (!colorOnly) steps.push(colorStep);
+  if (!colorOnly && isScss) steps.push(['px', (t) => tPx(t, opts.rootPx)]);
+  if (colorOnly) { /* settings, tools and theme files get the colour step only */ } else if (opts.dir === 'both') { if (Object.keys(PHYS).some((p) => new RegExp(`(^|[;{\\s])${p}\\s*:`).test(original)) || /text-align\s*:\s*(left|right)/.test(original)) res.skipped.push({ what: 'logical', reason: 'the app switches direction (rtl + ltr): a logical property would flip in the other direction — decide per rule' }); }
   else steps.push(['logical', (t) => tLogical(t, opts.dir)]);
-  if (isScss) steps.push(['mq', (t) => tMq(t, opts.bp, [])]);
-  if (isScss) steps.push(['bem', (t) => tBem(t, [])]);
+  if (!colorOnly && isScss) steps.push(['mq', (t) => tMq(t, opts.bp, [])]);
+  if (!colorOnly && isScss) steps.push(['bem', (t) => tBem(t, [])]);
   // mq needs to report skipped items: run once for its notes
-  if (isScss) { const notes = []; tMq(original, { key: () => 'x' }, notes); for (const n of notes) res.skipped.push({ what: 'mq', reason: n }); }
+  if (!colorOnly && isScss) { const notes = []; tMq(original, { key: () => 'x' }, notes); for (const n of notes) res.skipped.push({ what: 'mq', reason: n }); }
   for (const [name, fn] of steps) {
     let next;
     const bpBefore = opts.bp.snapshot();
@@ -289,6 +298,7 @@ function applyFile(root, rel, opts) {
     const cmp = after.error ? { same: false, reason: 'does not compile: ' + u.clip(after.error, 120) } : st.sameRender(ref, st.normalize(after.css, nopt));
     if (!cmp.same) { opts.bp.restore(bpBefore); res.skipped.push({ what: name, reason: 'not proven neutral — ' + cmp.reason }); continue; }
     cur = next; res.applied.push(name);
+    if (name === 'colors' && lastColors) res.colors = { converted: lastColors.converted, tokenized: lastColors.tokenized };
     if (name === 'rename') renamed = true;
   }
   if (cur !== original && !opts.dry) fs.writeFileSync(abs, cur);
@@ -322,7 +332,7 @@ function run(root, { files, phaseId, dry, withRenames }) {
     loadPathsWith() { return loadPaths; },
   };
   const renames = withRenames ? renameRows(root, phaseId).filter((r) => r.from !== r.to) : [];
-  const report = { phase: phaseId || null, files: [], skipped: [], extraFiles: [], renames: [] };
+  const report = { phase: phaseId || null, files: [], skipped: [], decisions: [], extraFiles: [], renames: [] };
   // renames that code builds dynamically are not safe to apply mechanically
   const uiFiles = project.listUiFiles(root, profile).filter((f) => f.kind === 'html' || f.kind === 'ts' || f.kind === 'index');
   const safeRenames = [];
@@ -337,12 +347,15 @@ function run(root, { files, phaseId, dry, withRenames }) {
     else safeRenames.push({ ...r, definers: definers(r.from) });
   }
   const componentStyles = require('./foundation').componentStyles(root);
-  const opts = { loadPaths, rootPx: profile.rootFontSize || 16, dir: dirMode(profile), bp, renames: safeRenames, dry, componentStyles };
+  const allScss = project.listUiFiles(root, profile).filter((f) => f.kind === 'scss').map((f) => u.readText(f.abs) || '');
+  const colorOnly = (rel) => /(^|\/)theme\//.test(rel) || rel.startsWith(`${sr}/settings/`) || rel.startsWith(`${sr}/tools/`);
+  const opts = { loadPaths, rootPx: profile.rootFontSize || 16, dir: dirMode(profile), bp, renames: safeRenames, dry, componentStyles, palette: cf.palette(root, profile), fnVars: cf.colourFnVars(allScss), colorOnly };
   for (const rel of files.filter((f) => /\.s?css$/.test(f))) {
-    if (/\/packages\//.test(rel) || /(^|\/)theme\//.test(rel) || rel.startsWith(`${sr}/settings/`) || rel.startsWith(`${sr}/tools/`)) continue;
+    if (/\/packages\//.test(rel)) continue;
     const r = applyFile(root, rel, opts);
-    report.files.push({ file: rel, applied: r.applied });
+    report.files.push({ file: rel, applied: r.applied, ...(r.colors ? { colors: r.colors } : {}) });
     for (const s of r.skipped) report.skipped.push({ file: rel, ...s });
+    for (const d of r.decisions || []) report.decisions.push(d);
   }
   // template/TS usages: a class is renamed there only when EVERY stylesheet that defines it had its rename applied
   const appliedIn = new Set(report.files.filter((f) => f.applied.includes('rename')).map((f) => f.file));
@@ -388,7 +401,13 @@ if (require.main === module) {
     process.exit(7);
   }
   const out = path.join(domains.paths(root, 'scss').fix, `mechanical-${phaseId || 'files'}.json`);
-  if (cmd === 'apply') u.writeJSON(out, report);
+  if (cmd === 'apply') {
+    u.writeJSON(out, report);
+    // colours that need the developer (no palette token matches): one list at the end of the run (.ui-guard/scss/needs-decision.md)
+    const dec = path.join(domains.paths(root, 'scss').fix, `decisions-${phaseId || 'files'}.jsonl`);
+    const seen = new Set();
+    u.writeJSONL(dec, report.decisions.filter((d) => { const k = `${d.file}:${d.line}:${d.issue}`; if (seen.has(k)) return false; seen.add(k); return true; }));
+  }
   const n = report.files.filter((f) => f.applied.length).length;
   console.log(`scss-fix${cmd === 'dry' ? ' (dry run)' : ''}: ${n}/${report.files.length} file(s) changed by script (0 tokens)${report.renames.length ? ` · renames ${report.renames.join(', ')}` : ''}`);
   for (const f of report.files.filter((x) => x.applied.length)) console.log(`  ${f.file}: ${f.applied.join(', ')}`);

@@ -11,7 +11,7 @@ const inventory = require('./inventory');
 const { summarize } = require('./lib/findings');
 const domains = require('./lib/domains');
 
-const SCRIPTS = ['foundation', 'theme-check', 'tokens-check', 'angular-config-check', 'i18n-check', 'web-check', 'class-usage', 'secrets-check', 'structure-check', 'media-check'];
+const SCRIPTS = ['foundation', 'theme-check', 'tokens-check', 'angular-config-check', 'i18n-check', 'web-check', 'class-usage', 'secrets-check', 'structure-check', 'media-check', 'access-check'];
 
 /** domain (optional): only that domain's scripts, its linter(s) and its rule family. */
 function runAll(root, { files = null, skipLint = false, domain = null } = {}) {

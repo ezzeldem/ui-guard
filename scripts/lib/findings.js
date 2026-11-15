@@ -13,6 +13,7 @@ function mk(root, ruleId, file, line, message, fix = null, extra = {}) {
     ruleId, severity: extra.severity || severityOf(ruleId), file, line: line || 1, endLine: extra.endLine || line || 1,
     message, evidence: extra.evidence, fix, checker: extra.checker || 'script', sources: extra.sources || ['script'],
     status: 'confirmed', rejectReason: null,
+    ...(extra.impact ? { impact: extra.impact } : {}), ...(extra.tier ? { tier: extra.tier } : {}),
   });
 }
 

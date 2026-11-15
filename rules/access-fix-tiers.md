@@ -57,12 +57,53 @@ that carries a role or must be focusable.
 
 ## Selector-impact check (before every Tier B, C or D change)
 
-Run `node <plugin>/scripts/selector-impact.js --file <template> --class <block class> [--tag <old tag>] [--to <new tag>]`.
-It lists every rule in the project's stylesheets that touches the block and could stop (or start) matching:
-structural pseudo-classes (`:first-child`, `:last-child`, `:nth-child`, `:nth-of-type`, `:only-child`, `:empty`, `:has(`),
-combinators (`>`, `+`, `~`) and bare tag selectors (`div`, `span`, `p`, `a`, `button`, `ul`, `li`, …) next to the block's classes,
-and element-layer rules for the new tag. For each hit: adjust the selector in the same change so it matches exactly what it
-matched before, or leave the change out and list it as skipped (unsure).
+The fixer does not run scripts. `phase.js show` precomputes the check (`scripts/selector-impact.js`) and writes it into the
+phase file `.ui-guard/tmp/access/fix/phase-<id>.json` under **`selectorImpact`**:
+`{ "<template>": { "<class>": { "tag": "div", "hits": [{ "file", "line", "selector", "why" }] } } }` — one entry per class on a
+swappable element (`div`, `span`, `p`, `a`, `button`, `td`, `li`, `ul`, `ol`, `section`, `img`, `table`).
+A hit is a rule that touches the block and could stop (or start) matching after the change: structural pseudo-classes
+(`:first-child`, `:last-child`, `:nth-child`, `:nth-of-type`, `:only-child`, `:empty`, `:has(`), combinators (`>`, `+`, `~`),
+bare tag selectors next to the block's classes, bare selectors of the old tag, and `:required` / `:invalid` / `[type=…]` rules.
+**Read the entry of the element's class before every Tier B/C/D change.** No entry or an empty `hits` list → no selector risk.
+Hits → either adjust each listed selector in the same change so it matches exactly what it matched before, or leave the change
+out and write it to the skipped file (`what`: the change, `reason`: the hit). A bare selector of the NEW tag is not in the list:
+search the stylesheets for it yourself (Grep) before a swap.
+
+## Fix map for ACCESS-06..22
+
+Every finding from `access-check.js` carries `tier` and `impact`; the fixer follows the tier and still runs the selector-impact
+read for B/C/D. One line per rule (the rule text is in `rules/access.md`):
+
+| Rule | What the fixer does | Tier |
+|---|---|---|
+| ACCESS-06 | `autocomplete` values from the field's meaning; `type="email"/"tel"/"url"`; `required` where a star promises it (selector check for `:required`, `:invalid`, `[type=…]` first → else Tier C) | A |
+| ACCESS-07 | `alt` / `value` on image and button inputs (existing text or a key only); visually-hidden label instead of a hidden one; legend first (check child-order selectors) | A / D |
+| ACCESS-09 | one `<main>`; distinct `aria-label` on repeated landmarks; `datetime` on `<time>`; `figure` gets `margin: 0` | A / B / C |
+| ACCESS-10 | a second `<h1>` becomes `<h2>` and the class keeps the look; an empty heading is a decision (what should it say?) | C / needs-decision |
+| ACCESS-11 | `aria-label` with the destination while the visible text stays; hidden "opens in a new tab" text | A |
+| ACCESS-12 | `lang` / `dir` on `<html>`; remove the zoom lock; route titles are a decision (wording) | A / needs-decision |
+| ACCESS-13 | drop the wrong role or move it inward; bind `[disabled]` to the class condition | A / D |
+| ACCESS-14 | keep the live container in the DOM, put the `@if` inside it | D |
+| ACCESS-15 | `aria-activedescendant` binding; tooltip id + `aria-describedby` | A |
+| ACCESS-16 | remove the stray `tabindex` | A |
+| ACCESS-18, 17, 08 | always a decision with options (captions file, transcript, pause control, timer length, error wording) | needs-decision |
+| ACCESS-19 | `title` / `aria-label` on frames and objects; canvas: decision | A / needs-decision |
+| ACCESS-20 | `<th scope>` with the table-cell neutralization (bold and centred by default), hidden `<caption>`, `headers` pairing | A / C |
+| ACCESS-21 | see "Image box" below | C / needs-decision |
+| ACCESS-22 | start the `aria-label` with the visible text, or remove it | A |
+
+### Image box (ACCESS-21)
+
+The box of an image is reserved when the page knows its size before the file loads.
+- **Never guess an intrinsic size.** The plugin does not open images, and a wrong `width`/`height` is worse than none.
+- If the component CSS **already fixes the size** of the box (a class with a fixed inline size and block size, or an `aspect-ratio`),
+  there is nothing to fix: the rule does not fire.
+- If the class fixes only the width (the height depends on the file) or nothing at all: add `aspect-ratio: <w> / <h>` in that
+  component's own SCSS **only** when both numbers are already written in the project for this very image (for example a ratio
+  token, or the `width` and `height` of the same image in its design) and the rendered box therefore stays identical.
+- Adding `width` / `height` **attributes** can change the rendered size whenever the CSS does not fix it (they act as presentation
+  hints). That is Tier C: only with the before/after visual proof (Playwright). Without Playwright it goes to the decisions file with the
+  options: (A) give me the ratio and I add `aspect-ratio`, (B) add width/height attributes after a visual check, (C) keep as is.
 
 ## Visually-hidden toolkit
 
@@ -84,6 +125,9 @@ Typical topics:
 - **Image purpose unknown** (meaning not clear from the code) — A: decorative (`alt=""`) · B: alt text you provide (a translation key).
 - **Icon-only control with an unclear name** — A: name you provide · B: show a visible text label.
 - **Heading level of a standalone component** — A: a `headingLevel` input · B: fixed level chosen by you.
+- **Image box not reserved** — A: you give the ratio, I add `aspect-ratio` in the component SCSS · B: width/height attributes after a visual check · C: keep.
+- **Route page titles** — A: a title per route from translation keys (you give the wording) · B: one shared title.
+- **Timers, carousels, flashing content** — A: pause control · B: longer timer / keep until dismissed · C: leave as is, documented.
 The run never stops for these; they are collected into one list at the end (`.ui-guard/access/needs-decision.md`).
 
 ## Verification

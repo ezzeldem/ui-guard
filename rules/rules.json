@@ -1442,6 +1442,354 @@
       ],
       "title": "Keyboard: tabindex, focus, key handlers",
       "inScan": true
+    },
+    {
+      "id": "ACCESS-06",
+      "severity": "warning",
+      "checker": [
+        "script"
+      ],
+      "group": "access-labels",
+      "family": "access",
+      "rulesFile": "rules/access.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/*.html",
+        "**/*.ts",
+        "src/index.html"
+      ],
+      "title": "Input types & autofill",
+      "impact": "medium",
+      "tier": "A",
+      "inScan": true
+    },
+    {
+      "id": "ACCESS-07",
+      "severity": "warning",
+      "checker": [
+        "script"
+      ],
+      "group": "access-labels",
+      "family": "access",
+      "rulesFile": "rules/access.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/*.html",
+        "**/*.ts",
+        "src/index.html"
+      ],
+      "title": "Form structure",
+      "impact": "medium",
+      "tier": "A",
+      "inScan": true
+    },
+    {
+      "id": "ACCESS-08",
+      "severity": "warning",
+      "checker": [
+        "ai"
+      ],
+      "group": "access-labels",
+      "family": "access",
+      "rulesFile": "rules/access.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/*.html",
+        "**/*.ts",
+        "src/index.html"
+      ],
+      "title": "Error, hint and step announcements",
+      "impact": "medium",
+      "tier": "needs-decision",
+      "inScan": true
+    },
+    {
+      "id": "ACCESS-09",
+      "severity": "warning",
+      "checker": [
+        "script",
+        "ai"
+      ],
+      "group": "access-semantics",
+      "family": "access",
+      "rulesFile": "rules/access.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/*.html",
+        "**/*.ts",
+        "src/index.html"
+      ],
+      "title": "Landmarks and sections",
+      "impact": "medium",
+      "tier": "B",
+      "inScan": true
+    },
+    {
+      "id": "ACCESS-10",
+      "severity": "warning",
+      "checker": [
+        "script"
+      ],
+      "group": "access-semantics",
+      "family": "access",
+      "rulesFile": "rules/access.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/*.html",
+        "**/*.ts",
+        "src/index.html"
+      ],
+      "title": "Heading problems",
+      "impact": "medium",
+      "tier": "C",
+      "inScan": true
+    },
+    {
+      "id": "ACCESS-11",
+      "severity": "warning",
+      "checker": [
+        "script"
+      ],
+      "group": "access-semantics",
+      "family": "access",
+      "rulesFile": "rules/access.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/*.html",
+        "**/*.ts",
+        "src/index.html"
+      ],
+      "title": "Link text and destination",
+      "impact": "medium",
+      "tier": "A",
+      "inScan": true
+    },
+    {
+      "id": "ACCESS-12",
+      "severity": "warning",
+      "checker": [
+        "script",
+        "ai"
+      ],
+      "group": "access-semantics",
+      "family": "access",
+      "rulesFile": "rules/access.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/*.html",
+        "**/*.ts",
+        "src/index.html"
+      ],
+      "title": "Page language, title and zoom",
+      "impact": "high",
+      "tier": "A",
+      "inScan": true
+    },
+    {
+      "id": "ACCESS-13",
+      "severity": "warning",
+      "checker": [
+        "script"
+      ],
+      "group": "access-aria",
+      "family": "access",
+      "rulesFile": "rules/access.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/*.html",
+        "**/*.ts",
+        "src/index.html"
+      ],
+      "title": "Role misuse",
+      "impact": "medium",
+      "tier": "A",
+      "inScan": true
+    },
+    {
+      "id": "ACCESS-14",
+      "severity": "warning",
+      "checker": [
+        "script",
+        "ai"
+      ],
+      "group": "access-aria",
+      "family": "access",
+      "rulesFile": "rules/access.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/*.html",
+        "**/*.ts",
+        "src/index.html"
+      ],
+      "title": "Live regions",
+      "impact": "medium",
+      "tier": "D",
+      "inScan": true
+    },
+    {
+      "id": "ACCESS-15",
+      "severity": "warning",
+      "checker": [
+        "script",
+        "ai"
+      ],
+      "group": "access-aria",
+      "family": "access",
+      "rulesFile": "rules/access.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/*.html",
+        "**/*.ts",
+        "src/index.html"
+      ],
+      "title": "Widget patterns",
+      "impact": "high",
+      "tier": "A",
+      "inScan": true
+    },
+    {
+      "id": "ACCESS-16",
+      "severity": "warning",
+      "checker": [
+        "script",
+        "ai"
+      ],
+      "group": "access-keyboard",
+      "family": "access",
+      "rulesFile": "rules/access.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/*.html",
+        "**/*.ts",
+        "src/index.html"
+      ],
+      "title": "Tab stops and hidden reveals",
+      "impact": "high",
+      "tier": "A",
+      "inScan": true
+    },
+    {
+      "id": "ACCESS-17",
+      "severity": "warning",
+      "checker": [
+        "ai"
+      ],
+      "group": "access-motion",
+      "family": "access",
+      "rulesFile": "rules/access.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/*.html",
+        "**/*.ts",
+        "src/index.html"
+      ],
+      "title": "Motion, timing and flashing",
+      "impact": "medium",
+      "tier": "needs-decision",
+      "inScan": true
+    },
+    {
+      "id": "ACCESS-18",
+      "severity": "warning",
+      "checker": [
+        "script",
+        "ai"
+      ],
+      "group": "access-alt",
+      "family": "access",
+      "rulesFile": "rules/access.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/*.html",
+        "**/*.ts",
+        "src/index.html"
+      ],
+      "title": "Audio and video",
+      "impact": "high",
+      "tier": "needs-decision",
+      "inScan": true
+    },
+    {
+      "id": "ACCESS-19",
+      "severity": "warning",
+      "checker": [
+        "script",
+        "ai"
+      ],
+      "group": "access-alt",
+      "family": "access",
+      "rulesFile": "rules/access.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/*.html",
+        "**/*.ts",
+        "src/index.html"
+      ],
+      "title": "Iframes, objects and canvas",
+      "impact": "medium",
+      "tier": "A",
+      "inScan": true
+    },
+    {
+      "id": "ACCESS-20",
+      "severity": "warning",
+      "checker": [
+        "script",
+        "ai"
+      ],
+      "group": "access-semantics",
+      "family": "access",
+      "rulesFile": "rules/access.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/*.html",
+        "**/*.ts",
+        "src/index.html"
+      ],
+      "title": "Table structure",
+      "impact": "medium",
+      "tier": "C",
+      "inScan": true
+    },
+    {
+      "id": "ACCESS-21",
+      "severity": "warning",
+      "checker": [
+        "script"
+      ],
+      "group": "access-alt",
+      "family": "access",
+      "rulesFile": "rules/access.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/*.html",
+        "**/*.ts",
+        "src/index.html"
+      ],
+      "title": "Image size reserved",
+      "impact": "low",
+      "tier": "C",
+      "inScan": true
+    },
+    {
+      "id": "ACCESS-22",
+      "severity": "warning",
+      "checker": [
+        "script"
+      ],
+      "group": "access-aria",
+      "family": "access",
+      "rulesFile": "rules/access.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/*.html",
+        "**/*.ts",
+        "src/index.html"
+      ],
+      "title": "Visible text vs accessible name",
+      "impact": "medium",
+      "tier": "A",
+      "inScan": true
     }
   ],
   "aiGroups": {
@@ -1487,32 +1835,47 @@
     "access-labels": {
       "rulesFile": "rules/access.md",
       "rules": [
-        "ACCESS-01"
+        "ACCESS-01",
+        "ACCESS-08"
       ]
     },
     "access-alt": {
       "rulesFile": "rules/access.md",
       "rules": [
-        "ACCESS-02"
+        "ACCESS-02",
+        "ACCESS-18",
+        "ACCESS-19"
       ]
     },
     "access-aria": {
       "rulesFile": "rules/access.md",
       "rules": [
         "ACCESS-00",
-        "ACCESS-03"
+        "ACCESS-03",
+        "ACCESS-14",
+        "ACCESS-15"
       ]
     },
     "access-semantics": {
       "rulesFile": "rules/access.md",
       "rules": [
-        "ACCESS-04"
+        "ACCESS-04",
+        "ACCESS-09",
+        "ACCESS-12",
+        "ACCESS-20"
       ]
     },
     "access-keyboard": {
       "rulesFile": "rules/access.md",
       "rules": [
-        "ACCESS-05"
+        "ACCESS-05",
+        "ACCESS-16"
+      ]
+    },
+    "access-motion": {
+      "rulesFile": "rules/access.md",
+      "rules": [
+        "ACCESS-17"
       ]
     }
   },

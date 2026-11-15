@@ -30,7 +30,7 @@ function attrsOf(tag) {
 const has = (a, ...names) => names.some((n) => n in a || ('[' + n + ']') in a || ('[attr.' + n + ']') in a);
 
 /** class name â†’ does any SCSS rule give it a fixed box (inline-size + block-size, width + height, or aspect-ratio)? */
-function boxFixedClasses(root, profile) {
+function boxInfoClasses(root, profile) {
   const blocks = [];
   for (const f of project.listUiFiles(root, profile).filter((x) => x.kind === 'scss' || x.kind === 'css')) {
     const text = u.readText(f.abs) || '';
@@ -39,11 +39,12 @@ function boxFixedClasses(root, profile) {
     while ((m = re.exec(text))) blocks.push({ sel: m[1], body: m[2] });
   }
   const fixed = (body) => /aspect-ratio\s*:/.test(body) || (/(inline-size|width)\s*:/.test(body) && /(block-size|height)\s*:/.test(body)) || /(^|[;\s])(inline-size|width)\s*:[^;]*;?[^}]*aspect/.test(body);
-  return (cls) => {
-    const tail = cls.includes('__') ? '&__' + cls.split('__').pop() : null;
-    return blocks.some((b) => fixed(b.body) && (b.sel.includes('.' + cls) || (tail && b.sel.includes(tail))));
-  };
+  const widthOnly = (body) => /(inline-size|width|max-inline-size|max-width)s*:/.test(body) && !fixed(body);
+  const owns = (b, cls) => { const tail = cls.includes('__') ? '&__' + cls.split('__').pop() : null; return b.sel.includes('.' + cls) || (tail && b.sel.includes(tail)); };
+  /** 'fixed' (a rule fixes the whole box) | 'width-only' (a rule sets only the width: the height still depends on the file) | null */
+  return (cls) => (blocks.some((b) => fixed(b.body) && owns(b, cls)) ? 'fixed' : blocks.some((b) => widthOnly(b.body) && owns(b, cls)) ? 'width-only' : null);
 }
+function boxFixedClasses(root, profile) { const info = boxInfoClasses(root, profile); return (cls) => info(cls) === 'fixed'; }
 
 /** True when `index` sits inside an unclosed `@for (...) { ... }` block or a `*ngFor` element. */
 function insideFor(text, index) {
@@ -150,5 +151,5 @@ function run(root, profile) {
   return findings;
 }
 
-module.exports = { run };
+module.exports = { run, boxInfoClasses, attrsOf };
 if (require.main === module) cli('media-check', 'media-check.js â€” MEDIA-01..06: image size attributes, lazy loading, raster-as-icon, fonts, video/iframe loading, asset sizes. Never opens an image.', run);

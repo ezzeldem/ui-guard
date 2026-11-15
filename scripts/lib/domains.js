@@ -1,7 +1,7 @@
 'use strict';
 // The four scan/fix domains. Each domain owns one rule family, its own scripts and its own files under .ui-guard/<domain>/.
 //   scss   → STYLE   (Stylelint + structure/theme/token/class scripts + the STYLE-48 foundation check)
-//   access → ACCESS  (ESLint template rules + AI)
+//   access → ACCESS  (ESLint template rules + access-check.js + AI)
 //   lang   → LANG    (i18n script + AI)
 //   safe   → SAFE    (secrets/web scripts + ESLint SAFE rules + AI)
 const path = require('path');
@@ -14,7 +14,7 @@ const DOMAINS = {
   },
   access: {
     prefix: 'ACCESS', title: 'accessibility', rulesFile: 'rules/access.md',
-    scripts: [],
+    scripts: ['access-check'],
     lint: { stylelint: false, eslint: true },
   },
   lang: {

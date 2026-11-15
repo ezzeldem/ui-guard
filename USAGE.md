@@ -65,6 +65,12 @@ There are four domains. Each has its own scan, fix, files and baseline:
 | `lang` | LANG | `.ui-guard/lang/` |
 | `safe` | SAFE | `.ui-guard/safe/` |
 
+**Recommended order: scss → access → lang → safe.** The scss foundation (segments, tools, utilities) comes first because
+access fixes add neutralization SCSS and use the visually-hidden utility. Running in another order is allowed: `fix access`
+then prints one warning line at the start of its summary (never a question, never a stop). Before its first phase, `fix access`
+makes sure a visually-hidden utility exists (reuses yours, or creates only `.u-sr-only`); without a loaded global entry it stops
+and tells you to run `/ui-guard:fix scss` first.
+
 ### 4.1 Scan
 
 ```
@@ -136,6 +142,10 @@ from your dependencies' CSS, classes styled only under `::ng-deep`). Project sta
   written, or a usage limit. It says exactly why and at which phase; the phase's changes stay in your working tree.
 - **One summary at the end** (`.ui-guard/<domain>/fix-summary.md`): phases done, files changed, remaining findings,
   skipped (unsure) items, how it was verified, and the `plan.md` / `report.md` paths.
+- **Colours (scss):** hex/rgb()/rgba() in variables and theme tokens become `hsl(H, S%, L%[, A])` — only when converting back gives exactly
+  the same colour (otherwise the value stays and is listed as skipped). A colour in a component that equals one palette colour becomes
+  `var(--token)`; a colour that matches no palette colour is never given an invented token — it goes to `.ui-guard/scss/needs-decision.md`
+  (add it to the palette, or keep the literal). Named colours are left alone.
 - **Accessibility keeps the design:** fixes go tier by tier — A attributes, B `div` → landmark, C tag swaps with a
   neutralization in the component's own SCSS, D structure — each after a selector-impact check
   (`rules/access-fix-tiers.md`). Anything that needs a visible change or content only you know (alt text, outline, hover-only

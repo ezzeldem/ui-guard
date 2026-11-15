@@ -88,7 +88,7 @@ function finalize(root, domain) {
   const out = cluster(own).map((f) => ({
     id: '', ruleId: f.ruleId, severity: f.severity, file: f.file, line: f.line, endLine: f.endLine, message: f.message, evidence: f.evidence,
     fix: f.fix || null, checker: f.checker, sources: f.sources, status: f.status, rejectReason: f.rejectReason || null, fingerprint: f.fingerprint,
-    ...(f.impact ? { impact: f.impact } : {}),
+    ...(f.impact ? { impact: f.impact } : {}), ...(f.tier ? { tier: f.tier } : {}),
   }));
   out.forEach((f, i) => { f.id = 'F-' + String(i + 1).padStart(6, '0'); });
   if (dom && dom.name === 'access') {

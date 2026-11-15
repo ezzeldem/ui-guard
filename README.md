@@ -50,6 +50,9 @@ If you cloned the repository, use its folder path instead of `<owner>/ui-guard`.
 /ui-guard:fix access          # design-preserving accessibility fixes; decisions collected in .ui-guard/access/needs-decision.md
 ```
 
+Recommended order of domains: **scss → access → lang → safe** (access fixes use the scss structure, tools and the visually-hidden
+utility). It is advice, not a gate: `fix access` prints one warning line in its summary when scss is not clean yet.
+
 **3. New project:**
 
 ```
@@ -84,7 +87,7 @@ Full walkthrough: **[USAGE.md](USAGE.md)**.
 
 ## The rules
 
-79 rules in five groups, with their own IDs:
+96 rules in five groups, with their own IDs:
 
 | Group | Rules | Covers |
 |---|---|---|
@@ -92,7 +95,7 @@ Full walkthrough: **[USAGE.md](USAGE.md)**.
 | `LANG` | 8 | Translation: no hard-coded user-visible text |
 | `SAFE` | 8 | Security basics: unsafe HTML, secrets, sensitive data in logs and storage |
 | `MEDIA` | 9 | Images, fonts, video (01–06 in `/ui-guard:check` and the hooks — no scan domain; 07–08 in `/ui-guard:assets`) |
-| `ACCESS` | 6 | Accessibility: labels, alternative text, ARIA, semantics, keyboard |
+| `ACCESS` | 23 | Accessibility: labels, alternative text, ARIA, semantics, keyboard, forms, links, document, live regions, widgets, media, embeds, tables, image box, motion. Every finding has an impact (High/Medium/Low) and a fix tier (A–D or needs-decision) |
 
 Class prefixes: `o-` `c-` `l-` `m-` `ctrl-` `p-` `u-`, and states `is-` `has-` `js-`. Rule text lives in [`rules/`](rules/).
 
@@ -132,7 +135,7 @@ npm install
 npm test
 ```
 
-77 self-tests cover the scripts, custom lint rules, hooks, scan pipeline, plan generation, and the fix bookkeeping.
+94 self-tests cover the scripts, custom lint rules, hooks, scan pipeline, plan generation, and the fix bookkeeping.
 The AI agents themselves are tested with simulated output only.
 
 ## Repository layout

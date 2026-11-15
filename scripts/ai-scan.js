@@ -32,8 +32,9 @@ const STAGES = {
       rules: ['STYLE-02', 'STYLE-03', 'STYLE-37', 'STYLE-39', 'STYLE-43'] },
   ],
   access: [
-    { id: 1, name: 'Templates + CVA TS — ACCESS', kinds: ['html', 'index', 'ts'], groups: ['access-labels', 'access-alt', 'access-aria', 'access-semantics', 'access-keyboard'],
-      rules: ['ACCESS-00', 'ACCESS-01', 'ACCESS-02', 'ACCESS-03', 'ACCESS-04', 'ACCESS-05'] },
+    { id: 1, name: 'Templates + CVA TS — ACCESS', kinds: ['html', 'index', 'ts'], groups: ['access-labels', 'access-alt', 'access-aria', 'access-semantics', 'access-keyboard', 'access-motion'],
+      // the AI rules of the domain: ACCESS-01..05 (ESLint + ai) and the ai part of ACCESS-08..20 (see rules.json: checker contains ai)
+      rules: ['ACCESS-00', 'ACCESS-01', 'ACCESS-02', 'ACCESS-03', 'ACCESS-04', 'ACCESS-05', 'ACCESS-08', 'ACCESS-09', 'ACCESS-12', 'ACCESS-14', 'ACCESS-15', 'ACCESS-16', 'ACCESS-17', 'ACCESS-18', 'ACCESS-19', 'ACCESS-20'] },
   ],
   lang: [
     { id: 1, name: 'Templates + TS + translations — LANG', kinds: ['html', 'index', 'ts', 'translation'], groups: ['lang'],
