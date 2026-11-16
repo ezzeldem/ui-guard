@@ -1,6 +1,6 @@
 ---
 description: Fix one domain — scss, access, lang or safe — running ALL its plan phases back to back with zero visual change, without asking. Scripts do the mechanical work (0 tokens); the Sonnet fixer gets only what needs judgment; one Opus diff review per phase; lint, build and (when Playwright is installed) 0-pixel screenshots. Stops only on a real problem. Optional phase number runs one phase. Never commits.
-argument-hint: "scss | access | lang | safe  [phase-number]"
+argument-hint: "scss | access | lang | safe  [phase-number] [--keep-tmp] [--keep-screens]"
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash, PowerShell, Agent
 ---
 
@@ -16,13 +16,20 @@ Scripts: `node "PLUGIN/scripts/<name>.js" --root "<project root>"`; every `phase
 **Never run two agents at the same time.**
 
 ## 0. Domain and mode
-Recommended order: **scss → access → lang → safe** (access fixes rely on the scss structure: segments, tools, utilities).
+Recommended order: **scan html → scss → access → lang → safe** (access fixes rely on the scss structure: segments, tools, utilities).
 The order is advice, not a gate: `phase.js summary` prints one warning line when access runs before scss is clean.
 
 - First word = the domain `D` (`scss`, `access`, `lang`, `safe`). Missing/unknown → print the four `/ui-guard:fix <domain>` lines
   (same list as `/ui-guard:scan`) and stop.
 - Second word, if a number = run that phase only. Otherwise run **every** phase that is not done, in order, back to back.
   For scss, a single phase after Foundation runs Foundation A and B first when they are not done (everything else needs them).
+
+**Ledger.** `fix D` works only on D's OPEN findings (the ledger's needs-decision / skipped ones are not planned again) and opens a
+file only when D has open findings there. `phase.js snapshot` records every file's fingerprint; `phase.js complete` then updates
+`.ui-guard/ledger.json` by script: D's findings → fixed / skipped / needs-decision with `fixedAt`, the file's new fingerprint, the
+class renames, and the OTHER domains' findings carried over (rename map applied, re-located by stable key; not found → needs-rescan,
+never dropped). A change the phase cannot explain (a file outside the phase, or one edited outside ui-guard) → every domain of that
+file needs-rescan. `phase.js fail` marks every file it modified needs-rescan. Show the `ledger:` line of `complete` in the summary.
 
 ## 1. Prepare (no questions)
 1. No `.ui-guard/D/findings.json` → run the whole `/ui-guard:scan D` procedure first (read `PLUGIN/commands/scan.md`, sections 1–4;
@@ -88,3 +95,9 @@ Say exactly why and at which phase. Items the fixer could not prove neutral are 
    For access it also writes `.ui-guard/access/needs-decision.md` — show that list once, grouped, each item with its options.
 3. The backup path when there is no git; for a stopped phase, how to undo it (`git restore -- <files>` or the backup).
 **Do not commit.**
+
+## 4. Cleanup (automatic, done by the script — not by you)
+`phase.js summary --domain D` runs `cleanup.js` itself right after it writes `fix-summary.md` (0 tokens, no question). A run that stopped on a failed
+phase keeps that phase's tmp files and before/after/diff images; completed phases are cleaned. Pass `--keep-tmp` / `--keep-screens` from the arguments
+to `phase.js summary`. Do not run `cleanup.js` yourself: read the line `cleaned N files (X MB) · kept: …` from its output and finish the reply with it.
+The next `/ui-guard:fix D` runs normally from `plan.json`.

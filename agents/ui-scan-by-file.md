@@ -21,6 +21,10 @@ judgment. You check only the domain's rules the scripts cannot decide.
 - `rulesFiles`: the domain's rules file — read only this; `profile`: `.ui-guard/profile.md` (role map, i18n setup, button decision);
 - `out` (findings, JSON lines) and `done` (list of files you checked); `retry`: the error of your previous result for this batch, if any — fix exactly that.
 
+**`/ui-guard:scan html` batches** (`domain: "html"`): `perFile` maps each file to the domains still pending for it and `rules`
+maps each of those domains to its AI rule IDs; `rulesFiles` holds only those domains' rules files. Read each file ONCE and check, for
+that file, only the rules of the domains listed for it. A rule of a domain not listed for that file is rejected.
+
 Stages: scss 1 = SCSS/CSS · scss 2 = templates + TS (class prefixes/state) · access 1 = templates (+ CVA TS) · lang 1 = templates, TS, translations · safe 1 = templates, TS, config.
 A rule outside `rules` (a rule the scripts own, or another domain's rule) must never be reported — the result is rejected if you do.
 ACCESS findings may carry `"impact": "high" | "medium" | "low"` (see the impact table in `rules/access.md`); never report native elements without an explicit role, a correct `alt=""` on a decorative image, or a missing `<h1>` in a fragment.

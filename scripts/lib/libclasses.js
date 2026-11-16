@@ -27,8 +27,13 @@ const STATE = new Set(['show', 'active', 'open', 'opened', 'close', 'closed', 's
   'invalid', 'valid', 'dirty', 'touched', 'hidden', 'visible', 'focused', 'hover', 'current', 'done', 'success', 'warning', 'sticky', 'fixed', 'scrolled', 'dragging', 'drag-over', 'empty', 'readonly', 'required']);
 const OWN_PREFIX = /^(o|c|l|m|ctrl|p|u|is|has|js)-/;
 
-function patternReason(name, hasPrime) {
-  if (BOOTSTRAP.some((re) => re.test(name))) return 'Bootstrap class';
+// When the real Bootstrap CSS is among the declared node_modules styles, its class list is the truth: a name that only
+// LOOKS like Bootstrap (`.modal-box`, `.dropdown-panel`, `.text-red`) but is not defined there is a project class.
+const BOOTSTRAP_MARKERS = ['btn', 'row', 'container', 'd-flex'];
+const bootstrapLoaded = (vendor) => !!vendor && BOOTSTRAP_MARKERS.every((c) => vendor.has(c));
+
+function patternReason(name, hasPrime, vendor) {
+  if (BOOTSTRAP.some((re) => re.test(name)) && (!bootstrapLoaded(vendor) || vendor.has(name))) return 'Bootstrap class';
   for (const p of LIB_PREFIXES) if (name.startsWith(p)) return `library prefix \`${p}\``;
   if (hasPrime && name.startsWith('p-')) return 'PrimeNG class (`p-` prefix)';
   return null;
@@ -53,7 +58,7 @@ function vendorMap(root, profile) {
 /** Classes the project styles only under a library selector or ::ng-deep (unprefixed ones only). */
 function scopedClasses(root, profile, hasPrime, vendor) {
   const defs = new Map(); // class → [bool scoped]
-  const isLib = (c) => !!patternReason(c, hasPrime) || vendor.has(c);
+  const isLib = (c) => !!patternReason(c, hasPrime, vendor) || vendor.has(c);
   for (const f of project.listUiFiles(root, profile).filter((x) => x.kind === 'scss' || x.kind === 'css')) {
     if (project.isThemeTokenFile(f.rel)) continue;
     const tree = css.parse(u.readText(f.abs) || '');
@@ -85,7 +90,7 @@ function context(root, profile) {
 
 /** Reason a class is a library class (never renamed), or null. */
 function libraryReason(name, ctx) {
-  const p = patternReason(name, ctx.hasPrime);
+  const p = patternReason(name, ctx.hasPrime, ctx.vendor);
   if (p) return p;
   if (ctx.vendor.has(name)) return `defined in \`${ctx.vendor.get(name)}\` (a declared dependency)`;
   if (ctx.scoped.has(name)) return 'the project styles it only under a library selector or ::ng-deep';

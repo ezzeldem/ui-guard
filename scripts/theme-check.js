@@ -28,7 +28,7 @@ function checkTokenFileShape(root, abs, rel, findings) {
           if (stripped) findings.push(mk(root, 'STYLE-33', rel, node.line, `Selector \`${u.clip(sel, 60)}\` in custom.theme.css — only class selectors and \`body\` are allowed.`, 'Use a class selector (or body).'));
         }
       }
-      if (node.type === 'decl' && node.prop.startsWith('--')) findings.push(mk(root, 'STYLE-33', rel, node.line, `custom.theme.css defines custom property \`${node.prop}\`.`, 'Move the token to the palette / fonts / images theme file.'));
+      if (node.type === 'decl' && node.prop.startsWith('--')) findings.push(mk(root, 'STYLE-33', rel, node.line, `custom.theme.css defines custom property \`${node.prop}\`.`, 'Move the token to the palette / fonts theme file.'));
       void parents;
     });
     return;

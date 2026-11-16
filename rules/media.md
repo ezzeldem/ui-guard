@@ -15,7 +15,7 @@ Based on the UI team's images/assets review rules. Rule IDs are ui-guard's own.
 | MEDIA-05 | scan | `@font-face` rules and `@import` of fonts in SCSS/CSS |
 | MEDIA-06 | scan | `<video autoplay>` / `preload="auto"`, `<iframe>` without `loading="lazy"` |
 | MEDIA-07 | `/ui-guard:assets` | a referenced path that does not exist (or uses `src/`, `localhost`) |
-| MEDIA-08 | `/ui-guard:assets` (existence part) | every file a theme's `url()` / `--img-*` points to must exist in that theme |
+| MEDIA-08 | `/ui-guard:assets` (existence part) | every file a theme's `url()` points to must exist in that theme |
 | MEDIA-09 | guidance only | needs judging an icon's color — not checked |
 
 | ID | Severity | Checked by | Applies to | Rule | How to fix |
@@ -27,7 +27,7 @@ Based on the UI team's images/assets review rules. Rule IDs are ui-guard's own.
 | MEDIA-05 | warning | script | styles | `@font-face` without `font-display`; a web font loaded with CSS `@import url(...)`; a font in `ttf/otf/eot` where `woff2` is available; `@font-face` wrapped in a selector. | Add `font-display: swap`; list `woff2` first; move `@font-face` to the top level of `fonts.theme.css`. |
 | MEDIA-06 | warning | script | `*.html` | An autoplaying `<video>` or `preload="auto"` that is not the page's main content; an off-screen `<iframe>` without `loading="lazy"`. | Remove autoplay / use `preload="metadata"`; add `loading="lazy"` to the iframe. |
 | MEDIA-07 | error | script | templates, styles, TS | An asset path the build will not find or rewrite: `http://localhost…`, `src/assets/…` instead of `assets/…`, a path to a file that does not exist. | Use `assets/…` and fix the file name. |
-| MEDIA-08 | error | script | theme folders | Every theme source folder has the same image file names in `project-images/` (and the active `src/assets/project-images/`). Every file an `--img-*` token or `url()` points to exists in every theme. | Add the missing image to the theme that lacks it. |
+| MEDIA-08 | error | script | theme folders | Every theme source folder has the same image file names in `project-images/` (and the active `src/assets/project-images/`). Every file a `url()` points to exists in every theme. | Add the missing image to the theme that lacks it. |
 | MEDIA-09 | warning | script + ai | SVG icons | A single-color icon exported from the design is saved **black** and colored with a filter utility (STYLE-37). Multi-color icons stay as exported. A single-color icon saved in a brand color is a finding (it breaks theming). | Re-save the icon black; add `u-filter-*` in the template. |
 
 ## Best practice for images

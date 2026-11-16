@@ -29,6 +29,10 @@ function runAll(root, { files = null, skipLint = false, domain = null } = {}) {
     // a domain scan lints every file of its kinds again (an earlier failure must not hide files from it)
     let targets = files || (inv ? inv.files.filter((f) => (dom ? ['scss', 'css', 'html', 'ts', 'index'].includes(f.kind) : f.status.lint !== 'n/a')).map((f) => f.path) : project.listUiFiles(root, profile).filter((f) => ['scss', 'css', 'html', 'ts', 'index'].includes(f.kind)).map((f) => f.rel));
     if (dom) targets = targets.filter((f) => (/.s?css$/.test(f) ? dom.lint.stylelint : dom.lint.eslint));
+    // ledger: files still valid for this domain are not linted again — merge-findings reuses their lint rows from the ledger.
+    // The ui-guard scripts above still run project-wide (0 tokens): several rules are cross-file (class usage, structure).
+    const lp = dom && !files ? require('./ledger').loadPlan(root, dom.name) : null;
+    if (lp && !lp.rescan) { const ok = new Set(lp.lintReuse || []); targets = targets.filter((f) => !ok.has(f)); notes.push(`ledger: ${ok.size} valid file(s) not linted again (lint rows reused)${lp.lintContextChanged ? ' — lint context changed: the other valid files are linted again' : ''}`); }
     lintRes = lint.lintFiles(root, targets);
     all.push(...lintRes.findings);
     notes.push(...lintRes.notices);

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 // /ui-guard:assets — zero tokens, no agent. For every image/font/video path referenced in HTML, SCSS, CSS and TS
-// (src=, href=, ngSrc, srcset, url(), string literals, theme --img-* variables) check the file exists.
+// (src=, href=, ngSrc, srcset, url(), string literals, theme url()s) check the file exists.
 // It never opens or judges an image. Self-contained (Node built-ins only) so .ui-guard/bin/ can carry a copy.
 const fs = require('fs');
 const path = require('path');
@@ -112,6 +112,7 @@ if (require.main === module) {
     fs.mkdirSync(path.dirname(blFile), { recursive: true });
     fs.writeFileSync(blFile, JSON.stringify({ note: 'Known missing asset references (ui-guard). Not blocking.', updated: new Date().toISOString(), fingerprints: res.problems.map((p) => p.fingerprint).sort() }, null, 2) + '\n');
     console.log(`assets baseline written: ${res.problems.length} known problem(s) → .ui-guard/assets-baseline.json`);
+    try { console.log(require('./cleanup').finish(root, a)); } catch { /* bin copy */ }
     process.exit(0);
   }
   let list = res.problems;
@@ -127,5 +128,6 @@ if (require.main === module) {
     for (const p of list) console.log(`${p.file}:${p.line} -> ${p.problem}`);
     console.log(`assets: ${res.checked} reference(s) checked, ${list.length} problem(s)${known ? `, ${known} known (baseline)` : ''}, ${res.dynamic} dynamic path(s) not checked.`);
   }
+  try { const line = require('./cleanup').finish(root, a); if (!a.json) console.log(line); } catch { /* the .ui-guard/bin copy has no cleanup.js */ }
   process.exit(list.length ? 1 : 0);
 }

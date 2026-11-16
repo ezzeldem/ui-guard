@@ -220,7 +220,9 @@ Usage: node profile.js [--root <dir>] [--refresh] [--answers <json-file-or-inlin
   let prof = (args.refresh || !Object.keys(previous).length) ? build(root, previous) : previous;
   if (args.answers) {
     const raw = u.exists(args.answers) ? u.readText(args.answers) : args.answers;
-    prof = deepMerge(prof, JSON.parse(raw));
+    const ans = JSON.parse(raw);
+    if (ans.themeName !== undefined) { const bad = project.themeNameProblem(ans.themeName); if (bad) { console.error(bad); process.exit(1); } }
+    prof = deepMerge(prof, ans);
   }
   if (args.set) { const [k, ...rest] = String(args.set).split('='); let v = rest.join('='); try { v = JSON.parse(v); } catch { /* string */ } prof[k] = v; }
   u.writeText(p.profile, render(prof));

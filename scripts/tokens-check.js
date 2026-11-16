@@ -58,6 +58,14 @@ function run(root, profile) {
         if (/clamp\(/.test(p.value) && p.selector && p.selector.trim() !== ':root' && p.selector.trim() !== ':host') findings.push(mk(root, 'STYLE-34', f.rel, p.line, `Fluid token \`${p.name}\` re-declared by \`${u.clip(p.selector, 40)}\`.`, 'Declare fluid tokens once in the theme.'));
       }
     }
+    // STYLE-34 no .scss file defines colours: `$name: <hex | rgb() | hsl()>` belongs in colors.palette.theme.css (/ui-guard:fix scss moves it)
+    if (/\.scss$/.test(f.rel)) {
+      const plain = f.text.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, (c) => c.replace(/[^\n]/g, ' '));
+      const at = u.lineIndexer(f.text);
+      for (const d of plain.matchAll(/(^|[;{}\s])\$([\w-]+)\s*:\s*([^;{}]+);/g)) {
+        if (/#[0-9a-f]{3,8}\b|\b(rgba?|hsla?)\(/i.test(d[3])) findings.push(mk(root, 'STYLE-34', f.rel, at(d.index + d[1].length), `Colour \`$${d[2]}\` is defined in SCSS (\`${u.clip(d[3].trim(), 40)}\`).`, 'Colours live only in colors.palette.theme.css — /ui-guard:fix scss moves it there as an hsl token (exact round trip) and the variable becomes var(--token).'));
+      }
+    }
     // STYLE-09 undefined tokens (likely typos)
     const re = /var\(\s*(--[\w-]+)/g;
     let m;

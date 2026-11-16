@@ -1,6 +1,6 @@
 ---
-description: Check that every image/font/video path referenced in HTML, SCSS, CSS and TS (src=, url(), string literals, theme --img-* variables) exists. Script only — 0 tokens, no agent. Images are never opened or judged.
-argument-hint: "[--new-only] [--baseline]"
+description: Check that every image/font/video path referenced in HTML, SCSS, CSS and TS (src=, url(), string literals, theme url()s) exists. Script only — 0 tokens, no agent. Images are never opened or judged.
+argument-hint: "[--new-only] [--baseline] [--keep-tmp] [--keep-screens]"
 allowed-tools: Bash, PowerShell, Read
 ---
 
@@ -16,3 +16,4 @@ Do not start any agent. Do not open image files.
    - `--baseline` saves the current problems as known.
 2. Show the output as is: one line per problem `file:line -> missing <path>` (or "uses src/…", "points to localhost"), then the summary line.
 3. Exit 1 means something is missing. Offer to fix the paths; never move, create or delete image files on your own.
+4. **Cleanup is automatic.** `assets.js` runs `cleanup.js` itself as its last step (not with `--json`); read the line `cleaned N files (X MB) · kept: …` from its output. Pass `--keep-tmp` through `$ARGUMENTS`. Do not run `cleanup.js` yourself.

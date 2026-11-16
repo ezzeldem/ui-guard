@@ -7,7 +7,7 @@
 4. **`${CLAUDE_PLUGIN_ROOT}` in markdown**: commands fall back to Globbing the plugin root if it is not substituted, and pass the absolute path to agents.
 5. **Lint runner** resolves the project's own CLI from `node_modules` (walking up) and runs it with `node` — same effect as `npx --no-install`, no shell needed on Windows.
 6. **Extra scripts** (not in §11, for determinism): `run-checks.js`, `structure-check.js` (script parts of STYLE-17/28/38/42), `write-report.js`, `changes.js` (check + marker), `phase.js` (fix bookkeeping), `setup-project.js`, `scaffold.js`, `lib/{util,css,color,angular,sass-graph,findings}.js`. Extra custom Stylelint rule `ui-guard/bem` (STYLE-04).
-7. **`images.theme.css` paths** use `../../../project-images/` (the spec's `../../` would resolve to `assets/scss/project-images`). Theme-source `url()`s are resolved as if swapped into the active folder.
+7. **Theme `url()` paths** resolve from the theme file to `../../../project-images/` (the spec's `../../` would resolve to `assets/scss/project-images`). Theme-source `url()`s are resolved as if swapped into the active folder.
 8. **`mq()`**: `if()` replaced by `@if` (Sass 1.108 deprecates `if()`); output identical. **`hover()`** got an `@error` check for `$trans` (STYLE-38 asks for validation); output identical.
 9. **Color ramp** for colors with L < 10% or > 97%: ramps toward 0%/100% so steps stay monotonic (the spec formula would invert).
 10. **Merge clustering**: deterministic findings cluster only by fingerprint (two real findings on neighboring lines stay two); AI findings join within ±2 lines. Same-line distinct deterministic messages are joined, never dropped. Binary assets / `dist/` fingerprint on rule+file only.
@@ -94,6 +94,25 @@ The first real scan of a large project used ~6M tokens (96 agents, 3 rounds) and
    kept and listed when not exact (percent or fractional channels, or a variable read by a Sass colour function). A component colour equal to exactly one palette colour becomes `var(--token)`; no match or several matches → `.ui-guard/scss/needs-decision.md`
    (add to the palette / keep the literal). Named colours, url(), strings, comments, selectors and interpolation are never touched. The CSS compare now treats any plain colour literal by its 8-bit result, and `var(--token)` by the colour it stands for.
 5. Settings, tools and theme files get the colour step only; every other scss file gets all steps. `phase.js summary` writes the scss needs-decision list too.
+
+## Ledger and /ui-guard:scan html (2026-11-16)
+- `.ui-guard/ledger.json` (`scripts/lib/ledger.js`, CLI `scripts/ledger.js`; `inventory.js build` syncs it; `lib/fingerprint.js` has `fileHash`).
+  Version 1, atomic write (temp + rename); unreadable / other version → ignored = full rescan. Trust rule: scannedFingerprint === file hash now.
+- Stable key = rule + whitespace-normalized line text (≤ 120 chars), never the line number; SAFE-04 = rule + a hash of the line (no text).
+- `scan <domain>`: `ledger.js prepare` → valid files are not linted (`run-checks`) and not planned for the AI (`ai-scan plan`);
+  `merge-findings finalize` re-adds their stored lint + AI rows. **Choice:** the ui-guard scripts still run project-wide (0 tokens) and
+  their findings are always fresh, because several script rules are cross-file (class usage, structure, translations); reusing them
+  per file could keep a finding that another file's change resolved. A file is recorded as scanned only when its linter ran and,
+  if it needed judgment, a finished non-skipped AI batch covered it (a free scan leaves judgment files unscanned).
+- Global invalidation (`lib/ledger.js` `lintContext` / `aiContext`, stored per file+domain at record time): lint rows need the same hash of
+  `.ui-guard/lint/**`, `<scss>/{tools,settings,theme,utilities}/**`, `src/assets/themes/**`, root lint configs, `angular.json` and the linter
+  package versions; AI rows need the same hash of `rules/<domain>.md` + its `rules.json` entries + its AI stage rule ids. `prepare` splits
+  valid files into `lintReuse` / `aiReuse`; a mismatch re-lints or re-judges that part only.
+- `scan html` (`scripts/html-pass.js`): scripts + lint once for all domains on the templates, then one batch list where each file
+  appears once with all its pending domains; the agent output is split by rule family into the ledger.
+- Fix: `phase.js snapshot` stores every ledger file's hash; `complete` / `fail` update the ledger (own statuses, fingerprint, facts,
+  rename map, carry-over of the other domains incl. their findings.json lines and baseline fingerprints). `plan.js` leaves out
+  findings the ledger parks as needs-decision / skipped (`--rescan` resets them).
 
 ## Package versions verified (npm, 2026-11-13)
 stylelint 18.0.0 (17.16.0 used), stylelint-scss 7.5.0 (peer ^16.8.2‖^17‖^18), postcss-scss 4.0.9, eslint 10.15.0 (9.39.5 used — see Review fixes), angular-eslint 22.6.0 (eslint ^9‖^10), typescript-eslint 8.72.2 (TS <6.1 → 5.9.3), sass 1.108.2, playwright 1.65.1, pixelmatch 8.0.0 (ESM, loaded via dynamic import), pngjs 7.0.0.

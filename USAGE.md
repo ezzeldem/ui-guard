@@ -65,7 +65,9 @@ There are four domains. Each has its own scan, fix, files and baseline:
 | `lang` | LANG | `.ui-guard/lang/` |
 | `safe` | SAFE | `.ui-guard/safe/` |
 
-**Recommended order: scss → access → lang → safe.** The scss foundation (segments, tools, utilities) comes first because
+**Recommended order: `scan html` → fix scss → fix access → fix lang → fix safe** (domain order: scss → access → lang → safe). `scan html` reads every template once
+for all four domains; scss comes before access because it renames classes (the ledger carries the renames into the access,
+lang and safe findings). The scss foundation (segments, tools, utilities) comes first because
 access fixes add neutralization SCSS and use the visually-hidden utility. Running in another order is allowed: `fix access`
 then prints one warning line at the start of its summary (never a question, never a stop). Before its first phase, `fix access`
 makes sure a visually-hidden utility exists (reuses yours, or creates only `.u-sr-only`); without a loaded global entry it stops
@@ -74,11 +76,19 @@ and tells you to run `/ui-guard:fix scss` first.
 ### 4.1 Scan
 
 ```
-/ui-guard:scan                     lists the four domains (no scanning)
+/ui-guard:scan                     lists the domains (no scanning)
+/ui-guard:scan html                every template ONCE for all four domains (fills .ui-guard/ledger.json)
 /ui-guard:scan scss                the whole project for STYLE
 /ui-guard:scan access              … for ACCESS (also lang, safe)
 /ui-guard:scan scss --plan-only    rebuild report + plan from the existing findings.json
+/ui-guard:scan access --rescan     ignore the ledger for this run (scan every file again)
 ```
+
+- **The ledger (`.ui-guard/ledger.json`).** What is already known per file. A file unchanged since it was scanned for a
+  domain (by `scan <domain>` or `scan html`) is reused: not linted again, never sent to an agent. Edited files (by hand,
+  `git pull`, …) are detected by their content fingerprint and scanned again. `scan <domain>` works without `scan html`
+  (it builds the ledger itself). `node <plugin>/scripts/ledger.js status` prints valid/stale files and open/fixed counts per domain.
+  The ledger is never deleted by the cleanup.
 
 - **No questions, no estimate.** The scan sets up its lint configs inside `.ui-guard/lint/` only and never installs
   anything. A missing or crashing tool is reported as **NOT CHECKED** with the reason and the exact install command
@@ -221,6 +231,7 @@ The plugin has 5 commands: `init`, `scan`, `fix`, `check`, `assets`.
 | ESLint crashes (ESLint 10, eslint-scope TypeError) | The report says exactly that and the rules stay **NOT CHECKED**. The fix is yours to run: `npm install -D eslint@^9 angular-eslint@^<Angular major> typescript-eslint`. |
 | Token use | Logged silently at the end of each report (measured, or estimated when the agent result gives no number). There is no cap and no question. |
 | A phase says `failed` | Read `.ui-guard/<domain>/fixes/phase-<id>.md` and the diff images. The run stopped there; fix the cause or decide, then run `/ui-guard:fix <domain>` again — it continues from that phase. |
+| Scratch files after any command | Removed automatically by the last script of `scan` (plan.js), `fix` (phase.js summary), `init` (fingerprint.js --empty-baseline), `check` (changes.js finish) and `assets` (assets.js), which call `scripts/cleanup.js` themselves; prints `cleaned N files (X MB) · kept: …`). Only ui-guard files in `.ui-guard/tmp/` go. Results and what the hooks and commands need stay (full list: README, point 7). A stopped scan keeps its resume state; an unfinished check keeps `tmp/check/`; a failed phase keeps its tmp files and screenshots. Debug: `--keep-tmp` / `--keep-screens` on any command (passed to that last script). Manual: `node <plugin>/scripts/cleanup.js --root <project> [--domain D] [--dry-run] [--keep-screens]`. |
 | A report line looks wrong | Free-check findings come from the tools; AI findings are judgment from one pass. Tell Claude which one is wrong. |
 
 ## 8. What ui-guard never does

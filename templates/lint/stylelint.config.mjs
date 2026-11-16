@@ -36,7 +36,7 @@ const overrides = [
   { files: at(`${S}/utilities/**/*.scss`), rules: { 'ui-guard/utility-one-property': true } },
   // Theme token files (active copy + every theme source): literal colors allowed, :root only.
   { files: at(`${ACTIVE_THEME}/**/*.css`, `${THEMES}/**/*.css`), rules: { 'no-duplicate-selectors': null, 'color-no-hex': null, 'color-named': null, 'function-disallowed-list': null, 'ui-guard/px-only-1px': null, 'ui-guard/logical-properties': null, 'selector-max-type': null, 'ui-guard/no-literal-filter': null } },
-  { files: at(`${ACTIVE_THEME}/colors/*.css`, `${ACTIVE_THEME}/images/*.css`, `${THEMES}/*/theme/colors/*.css`, `${THEMES}/*/theme/images/*.css`), rules: { 'ui-guard/token-file-root-only': true } },
+  { files: at(`${ACTIVE_THEME}/colors/*.css`, `${THEMES}/*/theme/colors/*.css`), rules: { 'ui-guard/token-file-root-only': true } },
   { files: at(`${ACTIVE_THEME}/fonts/*.css`, `${THEMES}/*/theme/fonts/*.css`), rules: { 'ui-guard/token-file-root-only': [true, { fonts: true }], 'function-disallowed-list': null } },
   // custom.theme.css: classes + body, no custom properties, !important allowed (it must beat Angular's later styles).
   { files: at(`${ACTIVE_THEME}/custom.theme.css`, `${THEMES}/*/theme/custom.theme.css`), rules: { 'ui-guard/custom-theme': true, 'declaration-no-important': null, 'selector-max-type': [0, { ignoreTypes: ['body'] }] } },

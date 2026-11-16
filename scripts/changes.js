@@ -42,6 +42,7 @@ function collect(root, ref) {
   const ranges = git.changedRanges(root, base, files);
   const det = runChecks.runAll(root, { files });
   const dir = p.checkTmp;
+  try { require('fs').unlinkSync(path.join(dir, 'done.json')); } catch { /* none */ }
   u.writeJSONL(path.join(dir, 'deterministic.jsonl'), det.findings);
   const status = { stylelint: det.stylelint, eslint: det.eslint };
   const routed = files.map((f) => ({ file: f, groups: route.groupsFor(root, { path: f, kind: project.classify(f, profile) }), ranges: ranges[f] || [] })).filter((x) => x.groups.length);
@@ -59,6 +60,7 @@ function collect(root, ref) {
   for (const n of det.notes) console.log('note: ' + n);
 }
 
+let ARGS = {};
 function finish(root) {
   const p = project.paths(root);
   const ch = u.readJSON(path.join(p.checkTmp, 'changes.json'));
@@ -96,7 +98,10 @@ function finish(root) {
     const st = pushState(root); // same base as the pre-push guard uses
     u.writeJSON(p.marker, { head: st.head, diffHash: st.diffHash, time: new Date().toISOString() });
   }
+  u.writeJSON(path.join(p.checkTmp, 'done.json'), { verdict, time: new Date().toISOString() }); // lets cleanup.js delete tmp/check
+  const cleanLine = require('./cleanup').finish(root, ARGS);
   console.log(`${verdict}: ${newErrors.length} new error(s), ${newAssets.length} new missing asset(s), ${fresh.length - newErrors.length} new warning/info, ${near.length} existing near the change → ${u.relPosix(root, out)}`);
+  console.log(cleanLine);
   process.exit(verdict === 'PASS' ? 0 : 1);
 }
 
@@ -110,6 +115,7 @@ function markerOk(root) {
 module.exports = { pushState, markerOk, inRanges };
 if (require.main === module) {
   const args = u.parseArgs(process.argv.slice(2));
+  ARGS = args;
   u.helpExit(args, HELP);
   const root = args.root ? path.resolve(args.root) : project.findRoot();
   if (!root) { console.error('Not an Angular project.'); process.exit(1); }

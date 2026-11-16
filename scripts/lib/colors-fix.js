@@ -140,7 +140,7 @@ function colourFnVars(scssTexts) {
  */
 function convert(text, ctx) {
   const masked = mask(text);
-  const out = { text, skipped: [], decisions: [], converted: 0, tokenized: 0 };
+  const out = { text, skipped: [], decisions: [], converted: 0, tokenized: 0, moved: [] };
   const edits = [];
   const re = /(^|[;{}\s])([$\w-][\w-]*)(\s*:\s*)([^;{}]+)(?=[;}])/g;
   let m;
@@ -159,6 +159,29 @@ function convert(text, ctx) {
       if (!c) continue;
       if (c.error) { out.skipped.push({ line, what: `colour ${lit.text}`, reason: `kept as written — ${c.error}` }); continue; }
       const pos = valStart + lit.at;
+      if (isDef && ctx.move && prop.startsWith('$') && val.replace(/!(default|global)\b/g, '').trim() === lit.text) {
+        // STYLE-34: no .scss file defines colours — `$name: <colour>` moves to the palette as --name: hsl(…), the Sass variable
+        // becomes var(--token). Only when the exact round trip holds (proof recorded) and no Sass colour function reads it.
+        if (ctx.fnVars.has(prop.slice(1))) { out.skipped.push({ line, what: `colour ${lit.text} in ${prop}`, reason: 'kept as written — a Sass colour function reads this variable; a var() there would not compile' }); continue; }
+        const hsl = c.kind === 'hsl' ? lit.text : toHsl(c, ctx.maxDecimals === undefined ? 4 : ctx.maxDecimals);
+        const back = hsl && parseLiteral(hsl);
+        if (!back || back.error || key(back) !== key(c)) { out.skipped.push({ line, what: `colour ${lit.text} in ${prop}`, reason: 'kept as written — hsl with up to 4 decimals does not give exactly the same colour' }); continue; }
+        const names = ctx.palette.byKey.get(key(c)) || [];
+        let token;
+        if (names.length === 1) token = names[0];
+        else if (names.length > 1) { out.decisions.push({ topic: 'Colour matches several palette tokens', file: ctx.rel, line, issue: `${lit.text} in \`${prop}\` equals ${names.join(', ')}`, options: names.slice(0, 3).map((n) => `use var(${n})`) }); continue; }
+        else {
+          token = '--' + prop.slice(1);
+          if (ctx.palette.canon[token]) { out.decisions.push({ topic: 'Colour name already used in the palette', file: ctx.rel, line, issue: `${prop}: ${lit.text} — the palette already has ${token} with another colour`, options: [`rename ${prop}`, `use var(${token}) and accept its colour`] }); continue; }
+          const canon = `rgb(${key(c)})`.replace(/,\)/, ')');
+          ctx.palette.canon[token] = canon;
+          ctx.palette.byKey.set(key(c), [token]);
+          if (ctx.newTokens) ctx.newTokens.set(token, hsl);
+          out.moved.push({ line, token, value: hsl, from: lit.text, proof: `${lit.text} → ${hsl}: both rgb(${key(c)}) (8-bit round trip exact)` });
+        }
+        edits.push({ pos, len: lit.text.length, to: `var(${token})`, kind: 'moved' });
+        continue;
+      }
       if (isDef) {
         if (c.kind === 'hsl') continue; // already in our format
         if (prop.startsWith('$') && ctx.fnVars.has(prop.slice(1))) { out.skipped.push({ line, what: `colour ${lit.text} in ${prop}`, reason: 'kept as written — a Sass colour function reads this variable; converting could change its result' }); continue; }

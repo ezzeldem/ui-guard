@@ -132,6 +132,13 @@ function loadRulesIndex() { return u.readJSON(path.join(PLUGIN_ROOT, 'rules', 'r
 function ruleById(id) { const idx = loadRulesIndex(); return idx.rules.find((r) => r.id === id); }
 
 /** Theme folders: active copy + every source theme. */
+/** Theme folder names are lower-case kebab-case (default `original-theme`): a-z, 0-9, single hyphens. Returns an error text or null. */
+const DEFAULT_THEME = 'original-theme';
+function themeNameProblem(name) {
+  if (typeof name !== 'string' || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(name)) return `Theme name "${name}" is not valid: use lower-case letters, digits and single hyphens (e.g. ${DEFAULT_THEME}).`;
+  return null;
+}
+
 function themeDirs(root, profile) {
   const out = [];
   const active = path.join(root, ...scssRoot(profile).split('/'), 'theme');
@@ -146,11 +153,11 @@ function themeDirs(root, profile) {
   return out;
 }
 
-const THEME_FILES = ['colors/colors.palette.theme.css', 'fonts/fonts.theme.css', 'images/images.theme.css', 'custom.theme.css'];
-function isThemeTokenFile(rel) { return /(^|\/)theme\/(colors|fonts|images)\/[^/]+\.css$/.test(rel) || /(^|\/)theme\/custom\.theme\.css$/.test(rel); }
+const THEME_FILES = ['colors/colors.palette.theme.css', 'fonts/fonts.theme.css', 'custom.theme.css'];
+function isThemeTokenFile(rel) { return /(^|\/)theme\/(colors|fonts)\/[^/]+\.css$/.test(rel) || /(^|\/)theme\/custom\.theme\.css$/.test(rel); }
 
 module.exports = {
   PLUGIN_ROOT, EXCLUDED_DIRS, findRoot, paths, hasProfile, readProfile, scssRoot, roleMap, DEFAULT_ROLE_MAP, SEGMENTS,
   SEGMENT_PREFIX, STATE_PREFIXES, segmentOf, classify, listUiFiles, isTranslationPath, loadRulesIndex, ruleById,
-  themeDirs, THEME_FILES, isThemeTokenFile,
+  themeDirs, THEME_FILES, isThemeTokenFile, themeNameProblem, DEFAULT_THEME,
 };

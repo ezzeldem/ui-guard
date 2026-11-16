@@ -78,12 +78,37 @@ function cluster(findings) {
   }).sort(byKey);
 }
 
-function finalize(root, domain) {
+/** Files of a domain the AI must still judge (needs) and the ones a finished, not-skipped batch covered. */
+function aiCoverage(root, dom) {
+  const ai = require('./ai-scan');
+  const st = ai.load(root, dom.name) || ai.plan(root, dom);
+  const needs = new Set(), covered = new Set();
+  for (const sg of st.stages || []) for (const b of sg.batches || []) for (const f of b.files) { needs.add(f); if (b.status === 'done' && !b.skipped && ai.load(root, dom.name)) covered.add(f); }
+  return { needs, covered };
+}
+
+function finalize(root, domain, { record = true } = {}) {
   const dom = domain ? domains.get(domain) : null;
   const scan = dom ? domains.paths(root, dom.name).scan : project.paths(root).scan;
   const rows = [];
   for (const raw of u.readJSONL(path.join(scan, 'deterministic.jsonl'))) { const f = normalize(root, raw); if (f) rows.push(f); }
   for (const raw of u.readJSONL(path.join(scan, 'ai', 'findings.jsonl'))) { const f = normalize(root, { ...raw, checker: 'ai', sources: ['ai'] }, 'ai'); if (f) rows.push(f); }
+  // ledger: a file that is still valid for this domain keeps its lint + AI rows from the ledger (it was not linted or sent to an
+  // agent this time). Script rows are always fresh (scripts run project-wide; some rules are cross-file).
+  const L = dom ? require('./lib/ledger') : null;
+  const lp = dom ? require('./ledger').loadPlan(root, dom.name) : null;
+  const led = dom ? L.load(root).ledger : null;
+  const reused = new Set();
+  if (dom && lp && !lp.rescan) {
+    const lintOk = new Set(lp.lintReuse || []), aiOk = new Set(lp.aiReuse || []);
+    for (const rel of lp.valid) {
+      if (!L.valid(led, rel, dom.name)) continue;
+      // lint rows only under the same lint context (else the file was linted again above); AI rows only under the same rules
+      const keep = L.reuseRows(led, rel, dom.name).filter((r) => ((r.sources || []).includes('ai') ? aiOk.has(rel) : lintOk.has(rel)));
+      if (lintOk.has(rel) && aiOk.has(rel)) reused.add(rel);
+      for (const raw of keep) { const f = normalize(root, raw); if (f) rows.push(f); }
+    }
+  }
   const own = dom ? rows.filter((f) => domains.owns(dom, f)) : rows;
   const out = cluster(own).map((f) => ({
     id: '', ruleId: f.ruleId, severity: f.severity, file: f.file, line: f.line, endLine: f.endLine, message: f.message, evidence: f.evidence,
@@ -102,10 +127,35 @@ function finalize(root, domain) {
     }
   }
   u.writeJSON(dom ? domains.paths(root, dom.name).findings : project.paths(root).findings, out);
+  if (dom && record) recordLedger(root, dom, { rows: own, out, reused, scan });
   return out;
 }
 
-module.exports = { normalize, cluster, finalize };
+/**
+ * Write what this scan learned into the ledger. A file is marked scanned (valid) for the domain only when everything the domain
+ * checks on it really ran: its linter was available, and the AI covered it when it needed judgment (a skipped or stopped batch,
+ * or a free scan without the AI part, leaves those files not scanned so the next scan judges them).
+ */
+function recordLedger(root, dom, { rows, out, reused, scan }) {
+  const L = require('./lib/ledger');
+  const inventory = require('./inventory');
+  const inv = inventory.load(root) || inventory.build(root);
+  const { ledger } = L.load(root);
+  L.sync(root, ledger, inv.files);
+  const ls = u.readJSON(path.join(scan, 'lint-status.json'), null) || {};
+  const { needs, covered } = aiCoverage(root, dom);
+  const lintOk = (rel) => (/\.s?css$/.test(rel) ? !(dom.lint.stylelint && ls.stylelint === false) : /\.(html|ts)$/.test(rel) ? !(dom.lint.eslint && ls.eslint === false) : true);
+  const scanned = inv.files.filter((f) => L.DOMAIN_KINDS[dom.name].includes(f.kind)).map((f) => f.path)
+    .filter((rel) => reused.has(rel) || (lintOk(rel) && (!needs.has(rel) || covered.has(rel))));
+  const rowsByFile = new Map(), findingsByFile = new Map();
+  for (const r of rows) if (r.sources.includes('lint') || r.sources.includes('ai')) { if (!rowsByFile.has(r.file)) rowsByFile.set(r.file, []); rowsByFile.get(r.file).push(r); }
+  for (const f of out) { if (!findingsByFile.has(f.file)) findingsByFile.set(f.file, []); findingsByFile.get(f.file).push(f); }
+  const lp = require('./ledger').loadPlan(root, dom.name);
+  L.recordScan(root, ledger, dom.name, { scanned, rowsByFile, findingsByFile, reset: !!(lp && lp.rescan), ctx: L.contexts(root) });
+  L.save(root, ledger);
+}
+
+module.exports = { normalize, cluster, finalize, recordLedger };
 if (require.main === module) {
   const args = u.parseArgs(process.argv.slice(2));
   u.helpExit(args, HELP);

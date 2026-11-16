@@ -6,6 +6,9 @@ const { paths } = require('./project');
 
 function normalizeLine(text) { return String(text || '').trim().replace(/\s+/g, ' '); }
 
+/** Content fingerprint of a whole file (the ledger's trust key): sha1 of its bytes, or null when it cannot be read. */
+function fileHash(abs) { try { return u.sha1(require('fs').readFileSync(abs)); } catch { return null; } }
+
 /** sha1(ruleId | file | trimmed, whitespace-collapsed line text). Survives line shifts. */
 function fingerprint(ruleId, file, lineText) { return u.sha1(`${ruleId}|${file}|${normalizeLine(lineText)}`); }
 
@@ -66,14 +69,14 @@ function removeFromBaseline(root, fps, domain) {
   return b.size;
 }
 
-module.exports = { normalizeLine, fingerprint, fileLine, clearCache, complete, loadBaseline, saveBaseline, filterNew, removeFromBaseline, baselineFile, DOMAIN_NAMES };
+module.exports = { normalizeLine, fileHash, fingerprint, fileLine, clearCache, complete, loadBaseline, saveBaseline, filterNew, removeFromBaseline, baselineFile, DOMAIN_NAMES };
 // Allow `node fingerprint.js --help`
 if (require.main === module) {
   const a = u.parseArgs(process.argv.slice(2));
   u.helpExit(a, `fingerprint.js — library (fingerprints + baseline). Usage from CLI:
   node fingerprint.js <ruleId> <file> "<line text>"   prints the fingerprint
   node fingerprint.js --empty-baseline --root <dir>    writes empty .ui-guard/<domain>/baseline.json files (new projects)`);
-  if (a['empty-baseline']) { const root = require('path').resolve(a.root || process.cwd()); for (const d of DOMAIN_NAMES) saveBaseline(root, [], {}, d); console.log('empty baselines written → .ui-guard/<domain>/baseline.json (scss, access, lang, safe)'); }
+  if (a['empty-baseline']) { const root = require('path').resolve(a.root || process.cwd()); for (const d of DOMAIN_NAMES) saveBaseline(root, [], {}, d); console.log('empty baselines written → .ui-guard/<domain>/baseline.json (scss, access, lang, safe)'); console.log(require('../cleanup').finish(root, a)); /* last script of /ui-guard:init */ }
   else if (a._.length >= 3) console.log(fingerprint(a._[0], a._[1], a._[2]));
   else console.log('Library module. Run with --help.');
   void path;

@@ -1,6 +1,6 @@
 ---
 description: Set up a NEW Angular project on the team UI standards — 13-segment SCSS tree, theme and colors (from a Figma / Claude Design link), tools, shared button, lint, git hook, CLAUDE.md. Also --add-theme <name> <link>.
-argument-hint: "[figma-or-design-link] | --add-theme <name> <link>"
+argument-hint: "[figma-or-design-link] | --add-theme <name> <link> [--keep-tmp] [--keep-screens]"
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash, PowerShell, AskUserQuestion
 ---
 
@@ -39,7 +39,7 @@ Ask only what is not already known:
    - Screenshots: `playwright`, `pixelmatch`, `pngjs` + `npx playwright install chromium`
    Options: install all / choose / none. Say once: declined tools mean those rules are checked by AI instead (more quota).
 3. Confirm the folder → role map for Angular component styles (show the detected map from the profile: `l-` layout, `p-` pages, `c-` shared components, `m-`/`ctrl-` widgets).
-4. Theme name for the first theme (default `original-theme`).
+4. Theme name for the first theme (default `original-theme`; lower-case letters, digits and single hyphens only — `scaffold.js` and `profile.js` refuse anything else, e.g. `Original-Theme`).
 
 Save every answer right away: `node PLUGIN/scripts/profile.js --answers '<json>'` with e.g.
 `{"projectType":"new","designLink":"…","themeName":"original-theme","roleMap":[…],"toolsDeclined":[…],"answers":{"roleMapConfirmed":true,"lang":"ar","dir":"rtl"}}`.
@@ -89,3 +89,8 @@ If the developer agreed to installs, run exactly the listed `npm install -D …`
    `node PLUGIN/scripts/lib/fingerprint.js --empty-baseline --root "<project root>"`.
 2. Reply in a short summary: what was created, which questions were answered (and what was declined), filter ΔE results, and the list of
    new/changed files the developer should review and commit (`git status --short`). **Do not commit.**
+
+## 9. Cleanup (automatic, done by the script — not by you)
+`lib/fingerprint.js --empty-baseline` (the last script of step 8) runs `cleanup.js` itself; add `--keep-tmp` / `--keep-screens` when the arguments contain them.
+It removes the scratch of steps 7–8 under `.ui-guard/tmp/` and keeps everything init produced. Do not run `cleanup.js` yourself: print the line
+`cleaned N files (X MB) · kept: …` from that script's output at the end of the reply. A cleanup problem is never an error.

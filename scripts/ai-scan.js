@@ -62,9 +62,13 @@ function plan(root, dom) {
   const unparsed = new Set(det.filter((f) => /unverified: could not parse/.test(f.message || '')).map((f) => f.file));
   const rulesFile = path.join(project.PLUGIN_ROOT, dom.rulesFile);
   const rulesTokens = Math.ceil((u.readText(rulesFile) || '').length / 4);
+  // ledger: a file still valid for this domain (its fingerprint did not change since it was judged — by this domain's scan or by
+  // `/ui-guard:scan html`) is never sent to an agent again
+  const lp = require('./ledger').loadPlan(root, dom.name);
+  const known = lp && !lp.rescan ? new Set(lp.aiReuse || []) : new Set(); // same file AND same domain rules since it was judged
   const stages = [];
   for (const sg of STAGES[dom.name]) {
-    const files = inv.files.filter((f) => sg.kinds.includes(f.kind)).filter((f) => unverified.has(f.path) || route.groupsFor(root, f, unparsed).some((g) => sg.groups.includes(g)));
+    const files = inv.files.filter((f) => sg.kinds.includes(f.kind) && !known.has(f.path)).filter((f) => unverified.has(f.path) || route.groupsFor(root, f, unparsed).some((g) => sg.groups.includes(g)));
     const batches = [];
     let cur = [], bytes = 0;
     const flush = () => {

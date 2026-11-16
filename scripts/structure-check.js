@@ -43,7 +43,7 @@ function run(root, profile) {
     if (seg === 'packages') continue;
     if (seg === 'theme' && /\.css$/.test(base)) {
       const ok = project.THEME_FILES.some((t) => sub.endsWith(t.split('/').pop())) || /\.theme\.css$/.test(base);
-      if (!ok) findings.push(mk(root, 'STYLE-17', f.rel, 1, `Theme file \`${base}\` does not use the standard names (colors.palette.theme.css, fonts.theme.css, images.theme.css, custom.theme.css).`, 'Rename it (phase 1).'));
+      if (!ok) findings.push(mk(root, 'STYLE-17', f.rel, 1, `Theme file \`${base}\` does not use the standard names (colors.palette.theme.css, fonts.theme.css, custom.theme.css).`, 'Rename it (phase 1).'));
       continue;
     }
     if (SUFFIX[seg] && !SUFFIX[seg].test(base)) findings.push(mk(root, 'STYLE-17', f.rel, 1, `\`${base}\` does not follow the ${seg} file naming.`, `Rename to the ${seg} pattern (see rules/style.md segment table).`));

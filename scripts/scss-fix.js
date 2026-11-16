@@ -271,7 +271,7 @@ function applyFile(root, rel, opts) {
   let cur = original;
   const steps = [];
   let lastColors = null;
-  const colorStep = ['colors', (t) => { const c = cf.convert(t, { palette: opts.palette, fnVars: opts.fnVars, rel }); lastColors = c; for (const k of c.skipped) res.skipped.push({ what: `L${k.line} ${k.what}`, reason: k.reason }); res.decisions.push(...c.decisions); return c.text; }];
+  const colorStep = ['colors', (t) => { const c = cf.convert(t, { palette: opts.palette, fnVars: opts.fnVars, rel, move: isScss && !!opts.paletteFiles.length, newTokens: opts.newTokens }); lastColors = c; for (const k of c.skipped) res.skipped.push({ what: `L${k.line} ${k.what}`, reason: k.reason }); res.decisions.push(...c.decisions); return c.text; }];
   if (colorOnly) steps.push(colorStep);
   if (!colorOnly && opts.renames.length) steps.push(['rename', (t) => opts.renames.reduce((x, r) => renameInScss(x, r.from, r.to), t)]);
   if (!colorOnly) steps.push(['charset', (t) => tCharset(t)]);
@@ -298,11 +298,16 @@ function applyFile(root, rel, opts) {
     const cmp = after.error ? { same: false, reason: 'does not compile: ' + u.clip(after.error, 120) } : st.sameRender(ref, st.normalize(after.css, nopt));
     if (!cmp.same) { opts.bp.restore(bpBefore); res.skipped.push({ what: name, reason: 'not proven neutral — ' + cmp.reason }); continue; }
     cur = next; res.applied.push(name);
-    if (name === 'colors' && lastColors) res.colors = { converted: lastColors.converted, tokenized: lastColors.tokenized };
+    if (name === 'colors' && lastColors) res.colors = { converted: lastColors.converted, tokenized: lastColors.tokenized, ...(lastColors.moved.length ? { movedToPalette: lastColors.moved } : {}) };
     if (name === 'rename') renamed = true;
   }
   if (cur !== original && !opts.dry) fs.writeFileSync(abs, cur);
   return res;
+}
+
+/** colors.palette.theme.css of the active theme and of every theme source (the active one first); [] when the project has no palette. */
+function paletteFiles(root, profile) {
+  return project.themeDirs(root, profile).map((d) => path.join(d.themeDir, 'colors', 'colors.palette.theme.css')).filter((f) => u.exists(f));
 }
 
 function run(root, { files, phaseId, dry, withRenames }) {
@@ -349,13 +354,28 @@ function run(root, { files, phaseId, dry, withRenames }) {
   const componentStyles = require('./foundation').componentStyles(root);
   const allScss = project.listUiFiles(root, profile).filter((f) => f.kind === 'scss').map((f) => u.readText(f.abs) || '');
   const colorOnly = (rel) => /(^|\/)theme\//.test(rel) || rel.startsWith(`${sr}/settings/`) || rel.startsWith(`${sr}/tools/`);
-  const opts = { loadPaths, rootPx: profile.rootFontSize || 16, dir: dirMode(profile), bp, renames: safeRenames, dry, componentStyles, palette: cf.palette(root, profile), fnVars: cf.colourFnVars(allScss), colorOnly };
+  const opts = { loadPaths, rootPx: profile.rootFontSize || 16, dir: dirMode(profile), bp, renames: safeRenames, dry, componentStyles, palette: cf.palette(root, profile), fnVars: cf.colourFnVars(allScss), colorOnly, newTokens: new Map(), paletteFiles: paletteFiles(root, profile) };
   for (const rel of files.filter((f) => /\.s?css$/.test(f))) {
     if (/\/packages\//.test(rel)) continue;
     const r = applyFile(root, rel, opts);
     report.files.push({ file: rel, applied: r.applied, ...(r.colors ? { colors: r.colors } : {}) });
     for (const s of r.skipped) report.skipped.push({ file: rel, ...s });
     for (const d of r.decisions || []) report.decisions.push(d);
+  }
+  // STYLE-34: colours moved out of .scss → added to EVERY palette (active + each theme source) so a theme swap keeps them.
+  // Only tokens that a written file really uses (var(--token)) are added; each carries its round-trip proof in the report.
+  const used = [...opts.newTokens].filter(([t]) => files.some((rel) => (u.readText(u.fromPosix(root, rel)) || '').includes(`var(${t})`)) || dry);
+  if (used.length) {
+    report.movedToPalette = report.files.flatMap((x) => ((x.colors && x.colors.movedToPalette) || []).map((m) => ({ file: x.file, ...m })));
+    for (const pf of opts.paletteFiles) {
+      const t = u.readText(pf) || '';
+      const add = used.filter(([tok]) => !new RegExp(`(^|[\\s;{])${esc(tok)}\\s*:`).test(t)).map(([tok, v]) => `  ${tok}: ${v};`);
+      if (!add.length) continue;
+      const i = t.lastIndexOf('}');
+      const next = i < 0 ? t + ':root {\n' + add.join('\n') + '\n}\n' : t.slice(0, i).replace(/\s*$/, '\n') + add.join('\n') + '\n' + t.slice(i);
+      if (!dry) fs.writeFileSync(pf, next);
+      report.extraFiles.push(u.relPosix(root, pf));
+    }
   }
   // template/TS usages: a class is renamed there only when EVERY stylesheet that defines it had its rename applied
   const appliedIn = new Set(report.files.filter((f) => f.applied.includes('rename')).map((f) => f.file));

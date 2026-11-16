@@ -60,12 +60,13 @@ function palette(primary, secondary, opts = {}) {
 }
 
 function theme(root, args) {
-  const name = args.name || 'original-theme';
+  const name = args.name || project.DEFAULT_THEME;
+  const bad = project.themeNameProblem(name);
+  if (bad) throw new Error(bad);
   const pal = palette(args.primary, args.secondary, { primaryRamp: args['primary-ramp'] && JSON.parse(u.exists(args['primary-ramp']) ? u.readText(args['primary-ramp']) : args['primary-ramp']), secondaryRamp: args['secondary-ramp'] && JSON.parse(u.exists(args['secondary-ramp']) ? u.readText(args['secondary-ramp']) : args['secondary-ramp']) });
   const files = {
     'colors/colors.palette.theme.css': pal.css,
     'fonts/fonts.theme.css': u.readText(path.join(T, 'theme', 'fonts.theme.css')),
-    'images/images.theme.css': u.readText(path.join(T, 'theme', 'images.theme.css')),
     'custom.theme.css': u.readText(path.join(T, 'theme', 'custom.theme.css')),
   };
   const active = path.join(root, 'src', 'assets', 'scss', 'theme');
@@ -83,7 +84,9 @@ function theme(root, args) {
 }
 
 function addTheme(root, args) {
-  const from = args.from || (project.readProfile(root).themeName) || 'original-theme';
+  const bad = project.themeNameProblem(args.name);
+  if (bad) throw new Error(bad);
+  const from = args.from || (project.readProfile(root).themeName) || project.DEFAULT_THEME;
   const src = path.join(root, 'src', 'assets', 'themes', from);
   const dest = path.join(root, 'src', 'assets', 'themes', args.name);
   if (!u.isDir(src)) throw new Error(`Theme "${from}" not found at ${u.relPosix(root, src)}.`);
@@ -151,7 +154,7 @@ function indexHtml(root, args) {
     let a = attrs.replace(/\s(lang|dir)\s*=\s*["'][^"']*["']/gi, '');
     return `<html lang="${lang}" dir="${dir}"${a}>`;
   });
-  const links = ['colors/colors.palette.theme.css', 'fonts/fonts.theme.css', 'images/images.theme.css', 'custom.theme.css'].map((f) => `assets/scss/theme/${f}`);
+  const links = ['colors/colors.palette.theme.css', 'fonts/fonts.theme.css', 'custom.theme.css'].map((f) => `assets/scss/theme/${f}`);
   t = t.replace(/\n?\s*<link[^>]*href=["'][^"']*theme[^"']*\.css["'][^>]*>/gi, '');
   const block = links.map((h) => `  <link rel="stylesheet" href="${h}">`).join('\n');
   t = t.replace(/(\s*)<\/head>/i, `\n${block}\n</head>`);

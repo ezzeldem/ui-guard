@@ -76,7 +76,33 @@ Full walkthrough: **[USAGE.md](USAGE.md)**.
    each after a selector-impact check; anything visible goes to one "needs decision" list with options. Report by High/Medium/Low impact.
 6. **Run to the end.** `fix` does not ask between phases. It stops only when the build fails, a phase still fails after 3 retries,
    a file cannot be read or written, or a usage limit is hit — and says exactly why and where.
-7. **A baseline per domain.** Known, not-yet-fixed problems are remembered, so hooks and pushes block you only on **new** errors.
+7. **Cleans up after itself.** The LAST script of every flow calls `scripts/cleanup.js` itself, so it never depends on the agent: `plan.js` (scan),
+   `phase.js summary` (fix), `lib/fingerprint.js --empty-baseline` (init), `changes.js finish` (check) and `assets.js` (assets). 0 tokens, no question; it prints
+   one line: `cleaned N files (X MB) · kept: …`. It deletes only ui-guard's own scratch under `.ui-guard/tmp/` (scan batches, screenshots, diffs,
+   computed-style snapshots, dev-server log/pid, lint temp, check batches) and never anything outside `.ui-guard/` (real paths are resolved, symlinks
+   are not followed, a locked file is listed and skipped). Project files, the SCSS tree and the non-git backup copy are never touched.
+   - **Kept, results:** per domain `report.md`, `plan.md`, `fix-summary.md`, `access/needs-decision.md`; `checks/*.md`.
+   - **Kept, needed to work** (found by reading the hooks and commands): per domain `plan.json` (fix resumes from it), `findings.json` and `baseline.json`
+     (hooks, pre-push, `check`), `profile.md`, `scss/renames.md`, `scss/foundation-move.json`, `assets-baseline.json`, `ledger.json` (what is known per file;
+     every scan and fix reads it), `lint/` (the post-edit hook and `check` run these configs), `tmp/check-pass.json` (the pre-push marker), `tmp/backup.json` (backup pointer), `tmp/auth/` (login state). Nothing else is kept.
+   - **Not cleaned when it would lose something:** a scan stopped before all batches are done keeps `tmp/<domain>/scan/`; a check that did not reach
+     `changes.js finish` keeps `tmp/check/`; a failed fix phase keeps its tmp files and before/after/diff images (finished phases are cleaned).
+   - **Flags:** `--keep-tmp` (on any command) skips the cleanup; `--keep-screens` (cleanup.js) keeps only screenshots; `--dry-run` deletes nothing.
+     Manual: `node scripts/cleanup.js --root <project> [--domain D] [--dry-run]`.
+8. **The ledger — each file is read once.** `.ui-guard/ledger.json` (script-owned, 0 tokens) keeps one entry per UI file: its content
+   fingerprint, cheap facts (classes, tags, ids, inputs, images, aria/role, defined classes, imports — short snippets only) and per domain
+   the findings with a stable key (rule + normalized snippet, not the line), a status (open / fixed / skipped / needs-decision /
+   needs-rescan) and `fixedAt`. **Trust rule:** an entry counts for a domain only while the file's fingerprint is unchanged; anything
+   else (edited by hand, `git pull`, unreadable or old-version ledger) is scanned again. **Global invalidation:** reused lint rows also
+   need the same *lint context* (`.ui-guard/lint/`, SCSS tools/settings/theme/utilities, theme sources, root lint configs, `angular.json`,
+   linter versions) and reused AI rows the same *domain rules* (`rules/<domain>.md`, its `rules.json` entries, its AI rule list); a change
+   re-lints / re-judges the unchanged files for that run. `/ui-guard:scan html` reads every template
+   ONCE for all four domains (one agent read per file with every pending domain's rules); later `scan <domain>` runs reuse valid
+   files — not linted, never sent to an agent. `fix <domain>` changes only its own findings, records the class renames, and carries
+   the other domains' findings across its edits (re-located by stable key; not found → needs-rescan, never dropped). An edit the
+   phase cannot explain marks every domain of that file needs-rescan. `node scripts/ledger.js status` shows valid/stale and open/fixed
+   counts; `--rescan` ignores the ledger for one run. No full source and no secret values (SAFE-04: path + rule only) are stored.
+9. **A baseline per domain.** Known, not-yet-fixed problems are remembered, so hooks and pushes block you only on **new** errors.
 
 ## What runs automatically
 

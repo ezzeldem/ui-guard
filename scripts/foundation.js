@@ -33,7 +33,7 @@ Usage (all accept --root <dir>):
         · 7 = sass cannot be loaded (no node_modules): STOP — nothing moved; run npm install first.`;
 
 const T = path.join(project.PLUGIN_ROOT, 'templates');
-const THEME_FILES = ['theme/colors/colors.palette.theme.css', 'theme/fonts/fonts.theme.css', 'theme/images/images.theme.css', 'theme/custom.theme.css'];
+const THEME_FILES = ['theme/colors/colors.palette.theme.css', 'theme/fonts/fonts.theme.css', 'theme/custom.theme.css'];
 const ENTRY = 'style.scss';
 
 // ---------- the expected structure ----------

@@ -1,6 +1,0 @@
-@charset "UTF-8";
-/* images.theme.css — image tokens only (:root). Paths resolve from this file (assets/scss/theme/images/)
-   to assets/project-images/ in the active copy, and to the theme's own project-images/ in a theme source. */
-:root {
-  --img-logo: url("../../../project-images/logo.svg");
-}

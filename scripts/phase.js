@@ -155,6 +155,111 @@ function writeLog(root, ph, { ok, verdict, reason, retries, review }) {
   return out;
 }
 
+// ---------- ledger after a phase ----------
+const ledgerSnapFile = (root, ph) => path.join(fixDir(root), `phase-${ph.id}-ledger.json`);
+/** At `snapshot`: the content hash of every ledger file before the phase runs (to tell expected edits from other changes). */
+function ledgerSnapshot(root, ph) {
+  const L = require('./lib/ledger');
+  const { ledger } = L.load(root);
+  const pre = {};
+  for (const rel of Object.keys(ledger.files)) pre[rel] = fpLib.fileHash(u.fromPosix(root, rel));
+  u.writeJSON(ledgerSnapFile(root, ph), { pre });
+}
+/** ".a → .b" rows of the script report (and of plan renames) → { a: 'b' }. */
+function renameMap(mech) {
+  const out = {};
+  for (const r of (mech && mech.renames) || []) { const m = /^\.?([\w-]+)\s*→\s*\.?([\w-]+)$/.exec(String(r).trim()); if (m) out[m[1]] = m[2]; }
+  return out;
+}
+/**
+ * Update the ledger after a phase (only this domain's findings change status; the other domains are carried over):
+ *  - expected edit (the file is in the phase's allowed set and was as the ledger knew it when the phase started):
+ *    own findings fixed / needs-decision / skipped, the rest re-located; fingerprint + facts recomputed; other domains carried
+ *    over (rename map applied, each finding re-located by its stable key; not found → needs-rescan for that file+domain);
+ *  - unexplained change (outside the phase, or the file had changed outside ui-guard before) → every domain needs-rescan;
+ *  - failed phase: files it modified → every domain needs-rescan.
+ * Nothing is ever dropped silently. Returns counts for the log line.
+ */
+function ledgerAfterPhase(root, ph, { ok }) {
+  const L = require('./lib/ledger');
+  const snap = u.readJSON(ledgerSnapFile(root, ph), null);
+  const { ledger } = L.load(root);
+  if (!snap) return { note: 'no ledger snapshot for this phase — ledger left as is (the trust rule re-scans changed files)' };
+  const allowed = allowedFiles(root, ph);
+  const { mech } = scriptReports(root, ph);
+  const renames = renameMap(mech);
+  const findings = u.readJSON(dp(root).findings, []) || [];
+  const fixedFp = new Set(findings.filter((f) => (ph.findings || []).includes(f.id)).map((f) => f.fingerprint));
+  const decisions = u.readJSONL(path.join(fixDir(root), `decisions-${ph.id}.jsonl`)).filter((x) => !x.__malformed);
+  const skipped = ((mech && mech.skipped) || []).map((s) => ({ file: s.file, line: +((/^L(\d+)\b/.exec(s.what || '') || [])[1] || 0) })).filter((s) => s.line);
+  const res = { fixed: 0, carried: 0, rescan: [], unexpected: [] };
+  const otherFindings = {};
+  for (const [rel, before] of Object.entries(snap.pre)) {
+    const e = ledger.files[rel];
+    if (!e) continue;
+    const nowFp = fpLib.fileHash(u.fromPosix(root, rel));
+    if (nowFp === before) continue; // not touched by the phase
+    const known = e.fingerprint;
+    const text = u.readText(u.fromPosix(root, rel)) || '';
+    e.fingerprint = nowFp; e.facts = L.factsOf(rel, e.kind, nowFp ? text : null);
+    if (!ok) { L.markRescan(e, L.DOMAINS, `modified by failed ${DOMAIN} phase ${ph.id}`); res.rescan.push(rel); continue; }
+    if (!isAllowed(root, ph, rel, allowed) || before !== known || !nowFp) { L.markRescan(e, L.DOMAINS, 'unexpected change (outside the phase or outside ui-guard)'); res.unexpected.push(rel); continue; }
+    // own domain: status by finding, then re-locate the rest
+    const x = e.domains[DOMAIN];
+    if (x) {
+      let okOwn = true;
+      const fixedKeys = new Set();
+      for (const f of x.findings || []) {
+        if (f.status !== 'open') continue;
+        if (fixedFp.has(f.fingerprint)) {
+          const dec = decisions.find((d) => d.file === rel && Math.abs((d.line || 0) - f.line) <= 0);
+          const sk = skipped.find((s) => s.file === rel && s.line === f.line);
+          f.status = dec ? 'needs-decision' : sk ? 'skipped' : 'fixed'; f.fixedAt = `${DOMAIN}-${ph.id}`; fixedKeys.add(f.key);
+          if (f.status === 'fixed') res.fixed++;
+          continue;
+        }
+        const r = L.relocate(f, text, renames);
+        if (r) { f.line = r.line; f.key = r.key; f.fingerprint = fpLib.fingerprint(f.rule, rel, L.lineText(text, r.line)); if (f.snippet != null) f.snippet = L.snippetOf(L.lineText(text, r.line)); }
+        else { f.status = 'needs-rescan'; okOwn = false; }
+      }
+      x.rows = (x.rows || []).filter((row) => !fixedKeys.has(row.key)).filter((row) => {
+        const r = L.relocate(row, text, renames);
+        if (!r) { okOwn = false; return false; }
+        row.line = r.line; row.key = r.key; return true;
+      });
+      if (okOwn) { x.scannedFingerprint = nowFp; x.status = 'valid'; } else { x.status = 'needs-rescan'; x.scannedFingerprint = null; res.rescan.push(`${rel} (${DOMAIN})`); }
+    }
+    const co = L.carryOver(root, e, text, DOMAIN, renames);
+    res.carried += co.relocated.length;
+    for (const d of co.rescan) res.rescan.push(`${rel} (${d})`);
+    for (const r of co.relocated) (otherFindings[r.domain] = otherFindings[r.domain] || []).push({ ...r, file: rel, text });
+  }
+  ledger.renames = { ...(ledger.renames || {}), ...renames };
+  L.save(root, ledger);
+  // keep the other domains' findings.json + baseline in step with the carried-over lines and fingerprints
+  for (const [d, list] of Object.entries(otherFindings)) {
+    const p = domains.paths(root, d);
+    const fl = u.readJSON(p.findings, null);
+    if (!fl) continue;
+    const swap = new Map();
+    for (const r of list) {
+      const f = fl.find((x) => x.file === r.file && x.fingerprint === r.oldFp);
+      if (!f) continue;
+      const delta = r.line - f.line;
+      f.line = r.line; f.endLine = Math.max(r.line, (f.endLine || f.line - delta) + delta); f.fingerprint = r.newFp;
+      if (f.evidence && f.ruleId !== 'SAFE-04') f.evidence = u.clip(L.lineText(r.text, r.line));
+      swap.set(r.oldFp, r.newFp);
+    }
+    u.writeJSON(p.findings, fl);
+    const bl = fpLib.loadBaseline(root, d);
+    let n = 0;
+    for (const [a, b] of swap) if (bl.has(a)) { bl.delete(a); bl.add(b); n++; }
+    if (n) fpLib.saveBaseline(root, [...bl], {}, d);
+  }
+  return res;
+}
+const ledgerLine = (r) => (r.note ? `ledger: ${r.note}` : `ledger: ${r.fixed} fixed · ${r.carried} finding(s) of other domains carried over${r.rescan.length ? ` · needs-rescan: ${r.rescan.join(', ')}` : ''}${r.unexpected.length ? ` · UNEXPECTED change (all domains needs-rescan): ${r.unexpected.join(', ')}` : ''}`);
+
 // elements a Tier B/C/D access fix may swap or move (rules/access-fix-tiers.md)
 const SWAP_TAGS = ['div', 'span', 'p', 'a', 'button', 'td', 'li', 'ul', 'ol', 'section', 'img', 'table'];
 /**
@@ -289,7 +394,7 @@ if (require.main === module) {
     process.exit(0);
   }
   DOMAIN = domains.fromArgs(args).name;
-  if (cmd === 'summary') { console.log(summary(root, args)); process.exit(0); }
+  if (cmd === 'summary') { console.log(summary(root, args)); console.log(require('./cleanup').finish(root, { ...args, domain: DOMAIN })); process.exit(0); }
   if (cmd === 'list' || cmd === 'render' || cmd === 'next') {
     const plan = readPlan(root);
     if (!plan) { console.error(`No .ui-guard/${DOMAIN}/plan.json.`); process.exit(1); }
@@ -332,6 +437,7 @@ if (require.main === module) {
       u.writeJSON(snap, { hashes: hashSrc(root) });
       for (const f of ph.files || []) { const src = u.fromPosix(root, f); if (u.exists(src)) { const dest = path.join(fixDir(root), `phase-${ph.id}-before`, ...f.split('/')); u.mkdirp(path.dirname(dest)); fs.copyFileSync(src, dest); } }
     }
+    ledgerSnapshot(root, ph);
     console.log(hasGit(root) ? 'snapshot saved.' : 'snapshot saved (no git: file hashes + a copy of the phase files).');
     process.exit(0);
   }
@@ -396,6 +502,7 @@ if (require.main === module) {
     writePlan(root, plan);
     const log = writeLog(root, ph, { ok: true, verdict: args.verdict, retries: args.retries, review: args.review });
     console.log(`${DOMAIN} phase ${ph.id} done · ${fixedFps.length} finding(s) fixed · baseline now ${left} · log ${u.relPosix(root, log)}`);
+    console.log(ledgerLine(ledgerAfterPhase(root, ph, { ok: true })));
     process.exit(0);
   }
   if (cmd === 'fail') {
@@ -403,6 +510,7 @@ if (require.main === module) {
     writePlan(root, plan);
     const log = writeLog(root, ph, { ok: false, reason: args.reason || 'see review', verdict: args.verdict, retries: args.retries });
     console.log(`${DOMAIN} phase ${ph.id} marked failed · changes left in the working tree · log ${u.relPosix(root, log)}`);
+    console.log(ledgerLine(ledgerAfterPhase(root, ph, { ok: false })));
     process.exit(0);
   }
   console.log(HELP);

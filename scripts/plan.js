@@ -237,7 +237,14 @@ function run(root, domain) {
   const profile = project.readProfile(root);
   const raw = (u.readJSON(dp.findings, []) || []);
   const lctx = libs.context(root, profile);
-  const findings = dom.name === 'scss' ? libs.splitFindings(raw, lctx).rest : raw; // STYLE-01 on library classes is not a finding
+  const all = dom.name === 'scss' ? libs.splitFindings(raw, lctx).rest : raw; // STYLE-01 on library classes is not a finding
+  // fix works only on the domain's OPEN findings: a finding the ledger holds as needs-decision or skipped (same file + stable key,
+  // file unchanged) is not planned again until the developer decides or runs `/ui-guard:scan <domain> --rescan`
+  const L = require('./lib/ledger');
+  const { ledger } = L.load(root);
+  const parked = new Set();
+  for (const [rel, e] of Object.entries(ledger.files)) for (const f of ((e.domains[dom.name] || {}).findings || [])) if (f.status === 'needs-decision' || f.status === 'skipped') parked.add(`${rel}|${f.fingerprint}`);
+  const findings = parked.size ? all.filter((f) => !parked.has(`${f.file}|${f.fingerprint}`)) : all;
   const byId = Object.fromEntries(findings.map((f) => [f.id, f]));
   const old = u.readJSON(dp.planJson, { phases: [] });
   const entries = route.routeMap(root);
@@ -288,4 +295,5 @@ if (require.main === module) {
   if (args._[0] === 'render') { renderOnly(root, dom.name); console.log(`.ui-guard/${dom.name}/plan.md re-rendered from plan.json`); process.exit(0); }
   const r = run(root, dom.name);
   console.log(`plan → .ui-guard/${dom.name}/plan.md (${r.phases} phases, ${r.lines} lines) + plan.json${dom.name === 'scss' ? ` · renames → .ui-guard/scss/renames.md (${r.renames} row(s), ${r.kept} library class(es) kept)` : ''}`);
+  console.log(require('./cleanup').finish(root, { ...args, domain: dom.name })); // last script of /ui-guard:scan: scratch cleanup, same rules
 }

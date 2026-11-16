@@ -29,6 +29,8 @@ function build(root) {
   });
   const inv = { created: new Date().toISOString(), root: '.', files };
   save(root, inv);
+  // the ledger reads each file only when its content changed (facts are kept between runs)
+  try { const L = require('./lib/ledger'); const { ledger } = L.load(root); L.sync(root, ledger, files); L.save(root, ledger); } catch { /* the ledger is an optimisation; never fail the inventory */ }
   return inv;
 }
 
