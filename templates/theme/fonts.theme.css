@@ -1,11 +1,13 @@
 @charset "UTF-8";
-/* fonts.theme.css — @font-face rules (top level, never inside a selector) + one :root block of font tokens.
-   Font files live in assets/fonts/ and load through this file, so fonts are swappable after the build.
+/* fonts.theme.css: only @font-face rules and :root blocks. The font family, the path its files load from (in an
+   @font-face rule: a var() cannot be read inside @font-face) and the type scale. Font files live in assets/fonts/.
+   Token names: --ff (one family; with more than one family --ff-1, --ff-2 …), --fs-<size>, --fw-<weight>, --lh-<step>.
+   A step that has to change with the viewport is a clamp() here, never re-declared by the class that reads it.
    Add a project font like this (woff2 first, font-display: swap):
 
    @font-face {
      font-family: "Brand";
-     src: url("../../../fonts/brand-regular.woff2") format("woff2"), url("../../../fonts/brand-regular.woff") format("woff");
+     src: url("../../../fonts/brand-regular.woff2") format("woff2");
      font-weight: 400;
      font-style: normal;
      font-display: swap;
@@ -13,5 +15,15 @@
 */
 :root {
   --ff: system-ui, -apple-system, "Segoe UI", Tahoma, Arial, sans-serif;
-  --fb: system-ui, -apple-system, "Segoe UI", Tahoma, Arial, sans-serif;
+  --fs-xs: 0.75rem;
+  --fs-sm: 0.875rem;
+  --fs-md: 1rem;
+  --fs-lg: 1.25rem;
+  --fs-xl: 1.5rem;
+  --fs-xxl: 2rem;
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-bold: 700;
+  --lh-sm: 1.25;
+  --lh-md: 1.5;
 }

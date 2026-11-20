@@ -8,7 +8,7 @@ const filePath = (root) => String((root.source && root.source.input && root.sour
 
 function make(name, id, check, extraMsgs = {}) {
   const ruleName = `${NS}/${name}`;
-  const messages = ruleMessages(ruleName, { rejected: (m) => `[${id}] ${m}`, ...extraMsgs });
+  const messages = ruleMessages(ruleName, { rejected: (m) => (/^\[[A-Z]+-\d{2}\]/.test(m) ? m : `[${id}] ${m}`), ...extraMsgs });
   const rule = (primary, secondary) => (root, result) => {
     if (!validateOptions(result, ruleName, { actual: primary, possible: [true, false] })) return;
     if (primary === false) return;
@@ -49,9 +49,9 @@ const charsetFirst = make('charset-first', 'STYLE-26', (root, r) => {
 });
 
 // ---------- STYLE-10 px-only-1px ----------
+// $variables are lengths too (R-08): only settings/_breakpoints.settings.scss may hold px (the config turns the rule off there).
 const pxOnly1px = make('px-only-1px', 'STYLE-10', (root, r) => {
   root.walkDecls((d) => {
-    if (d.prop.startsWith('$')) return;
     const v = stripStrings(d.value).replace(/url\([^)]*\)/g, '');
     for (const m of v.matchAll(/\bpx\(\s*([^)]*?)\s*\)/g)) if (/[a-z%]$/i.test(m[1]) && !/^\$/.test(m[1])) r(d, `\`px(${m[1]})\`: the px() argument is unitless — write \`px(${parseFloat(m[1])})\`.`, { word: m[0] });
     for (const m of v.replace(/\bpx\([^)]*\)/g, '').matchAll(/(^|[^\w.#-])(-?\d*\.?\d+)px\b/g)) {
@@ -62,7 +62,24 @@ const pxOnly1px = make('px-only-1px', 'STYLE-10', (root, r) => {
   });
 });
 
-// ---------- STYLE-11 logical-properties (except width/height) ----------
+// ---------- STYLE-05 nesting-depth (AXIS R-05) ----------
+// Max 4 levels, the root selector is level 1. Only @media is not counted (and @include mq(), which IS an @media);
+// every other nested rule counts — &__el, &.state, descendants, @supports, @container, @layer, and an @include with a
+// content block (hover(), dir()… emit a nested selector). Sass control flow (@if/@else/@each/@for/@while) and
+// @mixin/@function bodies are not CSS nesting and are skipped.
+const NOT_COUNTED_AT = new Set(['media', 'if', 'else', 'each', 'for', 'while', 'mixin', 'function']);
+const counts = (n) => n.type === 'rule' || (n.type === 'atrule' && !NOT_COUNTED_AT.has(n.name) && !(n.name === 'include' && (!n.nodes || /^mq\b/.test(n.params))));
+const nestingDepth = make('nesting-depth', 'STYLE-05', (root, r, opts) => {
+  const max = Number(opts.max || 4);
+  root.walk((n) => {
+    if (!counts(n) || inMixinOrFunction(n)) return;
+    let depth = 1;
+    for (let p = n.parent; p && p.type !== 'root'; p = p.parent) if (counts(p)) depth++;
+    if (depth === max + 1) r(n, `Nesting depth ${depth} (max ${max}, the root selector is level 1; only @media is not counted). Flatten it with BEM element classes.`);
+  });
+});
+
+// ---------- STYLE-11 logical-properties (AXIS R-09: logical properties only — width/height included) ----------
 const PHYS = {
   'margin-left': 'margin-inline-start', 'margin-right': 'margin-inline-end', 'margin-top': 'margin-block-start', 'margin-bottom': 'margin-block-end',
   'padding-left': 'padding-inline-start', 'padding-right': 'padding-inline-end', 'padding-top': 'padding-block-start', 'padding-bottom': 'padding-block-end',
@@ -72,7 +89,7 @@ const PHYS = {
   'border-left-style': 'border-inline-start-style', 'border-right-style': 'border-inline-end-style', 'border-top-style': 'border-block-start-style', 'border-bottom-style': 'border-block-end-style',
   'border-top-left-radius': 'border-start-start-radius', 'border-top-right-radius': 'border-start-end-radius', 'border-bottom-left-radius': 'border-end-start-radius', 'border-bottom-right-radius': 'border-end-end-radius',
   left: 'inset-inline-start', right: 'inset-inline-end', top: 'inset-block-start', bottom: 'inset-block-end',
-  // width / height and min/max-width/height are NOT reported: they stay as written (team decision, STYLE-11)
+  width: 'inline-size', height: 'block-size', 'min-width': 'min-inline-size', 'max-width': 'max-inline-size', 'min-height': 'min-block-size', 'max-height': 'max-block-size',
   'scroll-margin-left': 'scroll-margin-inline-start', 'scroll-margin-right': 'scroll-margin-inline-end', 'scroll-margin-top': 'scroll-margin-block-start', 'scroll-margin-bottom': 'scroll-margin-block-end',
   'scroll-padding-left': 'scroll-padding-inline-start', 'scroll-padding-right': 'scroll-padding-inline-end', 'scroll-padding-top': 'scroll-padding-block-start', 'scroll-padding-bottom': 'scroll-padding-block-end',
 };
@@ -133,16 +150,40 @@ const noOutput = make('no-output', 'STYLE-16', (root, r) => {
   });
 });
 
-// ---------- STYLE-08 attribute-selector ----------
+// ---------- STYLE-08 attribute-selector (AXIS R-26) ----------
+// Allowed only as `[aria-*]` or `:is([dir="rtl"])` chained onto a project class (a class with a segment or state prefix in
+// the same compound selector). Generic, Elements and common/_attributes.common.scss turn the rule off. Mixin bodies are
+// checked too: whatever a tool writes lands in the file that includes it.
+const PROJECT_CLASS = /\.(o|c|l|m|ctrl|p|u|is|has|js)-[\w-]/;
+function compounds(sel) {
+  const out = [];
+  let cur = '', depth = 0, q = '';
+  for (const ch of sel) {
+    if (q) { cur += ch; if (ch === q) q = ''; continue; }
+    if (ch === '"' || ch === "'") { q = ch; cur += ch; continue; }
+    if (ch === '(' || ch === '[') depth++;
+    else if (ch === ')' || ch === ']') depth--;
+    if (depth === 0 && /[\s>+~]/.test(ch)) { if (cur.trim()) out.push(cur.trim()); cur = ''; continue; }
+    cur += ch;
+  }
+  if (cur.trim()) out.push(cur.trim());
+  return out;
+}
 const attributeSelector = make('attribute-selector', 'STYLE-08', (root, r) => {
   root.walkRules((rule) => {
-    if (inMixinOrFunction(rule)) return;
-    const sel = stripStrings(rule.selector).replace(/:is\(\s*\[dir=?[^\]]*\]\s*\)/g, '');
-    for (const m of sel.matchAll(/(.?)\[\s*([\w-]+)/g)) {
-      const before = m[1];
-      const chained = before && !/[\s>+~,(]/.test(before);
-      if (/^aria-/.test(m[2]) && chained) continue;
-      r(rule, `Attribute selector \`[${m[2]}…]\` — use a class or a pseudo-class (e.g. \`:disabled\` not \`[disabled]\`).`, { word: '[' + m[2] });
+    const reported = new Set();
+    for (const full of resolveSelector(rule)) {
+      for (const comp of compounds(full)) {
+        const owned = PROJECT_CLASS.test(comp.replace(/\[[^\]]*\]/g, ''));
+        for (const m of comp.matchAll(/(:is\(\s*)?\[\s*([\w-]+)\s*(?:([~|^$*]?=)\s*(["']?)([^"'\]]*)\4)?\s*\]/g)) {
+          const [, inIs, name, , , value] = m;
+          if (owned && !inIs && /^aria-/.test(name)) continue;
+          if (owned && inIs && name === 'dir' && value === 'rtl' && /^:is\(\s*\[[^\]]*\]\s*\)/.test(comp.slice(m.index))) continue;
+          if (reported.has(name)) continue;
+          reported.add(name);
+          r(rule, `Attribute selector \`[${name}…]\` — use a class or a pseudo-class (e.g. \`:disabled\` not \`[disabled]\`); only \`[aria-*]\` or \`:is([dir="rtl"])\` chained onto a project class is allowed (R-26).`, { word: '[' + name });
+        }
+      }
     }
   });
 });
@@ -166,6 +207,8 @@ const duplicateMediaInclude = make('duplicate-media-include', 'STYLE-23', (root,
 
 // ---------- STYLE-25 utility-one-property ----------
 const UTIL_EXCEPT = new Set(['u-container', 'u-sr-only', 'u-not-sr-only']);
+// AXIS utilities.md — short property names
+const SHORT = { 'font-family': 'ff', 'font-size': 'fs', 'font-weight': 'fw', 'background-color': 'bg', color: 'text', 'text-align': 'text-align' };
 const BP = /-(mob-min|mob-wide|mob|xs|sm-tab|sm-wide|sm|tablet|compact-h|md-max|md-wide|md|lg|xl-max|xl|xxl|mobile|desktop)$/;
 const utilityOneProperty = make('utility-one-property', 'STYLE-25', (root, r) => {
   root.walkRules((rule) => {
@@ -174,19 +217,32 @@ const utilityOneProperty = make('utility-one-property', 'STYLE-25', (root, r) =>
       const cls = classesOf(sel);
       const util = cls.find((c) => c.startsWith('u-'));
       if (!util) continue;
-      if (BP.test(util)) r(rule, `Utility \`.${util}\` has a breakpoint in its name — fluid values read a clamp() token instead.`);
+      // a u-<short>-<step> utility names a token step (u-fs-sm = var(--fs-sm)), not a breakpoint
+      const tokenStep = Object.values(SHORT).some((s) => util.startsWith(`u-${s}-`));
+      if (BP.test(util) && !tokenStep) r(rule, `Utility \`.${util}\` has a breakpoint in its name — fluid values read a clamp() token instead (R-UTIL-6).`);
       const compound = sel.trim();
       if (cls.length > 1 || /\s|>|\+|~|#/.test(compound.replace(/::?[\w-]+(\([^)]*\))?/g, ''))) r(rule, `Utility selector \`${compound}\` raises specificity — utilities win by load order only.`);
       if (UTIL_EXCEPT.has(util)) continue;
       const props = new Set();
-      rule.each((n) => { if (n.type === 'decl' && !n.prop.startsWith('$') && !n.prop.startsWith('--')) props.add(n.prop); });
+      rule.each((n) => { if (n.type === 'decl' && !n.prop.startsWith('$') && !n.prop.startsWith('--')) props.add(n.prop.toLowerCase()); });
       if (props.size > 1) r(rule, `Utility \`.${util}\` sets ${props.size} properties (${[...props].join(', ')}) — a utility sets exactly one.`);
+      if (props.size !== 1) continue;
+      // R-UTIL-5: u-{property}-{value} with the short property names (text alone always means color)
+      const p = [...props][0];
+      if (SHORT[p] && !util.startsWith(`u-${SHORT[p]}-`)) r(rule, `Utility \`.${util}\` sets \`${p}\` — name it \`u-${SHORT[p]}-<value>\` (R-UTIL-5 short names).`);
+      else {
+        const named = Object.entries(SHORT).sort((a, b) => b[1].length - a[1].length).find(([, s]) => util.startsWith(`u-${s}-`));
+        if (named && named[0] !== p) r(rule, `Utility \`.${util}\` is named \`u-${named[1]}-…\`, which means \`${named[0]}\`, but sets \`${p}\` (R-UTIL-5 short names).`);
+      }
     }
   });
 });
 
 // ---------- STYLE-30 use-tools-only ----------
-const useToolsOnly = make('use-tools-only', 'STYLE-30', (root, r) => {
+// A component style @uses settings and tools only. A routed page's style (option `page`) is the page entry of AXIS: it may
+// also @use the page-local objects, components and modules it needs (R-28: used by one to four pages, needed by no layout).
+const PAGE_LOCAL = /(^|\/)(objects\/_?[\w-]+\.object|components\/_?[\w-]+\.component|modules\/_?[\w-]+(\.[\w-]+)?\.module)$/;
+const useToolsOnly = make('use-tools-only', 'STYLE-30', (root, r, opts) => {
   let index = 0, toolsAt = -1;
   root.each((n) => {
     if (n.type === 'comment') return;
@@ -194,7 +250,8 @@ const useToolsOnly = make('use-tools-only', 'STYLE-30', (root, r) => {
     if (n.type === 'atrule' && (n.name === 'use' || n.name === 'forward')) {
       const target = (/["']([^"']+)["']/.exec(n.params) || [])[1] || '';
       if (/^sass:/.test(target)) return;
-      if (!/(^|\/)_?(tools|settings)(\/|$|\.)|\.tools$|\.settings$/.test(target)) r(n, `Component style \`@${n.name} "${target}"\` — component styles @use only settings/tools (a CSS-outputting file would be duplicated per component).`);
+      if (opts.page && n.name === 'use' && PAGE_LOCAL.test(target)) return;
+      if (!/(^|\/)_?(tools|settings)(\/|$|\.)|\.tools$|\.settings$/.test(target)) r(n, `Component style \`@${n.name} "${target}"\` — component styles @use only settings/tools${opts.page ? ' (a page may also @use its page-local objects, components and modules)' : ''}; anything else would be compiled into every component.`);
       if (/(^|\/)tools$/.test(target)) toolsAt = index;
     }
   });
@@ -223,8 +280,9 @@ const tokenFileRootOnly = make('token-file-root-only', 'STYLE-32', (root, r, opt
 const customTheme = make('custom-theme', 'STYLE-33', (root, r) => {
   root.walkRules((rule) => {
     for (const sel of rule.selector.split(',')) {
-      const rest = stripStrings(sel).replace(/\.[\w-]+/g, '').replace(/::?[\w-]+(\([^)]*\))?/g, '').replace(/\bbody\b/g, '').replace(/[\s>+~*&]/g, '');
-      if (rest) r(rule, `Selector \`${sel.trim()}\` in custom.theme.css — only class selectors and \`body\` are allowed.`);
+      // `*`, `:root`, `html` and any other element are not class selectors (R-34)
+      const rest = stripStrings(sel).replace(/\.[\w-]+/g, '').replace(/:root\b/g, 'ROOT').replace(/::?[\w-]+(\([^)]*\))?/g, '').replace(/\bbody\b/g, '').replace(/[\s>+~&]/g, '');
+      if (rest) r(rule, `Selector \`${sel.trim()}\` in custom.theme.css — only class selectors and \`body\` are allowed (no \`*\`, \`:root\`, \`html\` or other element).`);
     }
   });
   root.walkDecls((d) => { if (d.prop.startsWith('--')) r(d, `custom.theme.css defines custom property \`${d.prop}\` — tokens live in the palette/fonts/images files.`); });
@@ -234,7 +292,7 @@ const customTheme = make('custom-theme', 'STYLE-33', (root, r) => {
 const noLiteralFilter = make('no-literal-filter', 'STYLE-37', (root, r) => {
   root.walkDecls((d) => {
     if (!/^(-webkit-)?filter$/i.test(d.prop)) return;
-    if (/\b(invert|sepia|saturate|hue-rotate|brightness|contrast|grayscale)\(/i.test(d.value)) r(d, 'Literal icon filter — use a filter utility class (u-filter-primary|secondary|light|gray) that reads a filter token.');
+    if (/\b(invert|sepia|saturate|hue-rotate|brightness|contrast|grayscale)\(/i.test(d.value)) r(d, 'Literal icon filter — use a filter utility class (u-filter-primary|secondary|neutral-25|neutral-400) that reads a --filter-* token.');
   });
   root.walkRules((rule) => { if (/\[\s*data-img/.test(rule.selector)) r(rule, '`[data-img]` selector — color icons with the u-filter-* utilities.'); });
 });
@@ -320,5 +378,47 @@ const nestBlockParts = make('nest-block-parts', 'STYLE-47', (root, r) => {
   });
 });
 
-export default [nestBlockParts, charsetFirst, pxOnly1px, logicalProperties, noLiteralColorFallback, mqOnly, noOutput, attributeSelector, duplicateMediaInclude,
-  utilityOneProperty, useToolsOnly, tokenFileRootOnly, customTheme, noLiteralFilter, focusVisible, hoverMedia, bem];
+// ---------- STYLE-21 no-important (AXIS R-20) ----------
+// Used in Generic only (declaration-no-important everywhere else): the one `@media (prefers-reduced-motion: reduce)` block may.
+const noImportant = make('no-important', 'STYLE-21', (root, r, opts) => {
+  root.walkDecls((d) => {
+    if (!d.important) return;
+    if (opts.reducedMotion) for (let p = d.parent; p; p = p.parent) if (p.type === 'atrule' && p.name === 'media' && /prefers-reduced-motion\s*:\s*reduce/.test(p.params)) return;
+    r(d, '`!important` — only the one Generic `@media (prefers-reduced-motion: reduce)` block may use it (R-20).', { word: '!important' });
+  });
+});
+
+// ---------- STYLE-01 / STYLE-54 module-classes (AXIS R-01, R-15, R-30, R-31, R-36) ----------
+// _<name>.module.scss: m- (or ctrl-) blocks and state classes only — no vendor selector.
+// _<name>.control.module.scss: ctrl- blocks only. _<vendor-component>.<library>.module.scss: one m-<vendor-component> block;
+// the vendor classes it overrides sit inside it (a vendor class at the top level is not allowed).
+const moduleClasses = make('module-classes', 'STYLE-01', (root, r) => {
+  const base = filePath(root).split('/').pop() || '';
+  const control = /\.control\.module\.scss$/.test(base);
+  const libM = /^_([\w-]+)\.([\w-]+)\.module\.scss$/.exec(base);
+  const library = !control && libM && libM[2] !== 'control';
+  const state = /^(is|has|js)-/;
+  root.walkRules((rule) => {
+    if (inMixinOrFunction(rule)) return;
+    const reported = new Set();
+    for (const sel of resolveSelector(rule)) {
+      const cls = classesOf(sel);
+      cls.forEach((c, i) => {
+        if (reported.has(c) || state.test(c)) return;
+        const own = control ? /^ctrl-/.test(c) : /^(m|ctrl)-/.test(c);
+        if (own) {
+          if (library && i === 0 && /^m-/.test(c) && c.split('__')[0] !== `m-${libM[1]}` && !rule.parent.type.startsWith('rule')) { reported.add(c); r(rule, `[STYLE-54] Library module \`${base}\` overrides \`${libM[1]}\`: its block is \`.m-${libM[1]}\`, not \`.${c}\` (R-36).`); }
+          return;
+        }
+        reported.add(c);
+        if (library) {
+          if (i > 0 && /^m-/.test(cls[0])) return; // a vendor part nested inside the m- block (R-30)
+          r(rule, `[STYLE-54] Vendor class \`.${c}\` at the top level of a library module — nest it inside the \`.m-${libM[1]}\` block (R-30).`);
+        } else r(rule, `[STYLE-01] Class "${c}" needs the prefix ${control ? 'ctrl-' : 'm- / ctrl-'} (or is-/has-/js-) for this file's segment/role.${control ? '' : ' A vendor override belongs in its library module `_<vendor-component>.<library>.module.scss` (R-36).'}`);
+      });
+    }
+  });
+});
+
+export default [nestingDepth, nestBlockParts, charsetFirst, pxOnly1px, logicalProperties, noLiteralColorFallback, mqOnly, noOutput, attributeSelector, duplicateMediaInclude,
+  utilityOneProperty, useToolsOnly, tokenFileRootOnly, customTheme, noLiteralFilter, focusVisible, hoverMedia, bem, noImportant, moduleClasses];

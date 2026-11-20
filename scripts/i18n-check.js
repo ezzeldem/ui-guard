@@ -101,10 +101,71 @@ function parseXlf(text) {
   return { entries, dups };
 }
 
+/** .NET .resx: <data name="Key"><value>…</value></data>. */
+function parseResx(text) {
+  const entries = [], dups = [], seen = new Set();
+  const re = /<data\b([^>]*)\bname\s*=\s*"([^"]+)"([^>]*?)(\/>|>([\s\S]*?)<\/data>)/g;
+  let m;
+  while ((m = re.exec(text))) {
+    if (/\b(type|mimetype)\s*=/.test(m[1] + m[3])) continue; // embedded files / images, not text
+    const line = u.lineAt(text, m.index);
+    if (seen.has(m[2])) dups.push({ key: m[2], line });
+    seen.add(m[2]);
+    const v = /<value>([\s\S]*?)<\/value>/.exec(m[5] || '');
+    entries.push({ key: m[2], value: v ? v[1].replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&') : '', line });
+  }
+  return { entries, dups };
+}
+
+/** gettext .po: msgid "…" / msgstr "…" (multi-line strings joined; the header entry msgid "" is skipped). */
+function parsePo(text) {
+  const entries = [], dups = [], seen = new Set();
+  const lines = text.split(/\r?\n/);
+  const unq = (s) => { try { return JSON.parse(s); } catch { return s.replace(/^"|"$/g, ''); } };
+  let cur = null, field = null, ctx = '';
+  const flush = () => {
+    if (cur && cur.id !== '') {
+      const key = (cur.ctx ? cur.ctx + '\u0004' : '') + cur.id;
+      if (seen.has(key)) dups.push({ key: cur.id, line: cur.line });
+      seen.add(key);
+      entries.push({ key: cur.id, value: cur.str, line: cur.strLine || cur.line });
+    }
+    cur = null; field = null;
+  };
+  lines.forEach((l, i) => {
+    const t = l.trim();
+    let m;
+    if (!t || t.startsWith('#')) { if (!t && cur && cur.str !== undefined) flush(); return; }
+    if ((m = /^msgctxt\s+(".*")$/.exec(t))) { if (cur && cur.str !== undefined) flush(); ctx = unq(m[1]); field = 'ctx'; return; }
+    if ((m = /^msgid\s+(".*")$/.exec(t))) { if (cur && cur.str !== undefined) flush(); cur = { id: unq(m[1]), ctx, line: i + 1 }; ctx = ''; field = 'id'; return; }
+    if (/^msgid_plural\s/.test(t)) { field = 'plural'; return; }
+    if ((m = /^msgstr(?:\[0\])?\s+(".*")$/.exec(t))) { if (cur) { cur.str = unq(m[1]); cur.strLine = i + 1; } field = 'str'; return; }
+    if (/^msgstr\[\d+\]/.test(t)) { field = 'other'; return; }
+    if ((m = /^(".*")$/.exec(t)) && cur) { if (field === 'id') cur.id += unq(m[1]); else if (field === 'str') cur.str += unq(m[1]); }
+  });
+  if (cur && cur.str !== undefined) flush();
+  return { entries, dups };
+}
+
+const LANG_CODE = /^[a-z]{2}([-_][A-Za-z]{2,4})?$/;
+/** One dictionary file that holds every language: top-level blocks { ar: {…}, en: {…} } → one virtual file per language. */
+function splitLanguageBlocks(r) {
+  const tops = new Set(r.entries.map((e) => e.key.split('.')[0]));
+  if (tops.size < 2 || ![...tops].every((t) => LANG_CODE.test(t))) return null;
+  const strip = (lang) => (e) => ({ ...e, key: e.key.slice(lang.length + 1) });
+  return [...tops].map((lang) => ({
+    lang,
+    entries: r.entries.filter((e) => e.key.split('.')[0] === lang).map(strip(lang)),
+    dups: r.dups.filter((d) => d.key.split('.')[0] === lang).map(strip(lang)),
+  }));
+}
+
 /** Language + area of a translation file path. */
 function langOf(rel) {
   const parts = rel.split('/');
-  const base = parts[parts.length - 1].replace(/\.(json|i18n\.ts|xlf|xliff)$/, '');
+  if (parts.length >= 3 && parts[parts.length - 2] === 'LC_MESSAGES') parts.splice(parts.length - 2, 1); // ar/LC_MESSAGES/app.po
+  const base = parts[parts.length - 1].replace(/\.(json|i18n\.ts|i18n\.js|translations?\.(ts|js)|locale\.(ts|js)|ts|js|xlf|xliff|resx|po)$/i, '');
+  if (/\.resx$/i.test(rel) && !/[._-][a-z]{2}([-_][A-Za-z]{2,4})?$/.test(base)) return { lang: 'default', area: parts.slice(0, -1).join('/') + '/' + base };
   const dir = parts.slice(0, -1).join('/');
   const LANG = /^[a-z]{2}([-_][A-Za-z]{2,4})?$/;
   let m;
@@ -125,7 +186,8 @@ function usedKeys(text, isHtml) {
     /\b(?:instant|get|stream|translate|selectTranslate)\(\s*(["'])([A-Za-z0-9_.-]+)\1/g,
     /\bmarker\(\s*(["'])([A-Za-z0-9_.-]+)\1/g,
   ];
-  if (isHtml) pats.push(/\btranslate\s*=\s*(["'])([A-Za-z0-9_.-]+)\1/g, /\[translate\]\s*=\s*"'([A-Za-z0-9_.-]+)'"/g, /\btransloco\s*=\s*(["'])([A-Za-z0-9_.-]+)\1/g);
+  if (isHtml) pats.push(/\btranslate\s*=\s*(["'])([A-Za-z0-9_.-]+)\1/g, /\[translate\]\s*=\s*"'([A-Za-z0-9_.-]+)'"/g, /\btransloco\s*=\s*(["'])([A-Za-z0-9_.-]+)\1/g, /(["'])([A-Za-z0-9_.-]+)\1\s*\|\s*t\b/g);
+  pats.push(/\b(?:i18n\.)?t\(\s*(["'])([A-Za-z0-9_.-]+)\1/g); // project dictionaries: t('sidebar.home'), i18n.t('KEY')
   for (const re of pats) {
     let m;
     while ((m = re.exec(text))) {
@@ -134,6 +196,8 @@ function usedKeys(text, isHtml) {
       out.push({ key, line: idx(m.index) });
     }
   }
+  // ASP.NET: Localizer["Key"], SharedLocalizer["Key"], _localizer["Key"] — always a key.
+  for (const m of text.matchAll(/\b\w*[Ll]ocalizer\s*\[\s*"([^"]+)"/g)) out.push({ key: m[1], line: idx(m.index), certain: true });
   return out;
 }
 
@@ -147,15 +211,22 @@ function run(root, profile) {
     let r;
     if (f.rel.endsWith('.json')) r = parseJsonKeys(text);
     else if (/\.xliff?$/.test(f.rel)) r = parseXlf(text);
+    else if (/\.resx$/i.test(f.rel)) r = parseResx(text);
+    else if (/\.po$/i.test(f.rel)) r = parsePo(text);
     else r = parseTsDict(text);
     if (!r || r.error) {
       findings.push(mk(root, 'LANG-05', f.rel, 1, `unverified: could not parse this translation file${r && r.error ? ' (' + r.error + ')' : ''} — handed to the AI scanner.`, 'AI scanner must check LANG-04/05/06/08 here.', { severity: 'info' }));
       continue;
     }
+    const what = /\.resx$/i.test(f.rel) ? 'two <data name> entries with this name' : /\.po$/i.test(f.rel) ? 'this msgid twice' : /\.xliff?$/.test(f.rel) ? 'two <trans-unit> with this id' : 'defined twice in one object';
+    for (const d of r.dups) findings.push(mk(root, 'LANG-06', f.rel, d.line, `Key \`${d.key}\`: ${what} — only one of them is used.`, 'Keep one entry with the right value (the later one is what the app uses today).'));
+    const blocks = !/\.(json|xlf|xliff|resx|po)$/i.test(f.rel) ? splitLanguageBlocks(r) : null;
+    if (blocks) { for (const b of blocks) parsed.push({ ...f, entries: b.entries, dups: b.dups, lang: b.lang, area: f.rel + '#languages' }); continue; }
     const { lang, area } = langOf(f.rel);
     parsed.push({ ...f, ...r, lang, area });
-    for (const d of r.dups) findings.push(mk(root, 'LANG-06', f.rel, d.line, `Key \`${d.key}\` is defined twice in this file.`, 'Keep one entry (the later one is what the app uses today).'));
   }
+  // A .resx without a culture in its name is the default language (usually English): call it en when its area has no en file.
+  for (const p of parsed) if (p.lang === 'default' && !parsed.some((q) => q.area === p.area && /^en\b/.test(q.lang))) p.lang = 'en';
   // LANG-05 per area
   const areas = {};
   for (const p of parsed) (areas[p.area] = areas[p.area] || []).push(p);
@@ -193,12 +264,12 @@ function run(root, profile) {
   const keysByLang = {};
   for (const p of parsed) for (const e of p.entries) (keysByLang[p.lang] = keysByLang[p.lang] || new Set()).add(e.key);
   if (langs.length) {
-    for (const f of files.filter((x) => x.kind === 'html' || x.kind === 'ts')) {
+    for (const f of files.filter((x) => ['html', 'index', 'ts', 'cshtml', 'js'].includes(x.kind))) {
       const text = u.readText(f.abs) || '';
-      for (const k of usedKeys(text, f.kind === 'html')) {
+      for (const k of usedKeys(text, f.kind === 'html' || f.kind === 'index' || f.kind === 'cshtml')) {
         const missing = langs.filter((l) => !keysByLang[l].has(k.key) && ![...keysByLang[l]].some((x) => x.startsWith(k.key + '.')));
         if (!missing.length) continue;
-        if (!k.key.includes('.') && missing.length === langs.length) continue; // bare word: probably not a key
+        if (!k.certain && !k.key.includes('.') && missing.length === langs.length) continue; // bare word: probably not a key
         findings.push(mk(root, 'LANG-04', f.rel, k.line, `Key \`${k.key}\` is missing in: ${missing.join(', ')} — the user sees the raw key.`, `Add ${k.key} to every language file.`));
       }
     }
@@ -207,7 +278,7 @@ function run(root, profile) {
   return findings;
 }
 
-module.exports = { run, parseJsonKeys, parseTsDict, parseXlf, langOf, usedKeys };
+module.exports = { run, parseJsonKeys, parseTsDict, parseXlf, parseResx, parsePo, splitLanguageBlocks, langOf, usedKeys };
 if (require.main === module) cli('i18n-check', `i18n-check.js — LANG-04 (key used but missing in a language), LANG-05 (key in one language only),
 LANG-06 (duplicate key / trans-unit id), LANG-08 (empty, key-equal or wrong-language values).
 Unparseable TS dictionaries are reported as info "unverified" and handed to the AI scanner.`, run);

@@ -1,0 +1,12 @@
+@charset "UTF-8";
+/* colors.base.theme.css: the per-client identity values, the ONLY colour values that change between clients.
+   colors.palette.theme.css derives the brand shades from them and does not change between clients.
+   Plain CSS, <link>ed from index.html, swappable after the build. */
+:root {
+__IDENTITY__
+}
+
+:root {
+  /* Icon filters: turn a black single-colour icon into a theme colour (computed per client by icon-filter.js) */
+__FILTERS__
+}

@@ -27,6 +27,9 @@ that file, only the rules of the domains listed for it. A rule of a domain not l
 
 Stages: scss 1 = SCSS/CSS · scss 2 = templates + TS (class prefixes/state) · access 1 = templates (+ CVA TS) · lang 1 = templates, TS, translations · safe 1 = templates, TS, config.
 A rule outside `rules` (a rule the scripts own, or another domain's rule) must never be reported — the result is rejected if you do.
+STYLE rules follow the AXIS standard as `rules/style.md` states it: files never move between segments (STYLE-28 is about `@use`
+lines), vendor classes nested in a library module's `m-` block are not STYLE-01 defects, and the frozen legacy stylesheet's
+rules are migration items.
 ACCESS findings may carry `"impact": "high" | "medium" | "low"` (see the impact table in `rules/access.md`); never report native elements without an explicit role, a correct `alt=""` on a decorative image, or a missing `<h1>` in a fragment.
 
 ## Method

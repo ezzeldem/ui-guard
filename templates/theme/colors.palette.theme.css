@@ -1,16 +1,7 @@
 @charset "UTF-8";
-/* colors.palette.theme.css — the ONLY place shade values live (STYLE-34). Plain CSS, swappable after the build.
-   ui-guard keeps one palette file per theme with clearly marked FIXED sections (a deliberate ui-guard choice);
-   the team standard splits fixed colors into colors.base.theme.css. */
-:root {
-  /* ===== Per-client values (the ONLY lines that change between themes) ===== */
-__MAIN_PARTS__
-__SECONDARY_PARTS__
-
-  /* Icon filters (computed per theme by icon-filter.js) */
-__FILTERS__
-}
-
+/* colors.palette.theme.css: the single source of truth for colour values, the shades every segment uses. It does not
+   change between clients: the brand families resolve from the identity values in colors.base.theme.css (500 takes them
+   as they are, the other steps shift only the lightness). Status families and neutrals are fixed HSL values. */
 :root {
   /* ===== Main (brand) — 500 is the design's brand color ===== */
 __MAIN_STEPS__
@@ -18,68 +9,68 @@ __MAIN_STEPS__
 }
 
 :root {
-  /* ===== Secondary — same shape with --secondary-* parts ===== */
+  /* ===== Secondary (second brand): --hue-2, --saturation-2, --lightness-2 ===== */
 __SECONDARY_STEPS__
 }
 
 :root {
   /* ===== FIXED: Neutral (same in every theme) ===== */
-  --neutral-25: hsl(0, 0%, 100%);
-  --neutral-50: hsl(210, 20%, 98%);
-  --neutral-100: hsl(220, 14%, 96%);
-  --neutral-200: hsl(220, 13%, 91%);
-  --neutral-300: hsl(213, 11%, 84%);
-  --neutral-400: hsl(215, 9%, 65%);
-  --neutral-500: hsl(218, 8%, 46%);
-  --neutral-600: hsl(210, 11%, 34%);
-  --neutral-700: hsl(215, 18%, 27%);
-  --neutral-800: hsl(212, 28%, 17%);
-  --neutral-900: hsl(218, 39%, 11%);
+  --neutral-25: hsl(0 0% 100%);
+  --neutral-50: hsl(210 20% 98%);
+  --neutral-100: hsl(220 14% 96%);
+  --neutral-200: hsl(220 13% 91%);
+  --neutral-300: hsl(213 11% 84%);
+  --neutral-400: hsl(215 9% 65%);
+  --neutral-500: hsl(218 8% 46%);
+  --neutral-600: hsl(210 11% 34%);
+  --neutral-700: hsl(215 18% 27%);
+  --neutral-800: hsl(212 28% 17%);
+  --neutral-900: hsl(218 39% 11%);
 }
 
 :root {
   /* ===== FIXED: Success ===== */
-  --success-50: hsl(145, 81%, 96%);
-  --success-100: hsl(140, 75%, 92%);
-  --success-200: hsl(144, 68%, 80%);
-  --success-300: hsl(148, 63%, 67%);
-  --success-400: hsl(150, 57%, 54%);
-  --success-500: hsl(152, 77%, 39%);
-  --success-600: hsl(153, 91%, 30%);
-  --success-700: hsl(155, 90%, 24%);
-  --success-800: hsl(155, 84%, 20%);
-  --success-900: hsl(156, 83%, 16%);
+  --success-50: hsl(145 81% 96%);
+  --success-100: hsl(140 75% 92%);
+  --success-200: hsl(144 68% 80%);
+  --success-300: hsl(148 63% 67%);
+  --success-400: hsl(150 57% 54%);
+  --success-500: hsl(152 77% 39%);
+  --success-600: hsl(153 91% 30%);
+  --success-700: hsl(155 90% 24%);
+  --success-800: hsl(155 84% 20%);
+  --success-900: hsl(156 83% 16%);
 }
 
 :root {
   /* ===== FIXED: Danger ===== */
-  --danger-50: hsl(5, 86%, 97%);
-  --danger-100: hsl(4, 93%, 94%);
-  --danger-200: hsl(3, 96%, 89%);
-  --danger-300: hsl(4, 96%, 80%);
-  --danger-400: hsl(4, 92%, 69%);
-  --danger-500: hsl(4, 86%, 58%);
-  --danger-600: hsl(4, 74%, 49%);
-  --danger-700: hsl(4, 76%, 40%);
-  --danger-800: hsl(4, 72%, 33%);
-  --danger-900: hsl(8, 65%, 29%);
+  --danger-50: hsl(5 86% 97%);
+  --danger-100: hsl(4 93% 94%);
+  --danger-200: hsl(3 96% 89%);
+  --danger-300: hsl(4 96% 80%);
+  --danger-400: hsl(4 92% 69%);
+  --danger-500: hsl(4 86% 58%);
+  --danger-600: hsl(4 74% 49%);
+  --danger-700: hsl(4 76% 40%);
+  --danger-800: hsl(4 72% 33%);
+  --danger-900: hsl(8 65% 29%);
 }
 
 :root {
   /* ===== FIXED: Warning ===== */
-  --warning-50: hsl(45, 100%, 96%);
-  --warning-100: hsl(45, 96%, 89%);
-  --warning-200: hsl(44, 98%, 77%);
-  --warning-300: hsl(42, 99%, 65%);
-  --warning-400: hsl(39, 98%, 56%);
-  --warning-500: hsl(34, 94%, 50%);
-  --warning-600: hsl(28, 97%, 44%);
-  --warning-700: hsl(22, 92%, 37%);
-  --warning-800: hsl(19, 84%, 31%);
-  --warning-900: hsl(18, 79%, 27%);
+  --warning-50: hsl(45 100% 96%);
+  --warning-100: hsl(45 96% 89%);
+  --warning-200: hsl(44 98% 77%);
+  --warning-300: hsl(42 99% 65%);
+  --warning-400: hsl(39 98% 56%);
+  --warning-500: hsl(34 94% 50%);
+  --warning-600: hsl(28 97% 44%);
+  --warning-700: hsl(22 92% 37%);
+  --warning-800: hsl(19 84% 31%);
+  --warning-900: hsl(18 79% 27%);
 }
 
 :root {
-  /* Effects that use theme colors */
-  --div-shadow: 0 0.25rem 0.375rem 0 hsl(0 0% 4% / 0.08);
+  /* ===== Shadow (family-step) ===== */
+  --shadow-100: 0 0.25rem 0.375rem 0 hsl(0 0% 4% / 0.08);
 }

@@ -28,20 +28,20 @@ const STAGES = {
   scss: [
     { id: 1, name: 'SCSS/CSS — STYLE', kinds: ['scss', 'css'], groups: ['style-ai'],
       rules: ['STYLE-09', 'STYLE-17', 'STYLE-18', 'STYLE-19', 'STYLE-20', 'STYLE-25', 'STYLE-28', 'STYLE-37', 'STYLE-38', 'STYLE-39', 'STYLE-43'] },
-    { id: 2, name: 'Templates + Angular TS — STYLE classes', kinds: ['html', 'index', 'ts'], groups: ['style-ai'],
+    { id: 2, name: 'Templates + TS/JS + Razor — STYLE classes', kinds: ['html', 'index', 'ts', 'cshtml', 'js'], groups: ['style-ai'],
       rules: ['STYLE-02', 'STYLE-03', 'STYLE-37', 'STYLE-39', 'STYLE-43'] },
   ],
   access: [
-    { id: 1, name: 'Templates + CVA TS — ACCESS', kinds: ['html', 'index', 'ts'], groups: ['access-labels', 'access-alt', 'access-aria', 'access-semantics', 'access-keyboard', 'access-motion'],
+    { id: 1, name: 'Templates + CVA TS + Razor views + scripts — ACCESS', kinds: ['html', 'index', 'ts', 'cshtml', 'js'], groups: ['access-labels', 'access-alt', 'access-aria', 'access-semantics', 'access-keyboard', 'access-motion'],
       // the AI rules of the domain: ACCESS-01..05 (ESLint + ai) and the ai part of ACCESS-08..20 (see rules.json: checker contains ai)
       rules: ['ACCESS-00', 'ACCESS-01', 'ACCESS-02', 'ACCESS-03', 'ACCESS-04', 'ACCESS-05', 'ACCESS-08', 'ACCESS-09', 'ACCESS-12', 'ACCESS-14', 'ACCESS-15', 'ACCESS-16', 'ACCESS-17', 'ACCESS-18', 'ACCESS-19', 'ACCESS-20'] },
   ],
   lang: [
-    { id: 1, name: 'Templates + TS + translations — LANG', kinds: ['html', 'index', 'ts', 'translation'], groups: ['lang'],
+    { id: 1, name: 'Templates + TS/JS + Razor + translations — LANG', kinds: ['html', 'index', 'ts', 'cshtml', 'js', 'translation'], groups: ['lang'],
       rules: ['LANG-01', 'LANG-02', 'LANG-03', 'LANG-07', 'LANG-08'] },
   ],
   safe: [
-    { id: 1, name: 'Templates + TS + config — SAFE', kinds: ['html', 'index', 'ts', 'config'], groups: ['safe'],
+    { id: 1, name: 'Templates + TS/JS + Razor + config — SAFE', kinds: ['html', 'index', 'ts', 'cshtml', 'js', 'config'], groups: ['safe'],
       rules: ['SAFE-01', 'SAFE-02', 'SAFE-03', 'SAFE-04', 'SAFE-05', 'SAFE-08'] },
   ],
 };
@@ -139,7 +139,7 @@ if (require.main === module) {
     const d = dir(root, dom.name);
     console.log(JSON.stringify({
       domain: dom.name, batch: nb.b.id, stage: nb.sg.id, stageName: nb.sg.name, rules: nb.sg.rules, files: nb.b.files, retry: nb.b.lastError || null,
-      rulesFiles: [path.join(project.PLUGIN_ROOT, dom.rulesFile)], profile: project.paths(root).profile,
+      rulesFiles: domains.rulesFilesFor(dom.name, nb.b.files, project.PLUGIN_ROOT), profile: project.paths(root).profile,
       out: path.join(d, `${nb.b.id}.jsonl`), done: path.join(d, `${nb.b.id}.done.json`),
     }, null, 2));
     process.exit(0);

@@ -18,7 +18,7 @@ The scripts already ran on this phase (mechanical fixes, 0 tokens). You get only
 ## Input (from your task prompt — nothing else is repeated)
 - `.ui-guard/tmp/<domain>/fix/phase-<id>.json` — the phase (files, findings, routes, kind) and its findings.
 - `.ui-guard/tmp/<domain>/fix/mechanical-<id>.json` (scss) — what the scripts already changed and what they skipped (and why).
-- The domain's rules file only: `rules/style.md` (scss) · `rules/access.md` + `rules/access-fix-tiers.md` (access) · `rules/lang.md` · `rules/safe.md`.
+- The domain's rules file only: `rules/style.md` (scss) · `rules/access.md` + `rules/access-fix-tiers.md` (access; + `rules/access-mvc.md` when the phase has `.cshtml` / `.js` files) · `rules/lang.md` · `rules/safe.md`.
 - `.ui-guard/profile.md` (root font size, direction, role map, button decision, i18n files); for scss also `.ui-guard/scss/renames.md`.
 - Templates (scss): `${CLAUDE_PLUGIN_ROOT}/templates/scss/`, `templates/theme/`.
 - On a retry: the exact failure (lint, build, reviewer reasons, pixel or style diff). Fix exactly those.
@@ -29,12 +29,20 @@ The scripts already ran on this phase (mechanical fixes, 0 tokens). You get only
   Class names get our prefixes; renames update SCSS **and every** template/TS usage (`class=""`, `[class.x]`, `[ngClass]`,
   `classList`, `Renderer2`, `querySelector`, `host`, `@HostBinding`) — Grep the old name. Library classes (Bootstrap, `ngx-*`, …)
   are never renamed. Project state classes (`open`, `active`, …) are a decision: write them to the skipped file.
-  Logical properties everywhere **except `width`/`height` and `min-/max-width/height`** (they stay). No plain `@media`: use `mq()`.
+  Logical properties everywhere, sizes included (`inline-size`, `block-size`, `min-/max-inline-size`, `min-/max-block-size`). No plain `@media`: use `mq()`.
   `.block { .block__x {} }` → `&__x` only when `.block__x` is defined once and used only in the block's own template.
-  Foundation B leftovers: move the rule into its segment file **keeping the cascade order**; never reorder rules.
+  STYLE-41: wrap the `:hover` styles in `@include hover { … }` (no transition argument) — nothing else in the rule changes.
+  `:host` (STYLE-06): move its styles onto the component's root BEM class (add the class to the template's root element and
+  write the rule on it) only when the phase has pixel proof (`verification` is not `static`); otherwise write a decision.
+  A vendor override (STYLE-54): move it into its library module `modules/_<vendor-component>.<library>.module.scss`, on the
+  `.m-<vendor-component>` class placed beside the vendor class in the template, vendor parts nested inside it — never a
+  top-level vendor selector, never `::ng-deep`. Objects, components and modules never leave their folder: only `@use` lines
+  move (STYLE-28). New or rewritten files carry `@charset`, the `// @dependencies:` lines and `@use "<path-to-root>/tools" as *;`.
+  The legacy stylesheet that Foundation B left frozen is never extended; leftovers move into their segment file only with the
+  same proof (cascade order kept), never reordered.
 - **access:** follow `rules/access-fix-tiers.md` strictly — tier by tier (A, B, C, D). Before every Tier B/C/D
   change READ `selectorImpact[<template>][<class>]` in the phase JSON (precomputed — you cannot run scripts): hits → adjust
-  those selectors in the same change, or skip the item into the skipped file with the hit as reason. Add the neutralization SCSS with every Tier C swap, reuse the visually-hidden utility, keep ACCESS-00
+  those selectors in the same change, or skip the item into the skipped file with the hit as reason. Add the neutralization SCSS with every Tier C swap, use `u-sr-only` (never another visually-hidden class), keep ACCESS-00
   (`[attr.aria-*]`, bind `null`, no positive tabindex, translation keys, no new dependency, no hand-rolled focus trap).
   If the phase JSON says `"verification": "static"`, do only Tier A and Tier B where the elements layer has no rule for the tag.
   Never invent alt text or labels. Anything visible or content-dependent → the decisions file (below), with 2–3 options.
@@ -44,7 +52,8 @@ The scripts already ran on this phase (mechanical fixes, 0 tokens). You get only
 - **lang:** add every new key to **every** language file in the profile; never change existing translations.
 - **safe:** never change behaviour beyond the finding (no new dependency, no removed feature); a secret is reported, not deleted.
 - Never change token **values**, never add new visual rules (resets, outlines, colors) to an existing project,
-  never remove `!important` from `custom.theme.css`. STYLE-40/41/43/44/45 are report-only.
+  remove `!important` from `custom.theme.css` only with pixel proof, else list it as a decision. STYLE-40/43/44/45 are report-only;
+  STYLE-41 is fixed only as above.
 
 ## Files you write (JSON lines, append; create if missing)
 - `.ui-guard/tmp/<domain>/fix/skipped-<id>.jsonl` — `{"file":"…","line":12,"what":"STYLE-04 .c-a__b__c","reason":"…"}` per item not changed.

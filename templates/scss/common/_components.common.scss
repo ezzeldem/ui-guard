@@ -1,3 +1,4 @@
 @charset "UTF-8";
-// Shared components (c-) used by 5+ pages or by any layout.
-@use "../components/button.component";
+
+// Shared components (c-): used by five or more page entries or needed by any layout.
+@use "../components/button.component" as *;

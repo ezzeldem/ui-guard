@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "note": "Machine-readable index of every ui-guard rule. checker: stylelint|eslint|script|ai|runtime|assets|none. inScan:false = never part of /ui-guard:scan (MEDIA-01..06 are checked by media-check.js in the scan; MEDIA-07/08 are checked by /ui-guard:assets; MEDIA-09 is guidance). Domains: STYLE → /ui-guard:scan scss, ACCESS → access, LANG → lang, SAFE → safe; MEDIA-01..06 belong to no domain (run-checks without --domain, /ui-guard:check and the hooks). group: AI routing group or family. lintMap maps Stylelint/ESLint rule names to ui-guard IDs.",
+  "note": "Machine-readable index of every ui-guard rule. checker: stylelint|eslint|script|ai|runtime|assets|none. inScan:false = never part of /ui-guard:scan (MEDIA-01..06 are checked by media-check.js in the scan; MEDIA-07/08 by /ui-guard:assets; MEDIA-09 is guidance; FIX-01..03 only in /ui-guard:check, against the linked work item). Domains: STYLE → /ui-guard:scan scss, ACCESS → access, LANG → lang, SAFE → safe; MEDIA and FIX belong to no domain. ucr = the matching ui-code-review rule ID (ui-guard applies the same rule text). axis = the AXIS rule IDs a STYLE rule implements (R-xx, R-<SEGMENT>-n; A11Y-CSS-n = AXIS guides/accessibility.md stylesheet rule n; PERF-BUDGET = guides/performance.md; R-SEG-STRUCTURE = the segment tree and fixed names of README.md); its severity follows the AXIS priority (Critical → error, High → warning, Medium → info). group: AI routing group or family. lintMap maps Stylelint/ESLint rule names to ui-guard IDs.",
   "rules": [
     {
       "id": "STYLE-01",
@@ -13,7 +13,8 @@
       "family": "style",
       "rulesFile": "rules/style.md",
       "lintRules": [
-        "selector-class-pattern"
+        "selector-class-pattern",
+        "ui-guard/module-classes"
       ],
       "appliesTo": [
         "**/*.scss",
@@ -22,7 +23,22 @@
         "**/*.ts"
       ],
       "title": "Authored classes carry their segment/role or state prefix",
-      "inScan": true
+      "inScan": true,
+      "axis": [
+        "R-01",
+        "R-14",
+        "R-15",
+        "R-16",
+        "R-17",
+        "R-18",
+        "R-OBJ-1",
+        "R-COMP-1",
+        "R-LAY-1",
+        "R-MOD-1",
+        "R-UTIL-1",
+        "R-COM-1",
+        "R-COM-2"
+      ]
     },
     {
       "id": "STYLE-02",
@@ -40,7 +56,10 @@
         "**/*.ts"
       ],
       "title": "js-* hook classes have no styles",
-      "inScan": true
+      "inScan": true,
+      "axis": [
+        "R-02"
+      ]
     },
     {
       "id": "STYLE-03",
@@ -57,11 +76,15 @@
         "**/*.ts"
       ],
       "title": "Who sets a class decides its prefix (is-/has- static, js- runtime)",
-      "inScan": true
+      "inScan": true,
+      "axis": [
+        "R-03",
+        "R-27"
+      ]
     },
     {
       "id": "STYLE-04",
-      "severity": "error",
+      "severity": "warning",
       "checker": [
         "stylelint"
       ],
@@ -76,7 +99,11 @@
         "**/*.css"
       ],
       "title": "BEM block__element, one level, no --modifier",
-      "inScan": true
+      "inScan": true,
+      "axis": [
+        "R-04",
+        "R-COMP-2"
+      ]
     },
     {
       "id": "STYLE-05",
@@ -88,13 +115,16 @@
       "family": "style",
       "rulesFile": "rules/style.md",
       "lintRules": [
-        "max-nesting-depth"
+        "ui-guard/nesting-depth"
       ],
       "appliesTo": [
         "**/*.scss"
       ],
-      "title": "Nesting depth at most 4",
-      "inScan": true
+      "title": "Nesting depth at most 4 (root = level 1; only @media is not counted)",
+      "inScan": true,
+      "axis": [
+        "R-05"
+      ]
     },
     {
       "id": "STYLE-06",
@@ -106,14 +136,21 @@
       "family": "style",
       "rulesFile": "rules/style.md",
       "lintRules": [
-        "selector-max-type"
+        "selector-max-type",
+        "selector-max-universal",
+        "selector-pseudo-class-disallowed-list"
       ],
       "appliesTo": [
         "**/*.scss",
         "**/*.css"
       ],
-      "title": "Class selectors only outside generic/elements",
-      "inScan": true
+      "title": "Class selectors only outside generic/elements (no type, universal, :root outside the token files, :host)",
+      "inScan": true,
+      "axis": [
+        "R-06",
+        "R-GEN-1",
+        "R-ELEM-2"
+      ]
     },
     {
       "id": "STYLE-07",
@@ -132,7 +169,10 @@
         "**/*.css"
       ],
       "title": "No ID selectors",
-      "inScan": true
+      "inScan": true,
+      "axis": [
+        "R-25"
+      ]
     },
     {
       "id": "STYLE-08",
@@ -150,8 +190,11 @@
         "**/*.scss",
         "**/*.css"
       ],
-      "title": "No attribute selectors (with listed exceptions)",
-      "inScan": true
+      "title": "No attribute selectors ([aria-*] / :is([dir=\"rtl\"]) only chained onto a project class)",
+      "inScan": true,
+      "axis": [
+        "R-26"
+      ]
     },
     {
       "id": "STYLE-09",
@@ -169,7 +212,12 @@
         "**/*.scss"
       ],
       "title": "Tokens named by role or family-step; no typos",
-      "inScan": true
+      "inScan": true,
+      "axis": [
+        "R-07",
+        "R-SET-3",
+        "R-THEME-3"
+      ]
     },
     {
       "id": "STYLE-10",
@@ -187,7 +235,10 @@
         "**/*.scss"
       ],
       "title": "Absolute lengths via px()/rem; raw px only for 1px",
-      "inScan": true
+      "inScan": true,
+      "axis": [
+        "R-08"
+      ]
     },
     {
       "id": "STYLE-11",
@@ -205,8 +256,11 @@
         "**/*.scss",
         "**/*.css"
       ],
-      "title": "Logical properties (width/height and min/max-width/height stay as written)",
-      "inScan": true
+      "title": "Logical properties only — width/height and min-/max- become inline-size/block-size",
+      "inScan": true,
+      "axis": [
+        "R-09"
+      ]
     },
     {
       "id": "STYLE-12",
@@ -228,7 +282,11 @@
         "**/*.css"
       ],
       "title": "Colors only from custom properties",
-      "inScan": true
+      "inScan": true,
+      "axis": [
+        "R-10",
+        "R-OBJ-4"
+      ]
     },
     {
       "id": "STYLE-13",
@@ -244,7 +302,10 @@
         "**/colors/*.theme.css"
       ],
       "title": "Every shade in token files is HSL",
-      "inScan": true
+      "inScan": true,
+      "axis": [
+        "R-11"
+      ]
     },
     {
       "id": "STYLE-14",
@@ -263,7 +324,10 @@
         "**/*.css"
       ],
       "title": "At most 4 decimals",
-      "inScan": true
+      "inScan": true,
+      "axis": [
+        "R-12"
+      ]
     },
     {
       "id": "STYLE-15",
@@ -280,8 +344,11 @@
       "appliesTo": [
         "**/*.scss"
       ],
-      "title": "Media queries only through mq()",
-      "inScan": true
+      "title": "Media queries only through mq() (the project ships it)",
+      "inScan": true,
+      "axis": [
+        "R-08"
+      ]
     },
     {
       "id": "STYLE-16",
@@ -300,7 +367,12 @@
         "**/tools/**"
       ],
       "title": "Settings and tools output no CSS",
-      "inScan": true
+      "inScan": true,
+      "axis": [
+        "R-13",
+        "R-SET-1",
+        "R-TOOL-1"
+      ]
     },
     {
       "id": "STYLE-17",
@@ -317,8 +389,17 @@
         "**/*.scss",
         "**/*.css"
       ],
-      "title": "Segment purity: folder, suffix, own block only",
-      "inScan": true
+      "title": "AXIS file names and folders; a file styles only its own block",
+      "inScan": true,
+      "axis": [
+        "R-13",
+        "R-14",
+        "R-15",
+        "R-16",
+        "R-17",
+        "R-18",
+        "R-COMP-3"
+      ]
     },
     {
       "id": "STYLE-18",
@@ -336,7 +417,14 @@
         "src/app/**/*.scss"
       ],
       "title": "Layout holds chrome only; pages hold own content only",
-      "inScan": true
+      "inScan": true,
+      "axis": [
+        "R-16",
+        "R-17",
+        "R-PAGE-1",
+        "R-PAGE-2",
+        "R-LAY-2"
+      ]
     },
     {
       "id": "STYLE-19",
@@ -351,8 +439,14 @@
       "appliesTo": [
         "**/modules/**"
       ],
-      "title": "Module purity; one library module per vendor component; isolated ctrl-",
-      "inScan": true
+      "title": "Module purity; isolated ctrl- control modules",
+      "inScan": true,
+      "axis": [
+        "R-15",
+        "R-31",
+        "R-MOD-1",
+        "R-MOD-2"
+      ]
     },
     {
       "id": "STYLE-20",
@@ -368,7 +462,13 @@
         "**/objects/**"
       ],
       "title": "Objects are undecorated fixed patterns",
-      "inScan": true
+      "inScan": true,
+      "axis": [
+        "R-OBJ-2",
+        "R-OBJ-3",
+        "R-OBJ-4",
+        "R-OBJ-5"
+      ]
     },
     {
       "id": "STYLE-21",
@@ -380,14 +480,18 @@
       "family": "style",
       "rulesFile": "rules/style.md",
       "lintRules": [
-        "declaration-no-important"
+        "declaration-no-important",
+        "ui-guard/no-important"
       ],
       "appliesTo": [
         "**/*.scss",
         "**/*.css"
       ],
-      "title": "No !important (except reduced-motion block and custom.theme.css)",
-      "inScan": true
+      "title": "No !important (only the one generic reduced-motion block)",
+      "inScan": true,
+      "axis": [
+        "R-20"
+      ]
     },
     {
       "id": "STYLE-22",
@@ -405,7 +509,10 @@
         "**/*.scss"
       ],
       "title": "No @extend except %placeholder",
-      "inScan": true
+      "inScan": true,
+      "axis": [
+        "R-21"
+      ]
     },
     {
       "id": "STYLE-23",
@@ -426,7 +533,10 @@
         "**/*.css"
       ],
       "title": "No duplicate selectors, properties or mq blocks",
-      "inScan": true
+      "inScan": true,
+      "axis": [
+        "R-22"
+      ]
     },
     {
       "id": "STYLE-24",
@@ -447,7 +557,10 @@
         "**/*.css"
       ],
       "title": "No empty blocks or comments",
-      "inScan": true
+      "inScan": true,
+      "axis": [
+        "R-23"
+      ]
     },
     {
       "id": "STYLE-25",
@@ -465,8 +578,18 @@
       "appliesTo": [
         "**/utilities/**"
       ],
-      "title": "Utilities: u- prefix, one property, no breakpoint names",
-      "inScan": true
+      "title": "Utilities: u- prefix, one property, u-{property}-{value} with the short names, no breakpoint names",
+      "inScan": true,
+      "axis": [
+        "R-18",
+        "R-24",
+        "R-UTIL-1",
+        "R-UTIL-2",
+        "R-UTIL-3",
+        "R-UTIL-4",
+        "R-UTIL-5",
+        "R-UTIL-6"
+      ]
     },
     {
       "id": "STYLE-26",
@@ -485,7 +608,10 @@
         "**/*.css"
       ],
       "title": "@charset \"UTF-8\"; is the first line",
-      "inScan": true
+      "inScan": true,
+      "axis": [
+        "R-32"
+      ]
     },
     {
       "id": "STYLE-27",
@@ -502,7 +628,14 @@
         "**/packages/**"
       ],
       "title": "packages/ never compiled; vendor CSS before project styles",
-      "inScan": true
+      "inScan": true,
+      "axis": [
+        "R-33",
+        "R-PKG-1",
+        "R-PKG-2",
+        "R-PKG-3",
+        "R-PKG-4"
+      ]
     },
     {
       "id": "STYLE-28",
@@ -521,8 +654,19 @@
         "**/objects/**",
         "**/modules/**"
       ],
-      "title": "Shared blocks reach the app through common/",
-      "inScan": true
+      "title": "Import routes: shared via common/, page-local from each page entry; files never move; only a module @uses a component",
+      "inScan": true,
+      "axis": [
+        "R-28",
+        "R-COM-3",
+        "R-COM-4",
+        "R-COM-5",
+        "R-COM-7",
+        "R-OBJ-6",
+        "R-COMP-6",
+        "R-MOD-4",
+        "R-PAGE-3"
+      ]
     },
     {
       "id": "STYLE-29",
@@ -538,7 +682,11 @@
         "**/*.scss"
       ],
       "title": "No double import of files reached through common/",
-      "inScan": true
+      "inScan": true,
+      "axis": [
+        "R-29",
+        "R-COM-6"
+      ]
     },
     {
       "id": "STYLE-30",
@@ -556,12 +704,15 @@
       "appliesTo": [
         "**/*.scss"
       ],
-      "title": "Component styles @use only settings/tools; no @import",
-      "inScan": true
+      "title": "Component styles @use only settings/tools (a routed page also its page-local blocks); no @import",
+      "inScan": true,
+      "axis": [
+        "R-28"
+      ]
     },
     {
       "id": "STYLE-31",
-      "severity": "warning",
+      "severity": "error",
       "checker": [
         "stylelint"
       ],
@@ -574,8 +725,11 @@
       "appliesTo": [
         "**/*.scss"
       ],
-      "title": "::ng-deep only inside tools",
-      "inScan": true
+      "title": "No ::ng-deep",
+      "inScan": true,
+      "axis": [
+        "R-06"
+      ]
     },
     {
       "id": "STYLE-32",
@@ -593,8 +747,12 @@
       "appliesTo": [
         "**/*.theme.css"
       ],
-      "title": "Token files contain only :root blocks",
-      "inScan": true
+      "title": "Colour token files contain only :root blocks; fonts.theme.css only @font-face and :root",
+      "inScan": true,
+      "axis": [
+        "R-19",
+        "R-THEME-2"
+      ]
     },
     {
       "id": "STYLE-33",
@@ -612,7 +770,13 @@
         "**/custom.theme.css"
       ],
       "title": "custom.theme.css: classes and body only, no custom properties",
-      "inScan": true
+      "inScan": true,
+      "axis": [
+        "R-34",
+        "R-35",
+        "R-THEME-6",
+        "R-THEME-7"
+      ]
     },
     {
       "id": "STYLE-34",
@@ -628,8 +792,15 @@
         "**/*.scss",
         "**/*.css"
       ],
-      "title": "The palette is the single source of shade values",
-      "inScan": true
+      "title": "The palette is the single source of shade values; fluid tokens declared once",
+      "inScan": true,
+      "axis": [
+        "R-10",
+        "R-SET-2",
+        "R-THEME-1",
+        "R-THEME-8",
+        "R-THEME-9"
+      ]
     },
     {
       "id": "STYLE-35",
@@ -646,7 +817,10 @@
         "src/assets/scss/theme/**"
       ],
       "title": "All themes define the same custom property names",
-      "inScan": true
+      "inScan": true,
+      "axis": [
+        "R-THEME-1"
+      ]
     },
     {
       "id": "STYLE-36",
@@ -663,8 +837,12 @@
         "angular.json",
         "**/*.scss"
       ],
-      "title": "Swappable theme files load via <link>; custom.theme.css last",
-      "inScan": true
+      "title": "Theme files load via <link> (base, palette, fonts); custom.theme.css last",
+      "inScan": true,
+      "axis": [
+        "R-THEME-5",
+        "R-PKG-4"
+      ]
     },
     {
       "id": "STYLE-37",
@@ -684,8 +862,11 @@
         "**/*.css",
         "**/*.html"
       ],
-      "title": "Icons colored by filter utilities, no literal filters, no [data-img]",
-      "inScan": true
+      "title": "Icons colored by u-filter-* utilities reading --filter-* tokens; no literal filters, no [data-img]",
+      "inScan": true,
+      "axis": [
+        "R-10"
+      ]
     },
     {
       "id": "STYLE-38",
@@ -702,8 +883,11 @@
         "**/tools/**",
         "**/settings/**"
       ],
-      "title": "One shared, validated, documented tool set",
-      "inScan": true
+      "title": "Tools: one file per tool, never duplicated, documented (signature, params with defaults, output, example)",
+      "inScan": true,
+      "axis": [
+        "R-TOOL-4"
+      ]
     },
     {
       "id": "STYLE-39",
@@ -720,11 +904,14 @@
         "**/*.scss"
       ],
       "title": "One shared button component",
-      "inScan": true
+      "inScan": true,
+      "axis": [
+        "R-COMP-3"
+      ]
     },
     {
       "id": "STYLE-40",
-      "severity": "error",
+      "severity": "warning",
       "checker": [
         "stylelint"
       ],
@@ -739,7 +926,10 @@
         "**/*.css"
       ],
       "title": "No outline removal without :focus-visible replacement",
-      "inScan": true
+      "inScan": true,
+      "axis": [
+        "A11Y-CSS-1"
+      ]
     },
     {
       "id": "STYLE-41",
@@ -757,12 +947,15 @@
         "**/*.scss",
         "**/*.css"
       ],
-      "title": ":hover inside (hover: hover) with matching :focus-visible",
-      "inScan": true
+      "title": ":hover inside (hover: hover) with matching :focus-visible (fixable: @include hover)",
+      "inScan": true,
+      "axis": [
+        "A11Y-CSS-2"
+      ]
     },
     {
       "id": "STYLE-42",
-      "severity": "error",
+      "severity": "warning",
       "checker": [
         "script"
       ],
@@ -774,8 +967,13 @@
         "**/generic/**",
         "**/utilities/**"
       ],
-      "title": "Exactly one reduced-motion block; u-sr-only declared once",
-      "inScan": true
+      "title": "One reduced-motion block in generic; u-sr-only declared once in utilities/accessibility/ and never re-implemented",
+      "inScan": true,
+      "axis": [
+        "A11Y-CSS-3",
+        "A11Y-CSS-5",
+        "R-20"
+      ]
     },
     {
       "id": "STYLE-43",
@@ -792,11 +990,14 @@
         "**/*.html"
       ],
       "title": "Interactive targets at least 1.5rem",
-      "inScan": true
+      "inScan": true,
+      "axis": [
+        "A11Y-CSS-6"
+      ]
     },
     {
       "id": "STYLE-44",
-      "severity": "info",
+      "severity": "warning",
       "checker": [
         "script"
       ],
@@ -807,12 +1008,16 @@
       "appliesTo": [
         "**/colors/*.theme.css"
       ],
-      "title": "Token pairs meet WCAG AA contrast (report only)",
-      "inScan": true
+      "title": "Token pairs meet WCAG AA contrast in every theme (4.5:1 text, 3:1 large text and control borders)",
+      "inScan": true,
+      "axis": [
+        "A11Y-CSS-4",
+        "R-THEME-4"
+      ]
     },
     {
       "id": "STYLE-45",
-      "severity": "info",
+      "severity": "error",
       "checker": [
         "runtime"
       ],
@@ -824,7 +1029,12 @@
         "routes"
       ],
       "title": "No horizontal overflow from 320px",
-      "inScan": true
+      "inScan": true,
+      "axis": [
+        "R-COMP-4",
+        "R-LAY-3",
+        "R-PAGE-4"
+      ]
     },
     {
       "id": "STYLE-46",
@@ -839,8 +1049,11 @@
       "appliesTo": [
         "dist/**"
       ],
-      "title": "CSS size budget",
-      "inScan": true
+      "title": "CSS size budget (AXIS performance.md)",
+      "inScan": true,
+      "axis": [
+        "PERF-BUDGET"
+      ]
     },
     {
       "id": "STYLE-47",
@@ -858,7 +1071,10 @@
         "**/*.scss"
       ],
       "title": "Block elements and variants are written inside the block (&__element, &-variant)",
-      "inScan": true
+      "inScan": true,
+      "axis": [
+        "R-04"
+      ]
     },
     {
       "id": "STYLE-48",
@@ -876,8 +1092,164 @@
         "**/*.scss",
         "**/*.css"
       ],
-      "title": "Architecture gap: the project has our SCSS structure (segments, tools, settings, theme, entry) and no global stylesheet outside it",
-      "inScan": true
+      "title": "Architecture gap: the project has the AXIS structure (segments, tools, settings, theme, entries); a legacy stylesheet stays frozen",
+      "inScan": true,
+      "axis": [
+        "R-13",
+        "R-14",
+        "R-15",
+        "R-16",
+        "R-17",
+        "R-18",
+        "R-SEG-STRUCTURE"
+      ]
+    },
+    {
+      "id": "STYLE-49",
+      "severity": "error",
+      "checker": [
+        "stylelint"
+      ],
+      "group": "style",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [
+        "selector-max-class"
+      ],
+      "appliesTo": [
+        "**/generic/**/*.scss",
+        "**/elements/**/*.scss"
+      ],
+      "title": "Generic and Elements style HTML elements only (no class, no ID)",
+      "inScan": true,
+      "axis": [
+        "R-ELEM-1",
+        "R-GEN-1",
+        "R-ELEM-2"
+      ]
+    },
+    {
+      "id": "STYLE-50",
+      "severity": "error",
+      "checker": [
+        "script"
+      ],
+      "group": "style",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/elements/_index.scss",
+        "**/theme/custom.theme.css"
+      ],
+      "title": "Elements: base body background only (per-theme one only in custom.theme.css); base typography reads the font tokens",
+      "inScan": true,
+      "axis": [
+        "R-ELEM-3"
+      ]
+    },
+    {
+      "id": "STYLE-51",
+      "severity": "warning",
+      "checker": [
+        "script"
+      ],
+      "group": "style",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/tools/**/*.scss"
+      ],
+      "title": "Every tool parameter is validated with @error",
+      "inScan": true,
+      "axis": [
+        "R-TOOL-3"
+      ]
+    },
+    {
+      "id": "STYLE-52",
+      "severity": "error",
+      "checker": [
+        "script",
+        "ai"
+      ],
+      "group": "style-ai",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/tools/**/*.scss"
+      ],
+      "title": "A tool takes its values as parameters; no hard-coded component/page/client value",
+      "inScan": true,
+      "axis": [
+        "R-TOOL-2"
+      ]
+    },
+    {
+      "id": "STYLE-53",
+      "severity": "error",
+      "checker": [
+        "script"
+      ],
+      "group": "style",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/utilities/**/*.scss"
+      ],
+      "title": "Colour utilities are generated with @each over settings/_colors.settings.scss maps",
+      "inScan": true,
+      "axis": [
+        "R-SET-2",
+        "R-UTIL-5"
+      ]
+    },
+    {
+      "id": "STYLE-54",
+      "severity": "warning",
+      "checker": [
+        "script",
+        "stylelint"
+      ],
+      "group": "style",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [
+        "ui-guard/module-classes"
+      ],
+      "appliesTo": [
+        "**/*.scss",
+        "**/*.css"
+      ],
+      "title": "Vendor overrides only in their library module, on its m- block; a plain module holds no vendor selector",
+      "inScan": true,
+      "axis": [
+        "R-30",
+        "R-36",
+        "R-MOD-3"
+      ]
+    },
+    {
+      "id": "STYLE-55",
+      "severity": "warning",
+      "checker": [
+        "script"
+      ],
+      "group": "style",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/settings/*.scss"
+      ],
+      "title": "Every settings map has a comment: what it holds and what reads it",
+      "inScan": true,
+      "axis": [
+        "R-SET-4"
+      ]
     },
     {
       "id": "LANG-01",
@@ -890,10 +1262,12 @@
       "rulesFile": "rules/lang.md",
       "lintRules": [],
       "appliesTo": [
-        "**/*.html"
+        "**/*.html",
+        "**/*.cshtml"
       ],
       "title": "Literal user-visible text in templates",
-      "inScan": true
+      "inScan": true,
+      "ucr": "I18N-01"
     },
     {
       "id": "LANG-02",
@@ -907,10 +1281,13 @@
       "lintRules": [],
       "appliesTo": [
         "**/*.ts",
-        "**/*.html"
+        "**/*.html",
+        "**/*.cshtml",
+        "**/*.js"
       ],
       "title": "Literal chosen by language in code",
-      "inScan": true
+      "inScan": true,
+      "ucr": "I18N-02"
     },
     {
       "id": "LANG-03",
@@ -923,10 +1300,13 @@
       "rulesFile": "rules/lang.md",
       "lintRules": [],
       "appliesTo": [
-        "**/*.ts"
+        "**/*.ts",
+        "**/*.js",
+        "**/*.cshtml"
       ],
       "title": "Literal user-visible text in TypeScript",
-      "inScan": true
+      "inScan": true,
+      "ucr": "I18N-03"
     },
     {
       "id": "LANG-04",
@@ -941,10 +1321,15 @@
       "appliesTo": [
         "**/*.html",
         "**/*.ts",
-        "src/assets/i18n/**"
+        "src/assets/i18n/**",
+        "**/*.cshtml",
+        "**/*.js",
+        "**/*.resx",
+        "**/*.po"
       ],
       "title": "Used key missing from a language",
-      "inScan": true
+      "inScan": true,
+      "ucr": "I18N-04"
     },
     {
       "id": "LANG-05",
@@ -959,10 +1344,13 @@
       "appliesTo": [
         "src/assets/i18n/**",
         "**/*.i18n.ts",
-        "**/*.xlf"
+        "**/*.xlf",
+        "**/*.resx",
+        "**/*.po"
       ],
       "title": "Key present in one language only",
-      "inScan": true
+      "inScan": true,
+      "ucr": "I18N-05"
     },
     {
       "id": "LANG-06",
@@ -977,10 +1365,13 @@
       "appliesTo": [
         "src/assets/i18n/**",
         "**/*.i18n.ts",
-        "**/*.xlf"
+        "**/*.xlf",
+        "**/*.resx",
+        "**/*.po"
       ],
       "title": "Duplicate key",
-      "inScan": true
+      "inScan": true,
+      "ucr": "I18N-06"
     },
     {
       "id": "LANG-07",
@@ -994,10 +1385,13 @@
       "lintRules": [],
       "appliesTo": [
         "**/*.html",
-        "**/*.ts"
+        "**/*.ts",
+        "**/*.cshtml",
+        "**/*.js"
       ],
       "title": "Sentence built from joined pieces",
-      "inScan": true
+      "inScan": true,
+      "ucr": "I18N-07"
     },
     {
       "id": "LANG-08",
@@ -1013,10 +1407,13 @@
       "appliesTo": [
         "src/assets/i18n/**",
         "**/*.i18n.ts",
-        "**/*.xlf"
+        "**/*.xlf",
+        "**/*.resx",
+        "**/*.po"
       ],
       "title": "Empty, key-equal or wrong-language value",
-      "inScan": true
+      "inScan": true,
+      "ucr": "I18N-08"
     },
     {
       "id": "SAFE-01",
@@ -1030,10 +1427,13 @@
       "lintRules": [],
       "appliesTo": [
         "**/*.html",
-        "**/*.ts"
+        "**/*.ts",
+        "**/*.cshtml",
+        "**/*.js"
       ],
       "title": "HTML built from non-constant data",
-      "inScan": true
+      "inScan": true,
+      "ucr": "SEC-01"
     },
     {
       "id": "SAFE-02",
@@ -1049,7 +1449,8 @@
         "**/*.ts"
       ],
       "title": "bypassSecurityTrust* on non-constant values",
-      "inScan": true
+      "inScan": true,
+      "ucr": "SEC-02"
     },
     {
       "id": "SAFE-03",
@@ -1068,10 +1469,13 @@
       ],
       "appliesTo": [
         "**/*.ts",
-        "**/*.html"
+        "**/*.html",
+        "**/*.cshtml",
+        "**/*.js"
       ],
       "title": "Code run from a string",
-      "inScan": true
+      "inScan": true,
+      "ucr": "SEC-04"
     },
     {
       "id": "SAFE-04",
@@ -1086,10 +1490,14 @@
       "lintRules": [],
       "appliesTo": [
         "**/*.ts",
-        "src/assets/**/*.json"
+        "src/assets/**/*.json",
+        "**/*.js",
+        "**/*.cshtml",
+        "wwwroot/**/*.json"
       ],
       "title": "Secret in front-end code",
-      "inScan": true
+      "inScan": true,
+      "ucr": "SEC-05"
     },
     {
       "id": "SAFE-05",
@@ -1102,10 +1510,13 @@
       "rulesFile": "rules/safe.md",
       "lintRules": [],
       "appliesTo": [
-        "**/*.ts"
+        "**/*.ts",
+        "**/*.js",
+        "**/*.cshtml"
       ],
       "title": "Sensitive data in web storage or script cookies",
-      "inScan": true
+      "inScan": true,
+      "ucr": "SEC-06"
     },
     {
       "id": "SAFE-06",
@@ -1119,10 +1530,13 @@
       "lintRules": [],
       "appliesTo": [
         "**/*.html",
-        "**/*.ts"
+        "**/*.ts",
+        "**/*.cshtml",
+        "**/*.js"
       ],
       "title": "target=_blank / window.open without noopener",
-      "inScan": true
+      "inScan": true,
+      "ucr": "SEC-07"
     },
     {
       "id": "SAFE-07",
@@ -1137,10 +1551,13 @@
       "appliesTo": [
         "**/*.html",
         "**/*.ts",
-        "src/index.html"
+        "src/index.html",
+        "**/*.cshtml",
+        "**/*.js"
       ],
       "title": "Plain http:// or CDN without integrity",
-      "inScan": true
+      "inScan": true,
+      "ucr": "SEC-08"
     },
     {
       "id": "SAFE-08",
@@ -1157,10 +1574,50 @@
       ],
       "appliesTo": [
         "**/*.ts",
-        "**/*.html"
+        "**/*.html",
+        "**/*.cshtml",
+        "**/*.js"
       ],
       "title": "Sensitive data in console or error messages",
-      "inScan": true
+      "inScan": true,
+      "ucr": "SEC-10"
+    },
+    {
+      "id": "SAFE-09",
+      "severity": "error",
+      "checker": [
+        "script",
+        "ai"
+      ],
+      "group": "safe",
+      "family": "safe",
+      "rulesFile": "rules/safe.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/*.cshtml"
+      ],
+      "title": "Razor output not encoded (Html.Raw, HtmlString, model value in a script string)",
+      "inScan": true,
+      "ucr": "SEC-03"
+    },
+    {
+      "id": "SAFE-10",
+      "severity": "error",
+      "checker": [
+        "script",
+        "ai"
+      ],
+      "group": "safe",
+      "family": "safe",
+      "rulesFile": "rules/safe.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/*.cshtml",
+        "**/*.js"
+      ],
+      "title": "Razor form or AJAX POST without an antiforgery token",
+      "inScan": true,
+      "ucr": "SEC-09"
     },
     {
       "id": "MEDIA-01",
@@ -1173,26 +1630,31 @@
       "rulesFile": "rules/media.md",
       "lintRules": [],
       "appliesTo": [
-        "**/*.html"
+        "**/*.html",
+        "**/*.cshtml"
       ],
       "title": "img without fixed box (width+height / class)",
-      "inScan": true
+      "inScan": true,
+      "ucr": "PERF-01"
     },
     {
       "id": "MEDIA-02",
       "severity": "warning",
       "checker": [
-        "script"
+        "script",
+        "ai"
       ],
       "group": "media",
       "family": "media",
       "rulesFile": "rules/media.md",
       "lintRules": [],
       "appliesTo": [
-        "**/*.html"
+        "**/*.html",
+        "**/*.cshtml"
       ],
       "title": "content image without loading=lazy",
-      "inScan": true
+      "inScan": true,
+      "ucr": "PERF-02"
     },
     {
       "id": "MEDIA-03",
@@ -1210,7 +1672,8 @@
         "public/**"
       ],
       "title": "asset file too big",
-      "inScan": true
+      "inScan": true,
+      "ucr": "PERF-03"
     },
     {
       "id": "MEDIA-04",
@@ -1225,10 +1688,12 @@
       "appliesTo": [
         "**/*.html",
         "src/assets/**",
-        "public/**"
+        "public/**",
+        "**/*.cshtml"
       ],
       "title": "raster used as icon (SVG exists)",
-      "inScan": true
+      "inScan": true,
+      "ucr": "PERF-04"
     },
     {
       "id": "MEDIA-05",
@@ -1245,7 +1710,8 @@
         "**/*.css"
       ],
       "title": "font loading best practice",
-      "inScan": true
+      "inScan": true,
+      "ucr": "PERF-05"
     },
     {
       "id": "MEDIA-06",
@@ -1258,10 +1724,12 @@
       "rulesFile": "rules/media.md",
       "lintRules": [],
       "appliesTo": [
-        "**/*.html"
+        "**/*.html",
+        "**/*.cshtml"
       ],
       "title": "video autoplay / iframe not lazy",
-      "inScan": true
+      "inScan": true,
+      "ucr": "PERF-06"
     },
     {
       "id": "MEDIA-07",
@@ -1277,11 +1745,14 @@
         "**/*.html",
         "**/*.scss",
         "**/*.css",
-        "**/*.ts"
+        "**/*.ts",
+        "**/*.cshtml",
+        "**/*.js"
       ],
       "title": "Asset path the build will not find",
       "inScan": false,
-      "scanDecision": "assets"
+      "scanDecision": "assets",
+      "ucr": "PERF-07"
     },
     {
       "id": "MEDIA-08",
@@ -1331,7 +1802,9 @@
       "lintRules": [],
       "appliesTo": [
         "**/*.html",
-        "**/*.ts"
+        "**/*.ts",
+        "**/*.cshtml",
+        "**/*.js"
       ],
       "title": "General Angular rules for ACCESS fixes",
       "inScan": true
@@ -1351,10 +1824,13 @@
       ],
       "appliesTo": [
         "**/*.html",
-        "**/*.ts"
+        "**/*.ts",
+        "**/*.cshtml",
+        "**/*.js"
       ],
       "title": "Labels: form field accessible names",
-      "inScan": true
+      "inScan": true,
+      "ucr": "A11Y-LABELS"
     },
     {
       "id": "ACCESS-02",
@@ -1372,10 +1848,13 @@
       ],
       "appliesTo": [
         "**/*.html",
-        "**/*.ts"
+        "**/*.ts",
+        "**/*.cshtml",
+        "**/*.js"
       ],
       "title": "Alt: text alternatives and icon-only control names",
-      "inScan": true
+      "inScan": true,
+      "ucr": "A11Y-ALT"
     },
     {
       "id": "ACCESS-03",
@@ -1393,10 +1872,13 @@
       ],
       "appliesTo": [
         "**/*.html",
-        "**/*.ts"
+        "**/*.ts",
+        "**/*.cshtml",
+        "**/*.js"
       ],
       "title": "ARIA: roles, state, validation, live regions",
-      "inScan": true
+      "inScan": true,
+      "ucr": "A11Y-ARIA"
     },
     {
       "id": "ACCESS-04",
@@ -1415,10 +1897,13 @@
       ],
       "appliesTo": [
         "**/*.html",
-        "src/index.html"
+        "src/index.html",
+        "**/*.cshtml",
+        "**/*.js"
       ],
       "title": "Semantics: elements, landmarks, headings, tables, lists",
-      "inScan": true
+      "inScan": true,
+      "ucr": "A11Y-SEMANTICS"
     },
     {
       "id": "ACCESS-05",
@@ -1438,10 +1923,13 @@
       ],
       "appliesTo": [
         "**/*.html",
-        "**/*.ts"
+        "**/*.ts",
+        "**/*.cshtml",
+        "**/*.js"
       ],
       "title": "Keyboard: tabindex, focus, key handlers",
-      "inScan": true
+      "inScan": true,
+      "ucr": "A11Y-KEYBOARD"
     },
     {
       "id": "ACCESS-06",
@@ -1456,7 +1944,9 @@
       "appliesTo": [
         "**/*.html",
         "**/*.ts",
-        "src/index.html"
+        "src/index.html",
+        "**/*.cshtml",
+        "**/*.js"
       ],
       "title": "Input types & autofill",
       "impact": "medium",
@@ -1476,7 +1966,9 @@
       "appliesTo": [
         "**/*.html",
         "**/*.ts",
-        "src/index.html"
+        "src/index.html",
+        "**/*.cshtml",
+        "**/*.js"
       ],
       "title": "Form structure",
       "impact": "medium",
@@ -1496,7 +1988,9 @@
       "appliesTo": [
         "**/*.html",
         "**/*.ts",
-        "src/index.html"
+        "src/index.html",
+        "**/*.cshtml",
+        "**/*.js"
       ],
       "title": "Error, hint and step announcements",
       "impact": "medium",
@@ -1517,7 +2011,9 @@
       "appliesTo": [
         "**/*.html",
         "**/*.ts",
-        "src/index.html"
+        "src/index.html",
+        "**/*.cshtml",
+        "**/*.js"
       ],
       "title": "Landmarks and sections",
       "impact": "medium",
@@ -1537,7 +2033,9 @@
       "appliesTo": [
         "**/*.html",
         "**/*.ts",
-        "src/index.html"
+        "src/index.html",
+        "**/*.cshtml",
+        "**/*.js"
       ],
       "title": "Heading problems",
       "impact": "medium",
@@ -1557,7 +2055,9 @@
       "appliesTo": [
         "**/*.html",
         "**/*.ts",
-        "src/index.html"
+        "src/index.html",
+        "**/*.cshtml",
+        "**/*.js"
       ],
       "title": "Link text and destination",
       "impact": "medium",
@@ -1578,7 +2078,9 @@
       "appliesTo": [
         "**/*.html",
         "**/*.ts",
-        "src/index.html"
+        "src/index.html",
+        "**/*.cshtml",
+        "**/*.js"
       ],
       "title": "Page language, title and zoom",
       "impact": "high",
@@ -1598,7 +2100,9 @@
       "appliesTo": [
         "**/*.html",
         "**/*.ts",
-        "src/index.html"
+        "src/index.html",
+        "**/*.cshtml",
+        "**/*.js"
       ],
       "title": "Role misuse",
       "impact": "medium",
@@ -1619,7 +2123,9 @@
       "appliesTo": [
         "**/*.html",
         "**/*.ts",
-        "src/index.html"
+        "src/index.html",
+        "**/*.cshtml",
+        "**/*.js"
       ],
       "title": "Live regions",
       "impact": "medium",
@@ -1640,7 +2146,9 @@
       "appliesTo": [
         "**/*.html",
         "**/*.ts",
-        "src/index.html"
+        "src/index.html",
+        "**/*.cshtml",
+        "**/*.js"
       ],
       "title": "Widget patterns",
       "impact": "high",
@@ -1661,7 +2169,9 @@
       "appliesTo": [
         "**/*.html",
         "**/*.ts",
-        "src/index.html"
+        "src/index.html",
+        "**/*.cshtml",
+        "**/*.js"
       ],
       "title": "Tab stops and hidden reveals",
       "impact": "high",
@@ -1681,7 +2191,9 @@
       "appliesTo": [
         "**/*.html",
         "**/*.ts",
-        "src/index.html"
+        "src/index.html",
+        "**/*.cshtml",
+        "**/*.js"
       ],
       "title": "Motion, timing and flashing",
       "impact": "medium",
@@ -1702,7 +2214,9 @@
       "appliesTo": [
         "**/*.html",
         "**/*.ts",
-        "src/index.html"
+        "src/index.html",
+        "**/*.cshtml",
+        "**/*.js"
       ],
       "title": "Audio and video",
       "impact": "high",
@@ -1723,7 +2237,9 @@
       "appliesTo": [
         "**/*.html",
         "**/*.ts",
-        "src/index.html"
+        "src/index.html",
+        "**/*.cshtml",
+        "**/*.js"
       ],
       "title": "Iframes, objects and canvas",
       "impact": "medium",
@@ -1744,7 +2260,9 @@
       "appliesTo": [
         "**/*.html",
         "**/*.ts",
-        "src/index.html"
+        "src/index.html",
+        "**/*.cshtml",
+        "**/*.js"
       ],
       "title": "Table structure",
       "impact": "medium",
@@ -1764,7 +2282,9 @@
       "appliesTo": [
         "**/*.html",
         "**/*.ts",
-        "src/index.html"
+        "src/index.html",
+        "**/*.cshtml",
+        "**/*.js"
       ],
       "title": "Image size reserved",
       "impact": "low",
@@ -1784,12 +2304,65 @@
       "appliesTo": [
         "**/*.html",
         "**/*.ts",
-        "src/index.html"
+        "src/index.html",
+        "**/*.cshtml",
+        "**/*.js"
       ],
       "title": "Visible text vs accessible name",
       "impact": "medium",
       "tier": "A",
       "inScan": true
+    },
+    {
+      "id": "FIX-01",
+      "severity": "warning",
+      "checker": [
+        "ai"
+      ],
+      "group": "fix",
+      "family": "fix",
+      "rulesFile": "rules/fix.md",
+      "lintRules": [],
+      "appliesTo": [
+        "changed lines of UI files"
+      ],
+      "inScan": false,
+      "title": "A criterion / expected result of the linked work item is not implemented",
+      "ucr": "FIX-01"
+    },
+    {
+      "id": "FIX-02",
+      "severity": "warning",
+      "checker": [
+        "ai"
+      ],
+      "group": "fix",
+      "family": "fix",
+      "rulesFile": "rules/fix.md",
+      "lintRules": [],
+      "appliesTo": [
+        "changed lines of UI files"
+      ],
+      "inScan": false,
+      "title": "The change hides the symptom instead of fixing the cause",
+      "ucr": "FIX-02"
+    },
+    {
+      "id": "FIX-03",
+      "severity": "info",
+      "checker": [
+        "ai"
+      ],
+      "group": "fix",
+      "family": "fix",
+      "rulesFile": "rules/fix.md",
+      "lintRules": [],
+      "appliesTo": [
+        "changed lines of UI files"
+      ],
+      "inScan": false,
+      "title": "No test covers the reported case where the project keeps tests",
+      "ucr": "FIX-03"
     }
   ],
   "aiGroups": {
@@ -1808,7 +2381,8 @@
         "STYLE-37",
         "STYLE-38",
         "STYLE-39",
-        "STYLE-43"
+        "STYLE-43",
+        "STYLE-52"
       ]
     },
     "lang": {
@@ -1829,7 +2403,9 @@
         "SAFE-03",
         "SAFE-04",
         "SAFE-05",
-        "SAFE-08"
+        "SAFE-08",
+        "SAFE-09",
+        "SAFE-10"
       ]
     },
     "access-labels": {
@@ -1877,12 +2453,17 @@
       "rules": [
         "ACCESS-17"
       ]
+    },
+    "media": {
+      "rulesFile": "rules/media.md",
+      "rules": [
+        "MEDIA-02"
+      ]
     }
   },
   "lintMap": {
     "selector-class-pattern": "STYLE-01",
     "ui-guard/bem": "STYLE-04",
-    "max-nesting-depth": "STYLE-05",
     "selector-max-type": "STYLE-06",
     "selector-max-id": "STYLE-07",
     "ui-guard/attribute-selector": "STYLE-08",
@@ -1929,6 +2510,12 @@
     "@angular-eslint/template/interactive-supports-focus": "ACCESS-05",
     "@angular-eslint/template/no-positive-tabindex": "ACCESS-05",
     "@angular-eslint/template/no-autofocus": "ACCESS-05",
-    "ui-guard/nest-block-parts": "STYLE-47"
+    "ui-guard/nest-block-parts": "STYLE-47",
+    "ui-guard/nesting-depth": "STYLE-05",
+    "selector-max-class": "STYLE-49",
+    "selector-max-universal": "STYLE-06",
+    "selector-pseudo-class-disallowed-list": "STYLE-06",
+    "ui-guard/no-important": "STYLE-21",
+    "ui-guard/module-classes": "STYLE-01"
   }
 }

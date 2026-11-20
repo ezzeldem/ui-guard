@@ -1,11 +1,8 @@
 @charset "UTF-8";
 @use "tools" as *;
 
-:host {
-  display: block;
-}
-
 .c-clean {
+  
   display: flex;
   gap: px(8);
   padding-inline: px(12);

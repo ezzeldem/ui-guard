@@ -1,0 +1,26 @@
+@charset "UTF-8";
+
+@use "sass:math";
+@use "sass:meta";
+
+/// hover($trans) — hover only on devices that hover, the same styles on keyboard focus.
+/// @param {Number|null} $trans transition duration in seconds, unitless (default null = no transition)
+/// @output [`transition: <trans>s all ease-in-out;`] + `@media (hover: hover) { &:hover { … } }` + `&:focus-visible { … }`
+/// @example .c-x { @include hover { color: var(--main-700); } }
+///   → @media (hover: hover) { .c-x:hover { color: var(--main-700); } } .c-x:focus-visible { color: var(--main-700); }
+@mixin hover($trans: null) {
+  @if $trans != null and (meta.type-of($trans) != "number" or not math.is-unitless($trans) or $trans < 0) {
+    @error "hover(): $trans must be null or a non-negative unitless number of seconds, got `#{$trans}`.";
+  }
+  @if $trans != null {
+    transition: #{$trans}s all ease-in-out;
+  }
+  @media (hover: hover) {
+    &:hover {
+      @content;
+    }
+  }
+  &:focus-visible {
+    @content;
+  }
+}

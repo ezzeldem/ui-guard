@@ -2,6 +2,11 @@
 
 Based on the UI team's accessibility review rules. Rule IDs are ui-guard's own.
 
+**Same as ui-code-review.** ACCESS-01..05 are ui-code-review's five areas (A11Y-LABELS, A11Y-ALT, A11Y-ARIA, A11Y-SEMANTICS,
+A11Y-KEYBOARD) with every detection item its area agents use — for Angular **and** ASP.NET MVC / Razor (`.cshtml` views,
+`_Layout`, partials, EditorTemplates, Tag / HTML Helpers, View Components) with their scripts (`.js`, jQuery). See
+"Same checks as ui-code-review" and "ASP.NET MVC / Razor" (in `rules/access-mvc.md`); they are part of the rules above them.
+
 **Scope:** these five areas, **not a full WCAG audit**, aiming for the highest support within them. Each
 attribute has one owner area (below). CSS (focus styles, contrast) belongs to no ACCESS rule: it is reported
 under STYLE-40/41/44 and is never restyled by an accessibility fix.
@@ -16,14 +21,27 @@ under STYLE-40/41/44 and is never restyled by an accessibility fix.
 - Never add a dependency (including `@angular/cdk`) without asking.
 - Never hand-roll a focus trap.
 - Before changing a shared component, count its consumers and list them in the finding (blast radius).
+- ARIA values: `aria-expanded/selected/checked/pressed/invalid` bind the boolean directly (they render `"false"`);
+  `aria-hidden/describedby/labelledby/controls/current` bind `null` to omit — never `''` or `'false'`.
+- Never add `aria-label` to an element that already gets its name from `<label for>` / `aria-labelledby` (two competing names).
+- Never inject `NgControl` into a component that provides `NG_VALUE_ACCESSOR` (circular DI) — report it as a contract change.
+- Never hand-roll a focus trap **or a roving-tabindex manager**: use CDK (`FocusTrap`, `FocusKeyManager`) only if it is already
+  a dependency; otherwise report. Never duplicate focus management the UI library already does (Material, PrimeNG, CDK Overlay,
+  ng-bootstrap dialogs trap and restore focus).
+- Prefer a library's documented ARIA / naming inputs (`ariaLabel`, `inputId`, `labelForId`, `ariaLabelledBy`, `aria-hidden`
+  input) over a raw attribute on its host.
+- Never remove a binding, directive, `id`, `#ref` or class; if an id is used by code, CSS or tests keep it and add the new hook
+  beside it. Never introduce `[innerHTML]` to solve an accessibility problem. Never change lint config or reformat a file.
+- Before an element swap, also grep the TS, the tests and the scripts for the element (`ViewChild`/`ContentChild`,
+  `querySelector`, `$('div.x')`, tag-based selectors) — not only the stylesheets.
 
 ## Rules
 
 | ID | Area (owner of) | Severity | Checked by | Applies to | Detects | How to fix |
 |---|---|---|---|---|---|---|
 | ACCESS-00 | General | error | ai | ACCESS fixes | A fix that breaks one of the general rules above. | Redo the fix following ACCESS-00. |
-| ACCESS-01 | **Labels** — a form field's accessible name, group name text | warning | eslint + ai | `*.html`, CVA `*.ts` | `<label>` without `for` or pointing to a missing `id`; inputs/selects/textareas with no id+label, no wrapping label, no `aria-label(ledby)` (`formControlName` is not a name); placeholder-only fields; visible text beside a field but not associated; leftover UI-kit names ("Default select example"); duplicate ids inside `@for`/`*ngFor`; two competing names; `aria-label` on a non-semantic component host; radio/checkbox groups without a group name; hard-coded unlocalized names; custom `ControlValueAccessor` controls whose name never reaches the inner native control or that have no `@Input` to receive one; static ids on shared controls. | Associate a visible `<label for>`; make loop ids unique (`'field-' + i`); add an `@Input() ariaLabel` / `labelId` to custom controls and bind it to the inner native control. |
-| ACCESS-02 | **Alt** — `alt`, icon text alternatives, `aria-hidden` on decorative graphics, the name of icon-only controls | warning | eslint + ai | `*.html`, `*.ts` | `<img>` without `alt`; `alt=""` on a meaningful image; filename/placeholder alt ("icon", "image", "logo.svg") or alt that starts with "image of" / "picture of" (the role is already announced); alt describing looks instead of purpose; unlocalized alt; inline `<svg>` without `role="img"` + name (meaningful) or not hidden (decorative); icon fonts/sprites/icon components without `aria-hidden` (check the library default first); icon-only buttons with no accessible name; a decorative icon inside a named control not hidden; an image inside a link/button whose alt is not the action; meaning only in a CSS `background-image` (report); images created from TS with the same gaps; icon config objects with a path but no way to describe it. | Meaningful: translated `alt` describing purpose. Decorative: `alt=""` / `aria-hidden="true"`. Icon-only button: `[attr.aria-label]` with a key. |
+| ACCESS-01 | **Labels** — a form field's accessible name, group name text | warning | eslint + ai | `*.html`, CVA `*.ts`, `*.cshtml`, `*.js` | `<label>` without `for` or pointing to a missing `id`; inputs/selects/textareas with no id+label, no wrapping label, no `aria-label(ledby)` (`formControlName` is not a name); placeholder-only fields; visible text beside a field but not associated; leftover UI-kit names ("Default select example"); duplicate ids inside `@for`/`*ngFor`; two competing names; `aria-label` on a non-semantic component host; radio/checkbox groups without a group name; hard-coded unlocalized names; custom `ControlValueAccessor` controls whose name never reaches the inner native control or that have no `@Input` to receive one; static ids on shared controls. | Associate a visible `<label for>`; make loop ids unique (`'field-' + i`); add an `@Input() ariaLabel` / `labelId` to custom controls and bind it to the inner native control. |
+| ACCESS-02 | **Alt** — `alt`, icon text alternatives, `aria-hidden` on decorative graphics, the name of icon-only controls | warning | eslint + ai | `*.html`, `*.ts`, `*.cshtml`, `*.js` | `<img>` without `alt`; `alt=""` on a meaningful image; filename/placeholder alt ("icon", "image", "logo.svg") or alt that starts with "image of" / "picture of" (the role is already announced); alt describing looks instead of purpose; unlocalized alt; inline `<svg>` without `role="img"` + name (meaningful) or not hidden (decorative); icon fonts/sprites/icon components without `aria-hidden` (check the library default first); icon-only buttons with no accessible name; a decorative icon inside a named control not hidden; an image inside a link/button whose alt is not the action; meaning only in a CSS `background-image` (report); images created from TS with the same gaps; icon config objects with a path but no way to describe it. | Meaningful: translated `alt` describing purpose. Decorative: `alt=""` / `aria-hidden="true"`. Icon-only button: `[attr.aria-label]` with a key. |
 | ACCESS-03 | **ARIA** — `role` on custom widgets, ARIA state, validation ARIA, live regions, invalid/redundant ARIA, id references | warning | eslint + ai | `*.html`, `*.ts` | Custom div-built dropdown/listbox/combobox/tablist/menu/tree/dialog with no role; toggles without `aria-expanded` (or `aria-controls`); `aria-checked` / `aria-pressed` / `aria-selected` / `aria-current` fixed in markup instead of bound to the real state; active nav item without `aria-current`; sortable header without `aria-sort`; loading region without `aria-busy`; dialog without a name or `aria-modal` (never claim `aria-modal` without a real focus trap); redundant ARIA on native elements; disallowed/misspelled/invalid ARIA; broken id references (missing, duplicated in loops, inside a false `@if`); static state that lies; `[aria-x]` instead of `[attr.aria-x]`; stale ARIA set once from TS; `aria-hidden="true"` on a subtree with focusable content; a role on a wrapper whose interaction comes from a native child; fields with validation but no `aria-invalid`; errors not linked with `aria-describedby`; `Validators.required` with no `required`/`aria-required`; error containers/toasts with no `role="alert"`/live region (check whether the toast library announces already). | Bind state with `[attr.aria-expanded]="open"` etc.; link errors with `[attr.aria-describedby]`; add `role="alert"` to error containers. |
 | ACCESS-04 | **Semantics** — element choice, landmarks, headings, tables, lists, component-host wrappers, `lang`/`dir` | warning | eslint + ai | `*.html`, `index.html` | No `<main>`, nav in a `<div>`, several `<nav>`s without names (layout shell); no `<h1>`, skipped levels, fake headings, headings for emphasis (never renumber a shared component's heading blindly — check usages); `<div (click)>`/`<span (click)>`/`<a (click)>` without `href` used as buttons; `href="javascript:void(0)"`; navigation by click handler instead of `routerLink`; div-lists, div-tables, radio/checkbox groups without `<fieldset>`; `<button>` in a form without `type="button"`; duplicate attributes (report if fixing changes behavior); nested `<form>`; `<th>` without `scope`, tables without caption/`thead`/`tbody`; a component host between `<ul>` and `<li>` or `<tbody>` and `<tr>` (check `display: contents` first); foreign-language runs without `lang`; hard-coded `dir` in an app that switches direction. | Use the native element. **Supersession:** when a fake control becomes a native element, its `role` (ACCESS-03) and `tabindex`/key handlers (ACCESS-05) are dropped. |
 | ACCESS-05 | **Keyboard** — `tabindex`, focus order, key handlers, focus management, roving tabindex | warning | eslint + ai | `*.html`, `*.ts` | Positive `tabindex`; click-only elements not focusable or not operable with Enter/Space; dead or double focus stops; hidden-but-focusable content (class-hidden instead of `@if` — verify first); focus order different from visual order (CSS `order`, `row-reverse`, RTL); overlays/modals: focus not moved in, Tab escapes, Escape does nothing, focus not restored (check for an existing `document:keydown.escape` before adding one); Escape unreachable when the panel is a sibling of the trigger; focus lost when the focused element is destroyed; composite widgets without arrow-key navigation / roving `tabindex`; redundant key handlers on native buttons; fake-disabled controls still focusable; route-change focus, missing skip link, `autofocus`; missing focus indicator → report only (CSS, STYLE-40). | Use native controls; `tabindex="0"` / `-1` only; move and restore focus in overlays; roving tabindex for composites. |
@@ -44,6 +62,41 @@ under STYLE-40/41/44 and is never restyled by an accessibility fix.
 | ACCESS-20 | **Tables** | warning | script + ai | `*.html`, `index.html`, `*.ts` | A table with no header cells; an empty `<th>`; merged cells (`colspan` / `rowspan`) with no `headers` pairing; a table with no caption or name; (ai) a layout table that should be grid/flex or `role="presentation"`. | Use `<th scope="col">` / `scope="row"`; put visually-hidden text in the empty header; pair cells with `headers`; add a `<caption>` (hidden if the design has none). Header cells have browser styles: neutralize in the component SCSS (Tier C). |
 | ACCESS-21 | **Image box reserved** | warning | script | `*.html`, `index.html`, `*.ts` | An `<img>` (or `ngSrc`) with neither `width` + `height` attributes, nor `fill`, nor a class that fixes the whole box (`aspect-ratio`, or a fixed inline and block size), so the page jumps when the image loads. `MEDIA-01` reports the same condition for `/ui-guard:check` and the hooks; here it carries the fix rule. | When the component CSS already fixes the size, add `aspect-ratio` in that component's SCSS only if it provably keeps the same box. Width/height attributes can change the rendered size when the CSS does not fix it: that is Tier C (needs the visual proof) or a decision. Never guess an intrinsic size. |
 | ACCESS-22 | **Name matches visible text** | warning | script | `*.html`, `index.html`, `*.ts` | A button or link whose `aria-label` does not contain its visible text (voice control cannot select it); an `aria-label` that only repeats the visible text. | Start the `aria-label` with the visible text, or remove it; prefer visually-hidden extra text over an override. |
+
+## Same checks as ui-code-review (part of ACCESS-01..05, -06, -13, -16, -20)
+
+Each item below is a detection (or a fix rule) of the rule it names, with the same severity.
+
+- **ACCESS-01:** third-party field components (`p-dropdown`, `ng-select`, `mat-select`, `p-calendar`, …) with no name supplied
+  through their documented input (`ariaLabel`, `inputId`, `labelForId`, `ariaLabelledBy`) at the call site — a host
+  `aria-label` on them names nothing.
+- **ACCESS-02:** a decorative inline `<svg>` needs `aria-hidden="true"` **and** `focusable="false"`. An icon-only control is one
+  paired fix: `[attr.aria-label]` (translation key) on the control **and** `aria-hidden="true"` on the icon, in the same change.
+- **ACCESS-03:** `aria-expanded` without `aria-controls` pointing at an existing id; an active nav **or breadcrumb** item without
+  `aria-current`; `aria-required` together with `required` (redundant); `role="list"` on `<ul>`; ARIA bound to a field that
+  OnPush / zoneless change detection never re-checks (fix with a host binding, signal or `computed()`); `aria-invalid` / an
+  error shown before the field is touched or dirty (`invalid && (touched || dirty)`). A per-field error message created by
+  `@if` may carry `role="alert"` (Angular); in MVC see `rules/access-mvc.md`.
+- **ACCESS-04:** `<th>` used for data cells (→ `<td>`); component-host wrappers also break `<ol>/<li>`,
+  `<table>/<thead>/<tr>/<td>`, `<dl>/<dt>/<dd>` and `<select>/<option>`; `dir` and the visual direction disagreeing. Never swap to
+  `<button>` when the element contains interactive content — keep role + keyboard (ACCESS-03/05) instead. A custom data grid
+  built from `div`s with roles is reported as needs-decision, never counted as fixed.
+- **ACCESS-05:** remove a positive `tabindex` only when DOM order equals visual order; otherwise needs-decision (DOM order is the
+  bug). A fake button with only Enter or only Space; a Space handler without `preventDefault()`; a key handler calling a
+  different method than its `(click)`; activation on `keyup` (use `keydown`). Content hidden by `visibility`, `opacity` or an
+  off-screen class while still tabbable. `.focus()` on a non-focusable target (route-change heading, error summary) without
+  `tabindex="-1"`. ArrowLeft / ArrowRight handlers that do not swap in RTL.
+- **ACCESS-06 (fix):** add exactly one of `required` / `aria-required`, never both. In MVC never add the native `required`
+  (it changes submit behaviour): add `aria-required="true"`.
+- **ACCESS-13 (fix):** a fake-disabled control gets `[disabled]`; or `aria-disabled` + `[attr.tabindex]="disabled ? -1 : 0"` + the
+  handler guards on the same condition; for `<a>`: `aria-disabled`, tabindex −1, remove `href` / guard the handler.
+- **ACCESS-16:** a literal `tabindex="-1"` on a native control is **correct** when an ancestor is itself focusable
+  (`tabindex="0"`, `role="button"`, an interactive element) — that removes a double stop; do not report it.
+- **ACCESS-20:** convert a first row to `<th scope="col">` only when it holds headers.
+
+## ASP.NET MVC / Razor (part of ACCESS-00..20)
+
+In `rules/access-mvc.md`, loaded only when a `.cshtml` or `.js` file is being checked or fixed.
 
 ## Impact and fix tier of ACCESS-06..22
 

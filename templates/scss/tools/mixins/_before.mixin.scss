@@ -1,0 +1,27 @@
+@charset "UTF-8";
+
+@use "sass:math";
+@use "sass:meta";
+
+/// before($content, $layer) — a positioned ::before pseudo-element on the element.
+/// @param {String} $content the `content` value (default "")
+/// @param {Number} $layer   unitless whole number for the element's z-index (default 1)
+/// @output `position: relative; z-index: <layer>;` on the element + `&::before { position: absolute; content: "<content>"; … }`
+/// @example .c-x { @include before { inset-block-start: 0; } }
+///   → .c-x { position: relative; z-index: 1; } .c-x::before { position: absolute; content: ""; inset-block-start: 0; }
+@mixin before($content: "", $layer: 1) {
+  @if meta.type-of($content) != "string" {
+    @error "before(): $content must be a string, got `#{$content}`.";
+  }
+  @if meta.type-of($layer) != "number" or not math.is-unitless($layer) or math.round($layer) != $layer {
+    @error "before(): $layer must be a unitless whole number, got `#{$layer}`.";
+  }
+  position: relative;
+  z-index: $layer;
+
+  &::before {
+    position: absolute;
+    content: "#{$content}";
+    @content;
+  }
+}

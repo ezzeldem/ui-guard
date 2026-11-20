@@ -1,6 +1,7 @@
 @charset "UTF-8";
-// Common entry — aggregates shared objects, components and modules (used by 5+ pages or any layout).
-// Objects go in objects/ and are added to _objects.common.scss.
-@use "objects.common";
-@use "components.common";
-@use "modules.common";
+
+@use "../generic" as *;
+@use "../elements" as *;
+@use "./objects.common" as *;
+@use "./components.common" as *;
+@use "./modules.common" as *;

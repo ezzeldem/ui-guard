@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <data name="Order.Name" xml:space="preserve"><value>Name</value></data>
+  <data name="Order.Save" xml:space="preserve"><value>Save</value></data>
+  <data name="Order.Delete" xml:space="preserve"><value>Delete</value></data>
+</root>

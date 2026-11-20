@@ -1,2 +1,4 @@
 @charset "UTF-8";
-// Shared objects (o-). objects go here: @use "../objects/<name>.object";
+
+// Shared objects (o-): used by five or more page entries or needed by any layout. One line per object:
+// @use "../objects/<name>.object" as *;

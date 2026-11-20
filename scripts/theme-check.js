@@ -24,20 +24,20 @@ function checkTokenFileShape(root, abs, rel, findings) {
     css.walk(tree, (node, parents) => {
       if (node.type === 'rule') {
         for (const sel of css.splitSelectors(node.selector)) {
-          const stripped = sel.replace(/\.[\w-]+/g, '').replace(/:{1,2}[\w-]+(\([^)]*\))?/g, '').replace(/\bbody\b/g, '').replace(/[\s>+~]/g, '');
+          const stripped = sel.replace(/\.[\w-]+/g, '').replace(/:root\b/g, 'ROOT').replace(/:{1,2}[\w-]+(\([^)]*\))?/g, '').replace(/\bbody\b/g, '').replace(/[\s>+~]/g, '');
           if (stripped) findings.push(mk(root, 'STYLE-33', rel, node.line, `Selector \`${u.clip(sel, 60)}\` in custom.theme.css — only class selectors and \`body\` are allowed.`, 'Use a class selector (or body).'));
         }
       }
-      if (node.type === 'decl' && node.prop.startsWith('--')) findings.push(mk(root, 'STYLE-33', rel, node.line, `custom.theme.css defines custom property \`${node.prop}\`.`, 'Move the token to the palette / fonts theme file.'));
+      if (node.type === 'decl' && node.prop.startsWith('--')) findings.push(mk(root, 'STYLE-33', rel, node.line, `custom.theme.css defines custom property \`${node.prop}\`.`, 'Move the token to its theme file (colors.base, colors.palette or fonts).'));
       void parents;
     });
     return;
   }
-  let rootBlocks = 0;
+  
   const visit = (nodes, insideAt) => {
     for (const node of nodes) {
       if (node.type === 'rule') {
-        if (node.selector.trim() === ':root') { rootBlocks++; continue; }
+        if (node.selector.trim() === ':root') continue;
         findings.push(mk(root, 'STYLE-32', rel, node.line, `Selector \`${u.clip(node.selector, 60)}\` in a token file — only \`:root\` blocks are allowed.`, 'Move this rule to a utility/component/element file.'));
       } else if (node.type === 'atrule') {
         if (node.name === 'charset') continue;
@@ -50,7 +50,6 @@ function checkTokenFileShape(root, abs, rel, findings) {
     }
   };
   visit(tree.nodes, false);
-  if (isFonts && rootBlocks > 1) findings.push(mk(root, 'STYLE-32', rel, 1, 'fonts.theme.css has more than one :root block.', 'Merge into one :root block of font tokens.'));
 }
 
 function run(root, profile) {

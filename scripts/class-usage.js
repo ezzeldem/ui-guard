@@ -59,7 +59,7 @@ function run(root, profile) {
   const defs = definitions(root, profile);
   const ctx = lib.context(root, profile); // library classes (Bootstrap, ngx-*, node_modules CSS, ::ng-deep) are never flagged
   const index = {};
-  for (const f of project.listUiFiles(root, profile).filter((x) => x.kind === 'html' || x.kind === 'ts' || x.kind === 'index')) {
+  for (const f of project.listUiFiles(root, profile).filter((x) => x.kind === 'html' || x.kind === 'ts' || x.kind === 'index' || x.kind === 'cshtml' || x.kind === 'js')) {
     const text = u.readText(f.abs) || '';
     for (const us of usages(text, f.kind !== 'ts')) {
       (index[us.cls] = index[us.cls] || []).push({ file: f.rel, line: us.line, how: us.how });

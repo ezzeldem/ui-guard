@@ -46,11 +46,11 @@ If you cloned the repository, use its folder path instead of `<owner>/ui-guard`.
 
 ```
 /ui-guard:scan scss           # report + plan in .ui-guard/scss/ (also: access, lang, safe)
-/ui-guard:fix scss            # runs every phase: Foundation A (structure), Foundation B (move globals), then the rest
+/ui-guard:fix scss            # runs every phase: Foundation A (structure), Foundation B (AXIS migration of the globals), then the rest
 /ui-guard:fix access          # design-preserving accessibility fixes; decisions collected in .ui-guard/access/needs-decision.md
 ```
 
-Recommended order of domains: **scss → access → lang → safe** (access fixes use the scss structure, tools and the visually-hidden
+Recommended order of domains: **scss → access → lang → safe** (access fixes use the scss structure, tools and the `u-sr-only`
 utility). It is advice, not a gate: `fix access` prints one warning line in its summary when scss is not clean yet.
 
 **3. New project:**
@@ -66,10 +66,14 @@ Full walkthrough: **[USAGE.md](USAGE.md)**.
 1. **Domains.** `scss` (STYLE), `access` (ACCESS), `lang` (LANG), `safe` (SAFE). Each scan loads only its own rules and writes only its own files.
 2. **Scripts first.** Stylelint, ESLint and small scripts find most issues with zero tokens. The AI agent (one at a time) only looks at
    files a script flagged as needing judgment. Tokens are logged silently in the report — never a question, never a cap.
-3. **SCSS foundation first.** The scss plan always starts with *Foundation A* (create the missing segments, tools, settings, theme and
-   entry from the templates — no value changes) and *Foundation B* (move `styles.scss`, `general.scss`, … into the segments in the
-   same cascade order, proven by compiling before/after; anything unproven is rolled back). Rule STYLE-48 reports the gap.
-4. **Mechanical work by scripts.** `@charset`, `@use` of the tools, px → `px()`, physical → logical (width/height stay as written),
+3. **SCSS foundation first — the AXIS standard.** ui-guard generates and accepts exactly the team's AXIS SCSS standard (the one the
+   ui-code-review AXIS reviewer reads). The scss plan always starts with *Foundation A* (create the missing segments, tools, settings,
+   the four theme files and the entries `common/common.scss` + `utilities/utils.scss` from the templates — no value changes) and
+   *Foundation B* (the AXIS migration: the existing global stylesheets stay linked right after the vendor CSS and frozen; only what
+   lands AXIS-compliant — tokens, `@font-face`, variables, mixins, element rules, resets, utilities, scoped vendor overrides — moves
+   into the segments, proven by compiling before/after; anything unproven is rolled back; the rest is listed as legacy, to migrate
+   page by page). Rule STYLE-48 reports the gap.
+4. **Mechanical work by scripts.** `@charset`, `@use` of the tools and the `@dependencies` comments, px → `px()`, physical → logical (width/height → inline-size/block-size too),
    `@media` → `mq()`, BEM nesting and class prefix renames (SCSS + templates + TS) — each proven neutral by compiling the file before
    and after. What cannot be proven is listed as "skipped (unsure)".
 5. **Design-preserving accessibility.** Fixes go tier by tier (attributes → landmarks → tag swaps with a neutralization → structure),
@@ -113,13 +117,13 @@ Full walkthrough: **[USAGE.md](USAGE.md)**.
 
 ## The rules
 
-96 rules in five groups, with their own IDs:
+108 rules in six groups, with their own IDs:
 
 | Group | Rules | Covers |
 |---|---|---|
-| `STYLE` | 48 | SCSS structure (incl. STYLE-48 architecture gap), class prefixes and naming, tokens, logical properties (width/height excepted), media queries |
+| `STYLE` | 55 | The AXIS SCSS standard: segments and file names (incl. STYLE-48 architecture gap), class prefixes and naming, tokens, logical properties (sizes included), media queries, tools, vendor overrides, stylesheet accessibility — each row names its AXIS rules |
 | `LANG` | 8 | Translation: no hard-coded user-visible text |
-| `SAFE` | 8 | Security basics: unsafe HTML, secrets, sensitive data in logs and storage |
+| `SAFE` | 10 | Security basics: unsafe HTML, secrets, sensitive data in logs and storage |
 | `MEDIA` | 9 | Images, fonts, video (01–06 in `/ui-guard:check` and the hooks — no scan domain; 07–08 in `/ui-guard:assets`) |
 | `ACCESS` | 23 | Accessibility: labels, alternative text, ARIA, semantics, keyboard, forms, links, document, live regions, widgets, media, embeds, tables, image box, motion. Every finding has an impact (High/Medium/Low) and a fix tier (A–D or needs-decision) |
 

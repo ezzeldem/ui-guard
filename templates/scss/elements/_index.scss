@@ -1,6 +1,75 @@
 @charset "UTF-8";
-// Elements layer — bare HTML elements only. Type selectors allowed here.
-@use "body.element";
-@use "links.element";
-@use "typography.element";
-@use "focus.element";
+
+// @dependencies: tools/functions/_px.function.scss
+// @dependencies: tools/mixins/_hover.mixin.scss
+
+@use "../tools" as *;
+
+// Elements: bare HTML elements only (no class, no ID). Base typography reads the font tokens of
+// theme/fonts/fonts.theme.css. The base body background is declared here; a per-theme one only in custom.theme.css.
+html {
+  font-family: var(--ff);
+  font-size: var(--fs-md);
+  line-height: var(--lh-md);
+}
+
+body {
+  margin: 0;
+  background-color: var(--neutral-25);
+  color: var(--neutral-900);
+  font-family: var(--ff);
+  font-size: var(--fs-md);
+  line-height: var(--lh-md);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p {
+  margin-block: 0;
+}
+
+h1 {
+  font-size: var(--fs-xxl);
+  line-height: var(--lh-sm);
+}
+
+h2 {
+  font-size: var(--fs-xl);
+  line-height: var(--lh-sm);
+}
+
+h3 {
+  font-size: var(--fs-lg);
+  line-height: var(--lh-sm);
+}
+
+h4,
+h5,
+h6 {
+  font-size: var(--fs-md);
+}
+
+a {
+  color: var(--main-500);
+  text-decoration: none;
+
+  @include hover {
+    color: var(--main-700);
+    text-decoration: underline;
+  }
+}
+
+::selection {
+  background-color: var(--main-500);
+  color: var(--neutral-25);
+}
+
+// Visible keyboard focus for every focusable element (accessibility rule 1).
+:focus-visible {
+  outline: px(2) solid var(--main-500);
+  outline-offset: px(2);
+}

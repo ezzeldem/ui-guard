@@ -20,7 +20,7 @@ plugin root with Glob (`**/ui-guard/scripts/scaffold.js` under `~/.claude/plugin
 ## 0. `--add-theme <name> <link>`
 If the arguments start with `--add-theme`: read the profile, read the brand colors from the link (§ step 3 rules), then run
 `node PLUGIN/scripts/scaffold.js add-theme --name <name> --primary <hex> --secondary <hex>` (it copies the original theme and changes
-**only** the six HSL parts and the four filter values). Then run `node PLUGIN/scripts/theme-check.js --print` (STYLE-35 must be clean) and `node PLUGIN/scripts/assets.js` (every referenced theme image must exist)
+**only** `colors.base.theme.css`: the six identity values `--hue/--saturation/--lightness` and `-2`, and the four `--filter-*` values). Then run `node PLUGIN/scripts/theme-check.js --print` (STYLE-35 must be clean) and `node PLUGIN/scripts/assets.js` (every referenced theme image must exist)
 (if the new theme needs its own client images, tell the developer which file names must exist in `src/assets/themes/<name>/project-images/`).
 Record the color sources in the profile (`profile.js --answers`). Stop here.
 
@@ -57,8 +57,12 @@ If the developer agreed to installs, run exactly the listed `npm install -D …`
 - Record the source of every value in the profile (`colorSources`).
 
 ## 4. Build the structure
-1. `node PLUGIN/scripts/scaffold.js scss` — the 13 segments, tools, settings, generic, elements, common, utilities, the standard button.
+1. `node PLUGIN/scripts/scaffold.js scss` — the 13 AXIS segments: settings (`_breakpoints`, `_colors`), tools (one file per tool),
+   generic (`_reset.generic.scss`), elements (`_index.scss`), common (`common.scss` + aggregators), the five utility categories
+   (`utils.scss`), the reserved page folders and the standard button.
 2. `node PLUGIN/scripts/scaffold.js theme --name <theme> --primary <hex> --secondary <hex> [--primary-ramp …] [--secondary-ramp …]`
+   — `colors/colors.base.theme.css` (identity values + icon filters), `colors/colors.palette.theme.css` (shades: brand ramps shift
+   only the lightness; a design ramp's hue/saturation differences are listed, not kept), `fonts/fonts.theme.css`, `custom.theme.css`
    — active theme (`src/assets/scss/theme/`), theme source (`src/assets/themes/<theme>/`), project images, shared asset folders.
    It prints each filter's ΔE; if the developer installed Playwright, verify each filter with `node PLUGIN/scripts/icon-filter.js <hex> --verify --root <project>`
    and replace any value whose browser ΔE is better. Otherwise say the filters are "not verified in a browser".
@@ -66,9 +70,9 @@ If the developer agreed to installs, run exactly the listed `npm install -D …`
    with the design's measurements, radius, colors (mapped to tokens), typography and states; (2) no design button → the closest existing
    button component (profile `button.candidates`), keeping its measurements; (3) nothing → keep the standard button as scaffolded.
    Record the branch: `profile.js --answers '{"button":{"decision":"design|existing:<class>|standard"}}'`.
-4. `node PLUGIN/scripts/scaffold.js angular-json` — vendor CSS first, then `src/assets/scss/style.scss`; includePaths; assets; externalDependencies; scss schematic.
+4. `node PLUGIN/scripts/scaffold.js angular-json` — vendor CSS first, then `src/assets/scss/common/common.scss` and `src/assets/scss/utilities/utils.scss`; includePaths; assets; externalDependencies; scss schematic.
    Vendor bundles with `inject: false` are left as they are.
-5. `node PLUGIN/scripts/scaffold.js index-html --lang <lang> --dir <dir>` (default `ar` / `rtl`) — theme `<link>`s with `custom.theme.css` **last**, favicon.
+5. `node PLUGIN/scripts/scaffold.js index-html --lang <lang> --dir <dir>` (default `ar` / `rtl`) — theme `<link>`s (colors.base, colors.palette, fonts, then `custom.theme.css` **last**), favicon.
 
 ## 5. Lint, hooks, .gitignore (§5.8)
 1. `node PLUGIN/scripts/setup-project.js lint`. If it reports an existing Stylelint/ESLint config (exit 3), ask before replacing (Stylelint) or merging (ESLint — never overwrite; show its merge snippet), then re-run with `--root-stylelint` / `--root-eslint` or merge by hand as agreed.

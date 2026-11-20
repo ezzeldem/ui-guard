@@ -1,0 +1,13 @@
+@model OrderViewModel
+@using (Html.BeginForm("Save", "Order"))
+{
+    <label asp-for="Name">@Localizer["Order.Name"]</label>
+    <input asp-for="Name" />
+    <button type="submit">@Localizer["Order.Save"]</button>
+}
+<form method="post" action="/order/delete">
+    <button type="submit">@Localizer["Order.Delete"]</button>
+</form>
+<script>
+    var customer = '@Model.CustomerName';
+</script>

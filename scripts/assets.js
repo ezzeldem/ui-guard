@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 'use strict';
-// /ui-guard:assets — zero tokens, no agent. For every image/font/video path referenced in HTML, SCSS, CSS and TS
+// /ui-guard:assets — zero tokens, no agent. For every image/font/video path referenced in HTML, Razor views, SCSS, CSS, TS and JS
 // (src=, href=, ngSrc, srcset, url(), string literals, theme url()s) check the file exists.
 // It never opens or judges an image. Self-contained (Node built-ins only) so .ui-guard/bin/ can carry a copy.
 const fs = require('fs');
@@ -15,10 +15,16 @@ Usage: node assets.js [--root <project>] [--new-only] [--baseline] [--json]
 Output: "<file>:<line> -> missing <path>" (one per problem). Exit 1 when a problem is reported, else 0.`;
 
 const ASSET_EXT = /\.(png|jpe?g|gif|webp|avif|bmp|svg|ico|woff2?|ttf|otf|eot|mp4|webm|ogg|mov|mp3|wav|pdf)(?=$|[?#])/i;
-const SKIP_DIRS = new Set(['node_modules', 'dist', '.angular', 'coverage', '.ui-guard', '.git', '.githooks']);
+const SKIP_DIRS = new Set(['node_modules', 'dist', '.angular', 'coverage', '.ui-guard', '.git', '.githooks', 'bin', 'obj']);
 
 function args(argv) { const a = { _: [] }; for (let i = 0; i < argv.length; i++) { const x = argv[i]; if (x.startsWith('--')) { const k = x.slice(2); if (['root'].includes(k)) a[k] = argv[++i]; else a[k] = true; } else a._.push(x); } return a; }
-function findRoot(start) { let d = path.resolve(start); for (;;) { if (fs.existsSync(path.join(d, 'angular.json'))) return d; const up = path.dirname(d); if (up === d) return null; d = up; } }
+function findRoot(start) {
+  let d = path.resolve(start);
+  for (;;) { if (fs.existsSync(path.join(d, 'angular.json'))) return d; const up = path.dirname(d); if (up === d) break; d = up; }
+  // ASP.NET MVC / Razor project: the nearest folder with a .sln / .csproj
+  for (const ext of ['.sln', '.csproj']) { d = path.resolve(start); for (;;) { let n = []; try { n = fs.readdirSync(d); } catch { /* */ } if (n.some((x) => x.toLowerCase().endsWith(ext))) return d; const up = path.dirname(d); if (up === d) break; d = up; } }
+  return null;
+}
 function walk(dir, out = []) {
   let list; try { list = fs.readdirSync(dir, { withFileTypes: true }); } catch { return out; }
   for (const e of list.sort((x, y) => (x.name < y.name ? -1 : 1))) {
@@ -44,7 +50,7 @@ function references(text, kind) {
     refs.push({ ref: ref.split(/[?#]/)[0], line: lineOf(text, idx) });
   };
   const code = kind === 'css' || kind === 'scss' ? text.replace(/\/\*[\s\S]*?\*\//g, (c) => c.replace(/[^\n]/g, ' ')) : text;
-  if (kind === 'html') {
+  if (kind === 'html' || kind === 'cshtml') {
     for (const m of code.matchAll(/\s(?:src|href|ngSrc|poster|data-src)\s*=\s*"([^"]*)"/gi)) add(m[1], m.index);
     for (const m of code.matchAll(/\s(?:src|href|ngSrc|poster|data-src)\s*=\s*'([^']*)'/gi)) add(m[1], m.index);
     for (const m of code.matchAll(/\ssrcset\s*=\s*["']([^"']*)["']/gi)) for (const part of m[1].split(',')) add(part.trim().split(/\s+/)[0], m.index);
@@ -52,7 +58,7 @@ function references(text, kind) {
     for (const m of code.matchAll(/url\(\s*['"]?([^'")]+)['"]?\s*\)/g)) add(m[1], m.index);
   } else if (kind === 'css' || kind === 'scss') {
     for (const m of code.matchAll(/url\(\s*['"]?([^'")]+)['"]?\s*\)/g)) add(m[1], m.index);
-  } else if (kind === 'ts') {
+  } else if (kind === 'ts' || kind === 'js') {
     for (const m of code.matchAll(/(["'`])((?:(?!\1)[^\n\\])*)\1/g)) if (ASSET_EXT.test(m[2]) && /[/.]/.test(m[2])) add(m[2], m.index);
   }
   return { refs, dynamic };
@@ -66,10 +72,13 @@ function check(root) {
   const themesRoot = path.join(src, 'assets', 'themes');
   const problems = [];
   let checked = 0, dynamic = 0;
-  for (const file of walk(src)) {
+  // ASP.NET MVC / Razor: the whole project is walked; ~/ is the web root (wwwroot in Core, the project root in MVC 5).
+  const mvc = !fs.existsSync(path.join(root, 'angular.json'));
+  const webRoot = fs.existsSync(path.join(root, 'wwwroot')) ? path.join(root, 'wwwroot') : root;
+  for (const file of walk(mvc ? root : src)) {
     const r = rel(root, file);
     const ext = path.extname(file).slice(1).toLowerCase();
-    const kind = ext === 'html' ? 'html' : ext === 'scss' ? 'scss' : ext === 'css' ? 'css' : ext === 'ts' && !/\.(spec|d)\.ts$/.test(file) ? 'ts' : null;
+    const kind = ext === 'html' ? 'html' : ext === 'cshtml' ? 'cshtml' : ext === 'scss' ? 'scss' : ext === 'css' ? 'css' : ext === 'js' ? 'js' : ext === 'ts' && !/\.(spec|d)\.ts$/.test(file) ? 'ts' : null;
     if (!kind || /\.min\./.test(file) || /\/packages\//.test(r)) continue;
     const text = fs.readFileSync(file, 'utf8');
     const res = references(text, kind);
@@ -83,8 +92,14 @@ function check(root) {
       checked++;
       let problem = null;
       if (/^https?:\/\/(localhost|127\.0\.0\.1)/i.test(ref)) problem = `points to localhost: ${ref}`;
-      else if (/^\/?src\//.test(ref)) problem = `uses ${ref} — the build serves assets/, not src/`;
-      else {
+      else if (/^\/?src\//.test(ref) && !mvc) problem = `uses ${ref} — the build serves assets/, not src/`;
+      else if (ref.startsWith('~/') && kind !== 'cshtml') problem = `uses ${ref} outside a Razor view — only Razor resolves ~/`;
+      else if (mvc || kind === 'cshtml') {
+        const clean = ref.replace(/^~\//, '').replace(/^\//, '');
+        const cands = ref.startsWith('~/') || ref.startsWith('/') ? [path.join(webRoot, ...clean.split('/')), path.join(root, ...clean.split('/'))]
+          : kind === 'css' || kind === 'scss' ? [path.resolve(path.dirname(file), ...clean.split('/'))] : [path.join(webRoot, ...clean.split('/')), path.resolve(path.dirname(file), ...clean.split('/'))];
+        if (!cands.some(exists)) problem = `missing ${ref}`;
+      } else {
         const clean = ref.replace(/^\.\//, '');
         const cands = [];
         if (/^\/?assets\//.test(clean)) cands.push(path.join(src, ...clean.replace(/^\//, '').split('/')));
@@ -105,7 +120,7 @@ if (require.main === module) {
   const a = args(process.argv.slice(2));
   if (a.help || a.h) { console.log(HELP); process.exit(0); }
   const root = a.root ? path.resolve(a.root) : findRoot(process.cwd());
-  if (!root) { console.error('This is not an Angular project (no angular.json).'); process.exit(2); }
+  if (!root) { console.error('This is not an Angular or ASP.NET project (no angular.json, .sln or .csproj).'); process.exit(2); }
   const blFile = path.join(root, '.ui-guard', 'assets-baseline.json');
   const res = check(root);
   if (a.baseline) {

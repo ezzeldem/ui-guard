@@ -97,7 +97,7 @@ The first word of the arguments is the domain: `scss` (STYLE rules), `access` (A
 2. `write-report.js --domain D` → `.ui-guard/D/report.md` (≤ ~150 lines; ACCESS by High/Medium/Low with repeats collapsed and a
    "fix these first" list) + `.ui-guard/D/baseline.json` (the hooks and `/ui-guard:check` read every domain's baseline).
 3. `plan.js --domain D` → `.ui-guard/D/plan.md` + `plan.json` (+ `.ui-guard/scss/renames.md`). The scss plan always starts with
-   Foundation A (structure) and Foundation B (move the global stylesheets).
+   Foundation A (structure) and Foundation B (move what lands AXIS-compliant out of the global stylesheets; the rest stays frozen as the legacy stylesheet).
 4. Reply briefly: findings per rule (ACCESS: per impact), what was NOT checked and why, the phase list (number · title · files),
    the token log line from the report, and the paths `.ui-guard/D/report.md`, `.ui-guard/D/plan.md`. Next step: `/ui-guard:fix D`. Say the recommended order once: scss → access → lang → safe.
    **Do not commit.**

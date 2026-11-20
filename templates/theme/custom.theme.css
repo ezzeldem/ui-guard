@@ -1,3 +1,3 @@
 @charset "UTF-8";
-/* client overrides: class selectors and body only, no custom properties; `!important` allowed.
+/* client overrides: class selectors and body only, no custom properties, no `!important`.
    This file is the LAST stylesheet <link> in <head> of src/index.html. */

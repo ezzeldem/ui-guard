@@ -1,26 +1,44 @@
 # LANG — translation
 
-Based on the UI team's localization review rules. Rule IDs are ui-guard's own.
+The UI team's localization rules for user-visible text in Arabic / English UIs, exactly as ui-code-review applies them
+(its I18N-01..08). Rule IDs are ui-guard's own; the **UCR** column gives the matching ui-code-review ID.
 
-Supported setups: ngx-translate, transloco, Angular built-in i18n (`.xlf`), TS dictionaries (`*.i18n.ts`).
-The script handles JSON and XLF fully. TS dictionaries are parsed with a tolerant key extractor; anything it
-cannot parse is handed to the AI scanner, never skipped.
+The project uses one of these mechanisms; work out which from the code and the translation files (`.ui-guard/profile.md`):
 
-| ID | Severity | Checked by | Applies to | Rule | How to fix |
-|---|---|---|---|---|---|
-| LANG-01 | warning | ai | `*.html` | User-visible text written literally in a template: text nodes and `placeholder`, `title`, `alt`, `aria-label`, `aria-placeholder`, `label`, button and option text. | Add a key to **every** language file and use it. Incorrect: `<button>Save</button>`. Correct: `<button>{{ 'common.save' \| translate }}</button>`. |
-| LANG-02 | warning | ai | `*.ts`, `*.html` | A literal chosen by language in code: `lang === 'ar' ? 'بحث' : 'Search'`. | Replace with one key. |
-| LANG-03 | warning | ai | `*.ts` | User-visible text written literally in TypeScript: toasts, alerts, confirms, dialog messages, page titles, validation messages, text bound into a template. | Use the translate service / key. |
-| LANG-04 | error | script | code, templates, translation files | A key used in code or templates is missing from a language's translation files. The user sees the raw key. | Add the key to every language file. |
-| LANG-05 | error | script | translation files | A key exists in one language and not in another for the same area (e.g. `common/en.json` vs `common/ar.json`). | Add the missing key with a real translation. |
-| LANG-06 | error | script | translation files | The same key twice in one JSON/TS object, or one `<trans-unit id>` twice in an `.xlf`. | Keep one; the later value is what the app uses today. |
-| LANG-07 | warning | ai | `*.html`, `*.ts` | A sentence built by joining translated pieces, or pieces and variables, so word order cannot change per language. | One key with parameters: `'cart.count' \| translate: { n: count }`. |
-| LANG-08 | warning | script + ai | translation files | A value is empty, equals its key, or is in the wrong language (an `ar` value with no Arabic letters where the `en` value is a normal word, or the reverse). | Write the proper translation. |
+| Stack | Text in code | Translation files |
+|---|---|---|
+| Angular (ngx-translate / transloco) | `{{ 'KEY' \| translate }}`, `[attr.x]="'KEY' \| translate"`, `translate.instant('KEY')`, `translate.get('KEY')`, `marker('KEY')`, `'KEY' \| transloco` | JSON per language, e.g. `src/assets/i18n/<area>/ar.json`, `en.json`. Nested objects: `{ "A11Y": { "SEARCH": "..." } }` is key `A11Y.SEARCH`. |
+| Angular (TypeScript dictionaries) | a project function or pipe, e.g. `t('sidebar.home')`, `{{ 'sidebar.home' \| t }}`, `i18n.t('KEY')` | `*.i18n.ts` / `*.translations.ts`, or `ar.ts` / `en.ts` under an `i18n` folder. One file can hold **every language**: `{ ar: { 'sidebar.home': '...' }, en: { 'sidebar.home': '...' } }`; each top-level `ar` / `en` block is that language. Keys are often flat strings with dots (`'sidebar.home'` is one key), or nested objects. |
+| Angular (built-in i18n) | `i18n` / `i18n-<attr>` attributes in templates, `$localize` in TypeScript | `.xlf` / `.xliff` per language (`messages.ar.xlf`): `<trans-unit id="..."><source>` / `<target>`; or `messages.<lang>.json`. |
+| ASP.NET MVC / Core | `@Localizer["Key"]`, `@SharedLocalizer["Key"]`, `@Resources.Key`, `IStringLocalizer<T>["Key"]`, `[Display(Name = "Key", ResourceType = ...)]` | `.resx` per language, e.g. `Resources/Shared.resx`, `Shared.ar.resx`: `<data name="Key"><value>...</value></data>`. Also JSON per language under `Resources` (JSON localization), or `.po` files (`msgid` / `msgstr`). |
+
+A language is a file (`ar.json`, `Shared.ar.resx`, `messages.ar.xlf`) or a top-level block inside a file (`ar: { ... }`
+in a TypeScript dictionary). A `.resx` with no culture in its name (`Shared.resx`) is the default language, usually English.
+
+| ID | UCR | Severity | Checked by | Applies to | Rule | How to fix |
+|---|---|---|---|---|---|---|
+| LANG-01 | I18N-01 | warning | ai | `*.html`, `*.cshtml` | User-visible text written literally in a template or view: text nodes, and the `placeholder`, `title`, `alt`, `aria-label`, `aria-placeholder`, `label` values, button and option text. | Add a key to **every** language file and use it through the project's mechanism. Incorrect: `<button>Save</button>`. Correct: `<button>{{ 'common.save' \| translate }}</button>` / `<button>@Localizer["Save"]</button>`. |
+| LANG-02 | I18N-02 | warning | ai | `*.ts`, `*.html`, `*.cshtml`, `*.js` | A literal chosen by language in code: `currentLang == 'ar' ? 'بحث' : 'Search'`, `lang === 'en' ? ... : ...`, `@(isArabic ? "..." : "...")`. | Replace the condition with one key. If both strings already exist as a key, reuse it. |
+| LANG-03 | I18N-03 | warning | ai | `*.ts`, `*.js`, `*.cshtml` | User-visible text written literally in TypeScript / C# / JS: toast, alert, confirm and dialog messages, page titles, validation messages, text that is bound into the template or a live region. | Build it with `translate.instant('KEY', params)` / `Localizer["Key"]`. |
+| LANG-04 | I18N-04 | error | script | code, templates, views, translation files | A key used in code, a template or a view is missing from a language's translation files (the user sees the raw key). | Add the key to every language file that lacks it. |
+| LANG-05 | I18N-05 | error | script | translation files | A key exists in one language and not in another for the same area (e.g. in `common/en.json` but not `common/ar.json`, in the `ar` block of `shell.i18n.ts` but not its `en` block, or in `Shared.resx` but not `Shared.ar.resx`). | Add the missing key with a real translation. |
+| LANG-06 | I18N-06 | error | script | translation files | The same key twice in one JSON or TypeScript object, two `<data name>` with one name in a `.resx` file, two `<trans-unit>` with one `id` in an `.xlf` file, or one `msgid` twice in a `.po` file. Only one of them is used. | Keep one entry with the right value (the later one is what the app uses today). |
+| LANG-07 | I18N-07 | warning | ai | `*.html`, `*.ts`, `*.cshtml`, `*.js` | A sentence built by joining translated pieces, or a translated piece and a variable (`translate('A') + name + translate('B')`), so the word order can't change per language. | One key with a parameter: `'KEY' \| translate: { name: x }` / `{{name}}` in the value; `Localizer["Key", name]` with `{0}` in the value. |
+| LANG-08 | I18N-08 | warning | script + ai | translation files | A value that is empty, is the key itself, or is in the wrong language (an `ar` value with no Arabic letters where the `en` value is a normal word, or an `en` value in Arabic). Brand names, codes, numbers and symbols are not this. | Write the real translation. |
 
 ## How agents use this file
 
 - **Is a defect:** text a user can see or hear (including screen-reader text like `aria-label`, `alt`) written as a literal.
-- **Is not a defect:** numbers, punctuation-only strings, icons, CSS class names, route paths, keys themselves, `data-*` and test ids, console messages (those are SAFE-08), brand names the team keeps untranslated (say so in the message), text inside `<code>`.
-- Find the i18n library and translation paths in `.ui-guard/profile.md` before reporting.
-- LANG-04/05/06 belong to `i18n-check.js`; do not report them unless the scan says the script could not parse a file.
+- For a key on a line you review, look it up in the translation files of every language; a key found in **any** file of a
+  language counts as present for that language (you can't see which files a module loads).
+- A key built at runtime (`'STATUS.' + code`, `Localizer[name]`) can't be checked: don't report it.
+- **Not user-visible, so not LANG:** CSS classes, ids, routes, URLs, `data-*` and test ids, enum and API values, log and
+  `console` text (that is SAFE-08), comments, code that is commented out, `.spec.ts` files, and strings passed only to code
+  (keys of a map, event names), keys themselves, text inside `<code>`.
+- **Not text to translate:** brand and product names (say so in the message), numbers, units, symbols and punctuation alone,
+  icons, file extensions, sample values in a `placeholder` such as an email or URL format.
+- Language names in a language switcher are written in their own language on purpose (`English`, `العربية`): not a defect.
+- One finding per rule per line. When one line has LANG-02 and the same text also breaks LANG-01, report only LANG-02.
+- LANG-04/05/06 belong to `i18n-check.js` (JSON, TS/JS dictionaries incl. per-language blocks, `.xlf`, `.resx`, `.po`);
+  do not report them unless the scan says the script could not parse a file.
 - When fixing, add the key to **every** language file.

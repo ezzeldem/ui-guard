@@ -1,0 +1,63 @@
+@charset "UTF-8";
+
+@use "sass:math";
+@use "sass:meta";
+@use "sass:string";
+
+/// scroll($size, $track-radius, $thumb-radius, $fallback-radius, $track-color, $thumb-color, $fallback-track-color)
+/// — thin scrollbars: WebKit pseudo-elements where they exist, the standard properties elsewhere.
+/// @param {Number} $size                 bar thickness, a length (default 0.35rem)
+/// @param {Number} $track-radius         track corner radius, a length (default 0.625rem)
+/// @param {Number} $thumb-radius         thumb corner radius, a length (default 0.7125rem)
+/// @param {Number} $fallback-radius      corner radius of the box where WebKit bars do not exist (default 0.3125rem)
+/// @param {String} $track-color          bar background, a colour token var(--…) (default var(--neutral-50))
+/// @param {String} $thumb-color          thumb colour, a colour token var(--…) (default var(--neutral-400))
+/// @param {String} $fallback-track-color track colour for `scrollbar-color`, a colour token (default var(--neutral-200))
+/// @output `@supports (-webkit-appearance: none) { &::-webkit-scrollbar… }` + `@supports not (…) { scrollbar-color…; scrollbar-width: thin; }`
+/// @example .c-list { overflow-y: auto; @include scroll; }
+@mixin scroll(
+  $size: 0.35rem,
+  $track-radius: 0.625rem,
+  $thumb-radius: 0.7125rem,
+  $fallback-radius: 0.3125rem,
+  $track-color: var(--neutral-50),
+  $thumb-color: var(--neutral-400),
+  $fallback-track-color: var(--neutral-200)
+) {
+  @each $name, $value in ("size": $size, "track-radius": $track-radius, "thumb-radius": $thumb-radius, "fallback-radius": $fallback-radius) {
+    @if meta.type-of($value) != "number" or math.is-unitless($value) or not math.compatible($value, 1rem) {
+      @error "scroll(): $#{$name} must be a length (e.g. 0.35rem), got `#{$value}`.";
+    }
+  }
+  @each $name, $value in ("track-color": $track-color, "thumb-color": $thumb-color, "fallback-track-color": $fallback-track-color) {
+    @if meta.type-of($value) != "string" or string.index("#{$value}", "var(--") != 1 {
+      @error "scroll(): $#{$name} must be a colour token var(--…), got `#{$value}`.";
+    }
+  }
+
+  @supports (-webkit-appearance: none) {
+    &::-webkit-scrollbar-track {
+      border-radius: $track-radius;
+      background-color: transparent;
+      box-shadow: none;
+    }
+
+    &::-webkit-scrollbar {
+      inline-size: $size;
+      block-size: $size;
+      background-color: $track-color;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      border-radius: $thumb-radius;
+      background-color: $thumb-color;
+      box-shadow: none;
+    }
+  }
+
+  @supports not (-webkit-appearance: none) {
+    border-radius: $fallback-radius;
+    scrollbar-color: $thumb-color $fallback-track-color;
+    scrollbar-width: thin;
+  }
+}

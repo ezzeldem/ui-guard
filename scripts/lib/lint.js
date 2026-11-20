@@ -134,10 +134,10 @@ function eslint(root, files, { timeoutMs = 600000 } = {}) {
   return { available: true, findings };
 }
 
-/** Lint any mix of files: routes scss/css to Stylelint, html/ts to ESLint. */
+/** Lint any mix of files: routes scss/css to Stylelint, html/ts/js to ESLint (Razor .cshtml has no linter: scripts + AI). */
 function lintFiles(root, files) {
   const style = files.filter((f) => /\.(s?css)$/.test(f) && !/\/packages\//.test(f));
-  const code = files.filter((f) => /\.(html|ts)$/.test(f) && !/\.(spec|d)\.ts$/.test(f));
+  const code = files.filter((f) => /\.(html|ts|js)$/.test(f) && !/\.(spec|d)\.ts$/.test(f) && !/\.min\.js$/.test(f));
   const s = stylelint(root, style);
   const e = eslint(root, code);
   return {

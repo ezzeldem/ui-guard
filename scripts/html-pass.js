@@ -46,7 +46,7 @@ function templateStages() {
 }
 
 function templates(root, ledger, inv) {
-  return inv.files.filter((f) => f.kind === 'html' || f.kind === 'index' || (f.kind === 'ts' && ledger.files[f.path] && ledger.files[f.path].facts && ledger.files[f.path].facts.inlineTemplate));
+  return inv.files.filter((f) => f.kind === 'html' || f.kind === 'index' || f.kind === 'cshtml' || (f.kind === 'ts' && ledger.files[f.path] && ledger.files[f.path].facts && ledger.files[f.path].facts.inlineTemplate));
 }
 
 function prepare(root, { rescan = false } = {}) {

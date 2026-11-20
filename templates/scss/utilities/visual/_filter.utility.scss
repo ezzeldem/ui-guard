@@ -1,18 +1,19 @@
 @charset "UTF-8";
-// Icon color filters (STYLE-37). Single-color icons are saved black; these turn them into theme colors.
-// Filter values live in colors.palette.theme.css (computed per theme by icon-filter.js).
+
+// Icon colour filters. Single-colour icons are saved black; these turn them into theme colours.
+// The filter values are per client, in theme/colors/colors.base.theme.css (computed by icon-filter.js).
 .u-filter-primary {
-  filter: var(--color-img);
+  filter: var(--filter-primary);
 }
 
 .u-filter-secondary {
-  filter: var(--secondary-color-img);
+  filter: var(--filter-secondary);
 }
 
-.u-filter-light {
-  filter: var(--light-img);
+.u-filter-neutral-25 {
+  filter: var(--filter-neutral-25);
 }
 
-.u-filter-gray {
-  filter: var(--gray-img);
+.u-filter-neutral-400 {
+  filter: var(--filter-neutral-400);
 }

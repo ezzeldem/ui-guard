@@ -68,10 +68,11 @@ There are four domains. Each has its own scan, fix, files and baseline:
 **Recommended order: `scan html` → fix scss → fix access → fix lang → fix safe** (domain order: scss → access → lang → safe). `scan html` reads every template once
 for all four domains; scss comes before access because it renames classes (the ledger carries the renames into the access,
 lang and safe findings). The scss foundation (segments, tools, utilities) comes first because
-access fixes add neutralization SCSS and use the visually-hidden utility. Running in another order is allowed: `fix access`
+access fixes add neutralization SCSS and use the `u-sr-only` utility. Running in another order is allowed: `fix access`
 then prints one warning line at the start of its summary (never a question, never a stop). Before its first phase, `fix access`
-makes sure a visually-hidden utility exists (reuses yours, or creates only `.u-sr-only`); without a loaded global entry it stops
-and tells you to run `/ui-guard:fix scss` first.
+makes sure `.u-sr-only` exists in `utilities/accessibility/` (AXIS: screen-reader-only text always uses `u-sr-only`, so a
+project `.sr-only` / `.visually-hidden` is not reused; it creates only that one file); without a loaded `utilities/utils.scss`
+it stops and tells you to run `/ui-guard:fix scss` first.
 
 ### 4.1 Scan
 
@@ -115,13 +116,20 @@ leave the baseline.
 `plan.md` is short (≤ ~150 lines). **The scss plan always starts with two Foundation phases**, whether or not you scanned
 before:
 
-- **Foundation A — Structure:** creates every missing piece of our tree (segments, tools `px()`/`mq()`/…, settings, the
-  four theme files, the `style.scss` entry) from the templates, adds the scss root to `includePaths`, the entry to
-  `angular.json` and the theme `<link>`s to `index.html`. No value changes; resets are created empty.
-- **Foundation B — Move:** moves the rules of your existing global stylesheets (`styles.scss`, `general.scss`, vendor
-  overrides, fonts, tokens…) into the right segment files **in the same cascade order**, deletes the emptied files and
-  updates `angular.json`. It compiles the global CSS before and after: if anything would render differently, every change
-  is rolled back and the fixer moves the rest by hand.
+- **Foundation A — Structure:** creates every missing piece of the AXIS tree (the 13 segments, one file per tool
+  `px()`/`mq()`/`dir()`/…, `settings/_breakpoints` + `_colors`, the four theme files `colors.base`, `colors.palette`, `fonts`,
+  `custom`, the entries `common/common.scss` and `utilities/utils.scss`) from the templates, adds the scss root to
+  `includePaths`, the two entries to `angular.json` (after the vendor CSS and your own global stylesheets) and the theme
+  `<link>`s to `index.html` (base, palette, fonts, then `custom.theme.css` last). No value changes; the generic reset and
+  `elements/_index.scss` are created empty. An old single `style.scss` entry is replaced by the two entries.
+- **Foundation B — AXIS migration:** your existing global stylesheets (`styles.scss`, `general.scss`, …) become the
+  **legacy stylesheet**: they stay linked right after the vendor CSS and are frozen. Only what lands AXIS-compliant moves
+  out of them — tokens to the theme files, `@font-face` to `fonts.theme.css`, `$variables` to `settings/_project.settings.scss`,
+  each mixin/function to its own tool file, element rules to `elements/_index.scss`, resets to `generic/_reset.generic.scss`,
+  single-property `u-` rules to their utility category, vendor overrides already under an `m-` block to their library
+  module. A rule moves only past rules it can never conflict with, and the compiled CSS before and after must render the
+  same; otherwise every change is rolled back. Unprefixed classes and the rest stay, listed as "legacy — migrate page by
+  page"; a legacy file left empty is removed from `angular.json` and deleted.
 
 Then Foundation (settings/tools/theme names), Common, Layouts, Pages, Generic + Elements. Global stylesheets are never
 classed as Pages. **A phase has at most 15 files or 300 findings**; big areas are split by app folder, then feature folder.
@@ -129,7 +137,7 @@ Screenshot routes come from the app's real routes (lazy child routes keep their 
 `/no-connection` or `/404` are used last). When no route is found the phase says **weak coverage**.
 
 `renames.md` (scss) lists class prefix renames. **Library classes are never renamed** (Bootstrap, `ngx-*`, `mat-*`, classes
-from your dependencies' CSS, classes styled only under `::ng-deep`). Project state classes (`open`, `active`, …) say
+from your dependencies' CSS, classes styled only under `::ng-deep`); their overrides belong in a library module on an `m-` class. Project state classes (`open`, `active`, …) say
 "(decide …)" with their `is-` / `has-` / `js-` options.
 
 ### 4.4 Fix a domain
@@ -143,7 +151,7 @@ from your dependencies' CSS, classes styled only under `::ng-deep`). Project sta
 - **No questions, no "continue?".** If there is no `findings.json` yet, fix runs the scan first. Without git it copies the
   project to `<project>-backup-<date>` first.
 - **Per phase:** screenshots before (if Playwright is installed) → **scripts first** (Foundation A/B, or the mechanical
-  scss fixes: `@charset`, `@use "tools" as *`, px → `px()`, logical properties except `width`/`height`, `@media` → `mq()`,
+  scss fixes: `@charset`, `@use "<path-to-root>/tools" as *` and the `@dependencies` comments, px → `px()`, logical properties (sizes included), `@media` → `mq()`,
   BEM nesting, prefix renames in SCSS + templates + TS — each proven by compiling the file before and after) → the
   **fixer agent** (Sonnet) only for what is left and needs judgment → lint + scripts + `ng build` → **one Opus review of
   the diff** (skipped for script-only phases, which are proven by their compile check) → screenshots after, **0 changed
@@ -222,7 +230,7 @@ The plugin has 5 commands: `init`, `scan`, `fix`, `check`, `assets`.
 |---|---|
 | A tool is missing or crashes (Stylelint, ESLint) | The report lists its rules as **NOT CHECKED** with the reason and the exact install command. They are not sent to the AI. No Playwright = static proof only (the summary says so). |
 | The AI pass stopped (usage limit) | Progress is saved. Run the same `/ui-guard:scan <domain>` again; it continues from the exact batch. |
-| `custom.theme.css` | Must be the last stylesheet `<link>` in `index.html`. `!important` is allowed in it (client overrides must win). |
+| `custom.theme.css` | Must be the last stylesheet `<link>` in `index.html`. No `!important` in it (AXIS R-20): a client override wins by load order or one more class. |
 | Theme switching | You copy the chosen theme over the active copy after the build, as before. ui-guard only keeps the theme files swappable and consistent. |
 | Setup changed (new routes, new folders) | `node <plugin>/scripts/profile.js --refresh` (kept answers stay). |
 | Port in use when fix starts the app | It tries the next free port; no question. If no server comes up, the proof is static and the summary says so. |

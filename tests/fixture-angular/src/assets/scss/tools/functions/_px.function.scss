@@ -1,0 +1,19 @@
+@charset "UTF-8";
+
+@use "sass:math";
+@use "sass:meta";
+
+/// px($px, $root: 16) — converts a unitless pixel number from a design to rem.
+/// @param {Number} $px   unitless pixel value, e.g. 24 (negative allowed, e.g. -1); no default
+/// @param {Number} $root unitless root font size in px (default 16)
+/// @return {Number} the rem value, e.g. 1.5rem
+/// @example .c-x { padding-block: px(24); } → .c-x { padding-block: 1.5rem; }
+@function px($px, $root: 16) {
+  @if meta.type-of($px) != "number" or not math.is-unitless($px) {
+    @error "px(): $px must be a unitless number (e.g. px(24)), got `#{$px}`.";
+  }
+  @if meta.type-of($root) != "number" or not math.is-unitless($root) or $root <= 0 {
+    @error "px(): $root must be a positive unitless number (default 16), got `#{$root}`.";
+  }
+  @return math.div($px, $root) * 1rem;
+}

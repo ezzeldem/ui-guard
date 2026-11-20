@@ -47,7 +47,12 @@ function collect(root, ref) {
   const status = { stylelint: det.stylelint, eslint: det.eslint };
   const routed = files.map((f) => ({ file: f, groups: route.groupsFor(root, { path: f, kind: project.classify(f, profile) }), ranges: ranges[f] || [] })).filter((x) => x.groups.length);
   const batches = [];
-  for (let i = 0; i < routed.length; i += 12) batches.push({ batch: String(batches.length + 1).padStart(3, '0'), files: routed.slice(i, i + 12) });
+  for (let i = 0; i < routed.length; i += 12) {
+    const part = routed.slice(i, i + 12);
+    // rules/access-mvc.md only when a Razor view or script in this batch is routed to an ACCESS group
+    const mvc = part.some((x) => /.(cshtml|js)$/i.test(x.file) && x.groups.some((g) => g.startsWith('access-')));
+    batches.push({ batch: String(batches.length + 1).padStart(3, '0'), files: part, ...(mvc ? { extraRules: ['rules/access-mvc.md'] } : {}) });
+  }
   // /ui-guard:assets as a step: only problems NOT in .ui-guard/assets-baseline.json count (fast, never blocks on known items)
   const assets = require('./assets').check(root);
   const abl = new Set((u.readJSON(path.join(p.ug, 'assets-baseline.json'), { fingerprints: [] }).fingerprints) || []);
@@ -71,22 +76,38 @@ function finish(root) {
   for (const name of (u.isDir(p.checkTmp) ? fs.readdirSync(p.checkTmp) : []).filter((n) => /^R-.*\.jsonl$/.test(n)).sort()) {
     for (const raw of u.readJSONL(path.join(p.checkTmp, name))) { const f = merge.normalize(root, { ...raw, checker: 'ai', sources: ['reviewer'] }, 'reviewer'); if (f) rows.push(f); }
   }
+  // Fix check (rules/fix.md): verdict per work item + FIX-xx findings written by the ui-fix-checker agent.
+  const fixTarget = u.readJSON(path.join(p.checkTmp, 'fix', 'target.json'));
+  const fixOut = u.readJSON(path.join(p.checkTmp, 'FIX.json'));
+  const fixVerdicts = (fixOut && Array.isArray(fixOut.verdict)) ? fixOut.verdict : [];
+  for (const raw of (fixOut && fixOut.findings) || []) { const f = merge.normalize(root, { ...raw, checker: 'ai', sources: ['fix-checker'] }, 'reviewer'); if (f) rows.push(f); }
+  const fixPending = !!(fixTarget && fixTarget.fixWorkItems && fixTarget.fixWorkItems.length && !fixOut);
+  const fixBlocking = fixVerdicts.filter((v) => ['Partial', 'SymptomOnly', 'NotAddressed'].includes(v.status));
   const findings = merge.cluster(rows);
-  const baseline = fpLib.loadBaseline(root);
+  // Same scope as ui-code-review: every finding ON a changed line counts (a review comments on it whether or not the issue
+  // was known before); findings next to the change are listed only.
   const fresh = [], near = [];
   for (const f of findings) {
     if (f.status === 'rejected') continue;
-    const onChange = inRanges(f.line, f.endLine, ch.ranges[f.file]);
-    (onChange && !baseline.has(f.fingerprint) ? fresh : near).push(f);
+    (inRanges(f.line, f.endLine, ch.ranges[f.file]) ? fresh : near).push(f);
   }
-  const newErrors = fresh.filter((f) => f.severity === 'error');
+  void fpLib;
+  // ui-code-review posts errors AND warnings as review comments, so both block; info does not.
+  const newErrors = fresh.filter((f) => f.severity === 'error' || f.severity === 'warning');
   const newAssets = ch.newAssets || [];
-  const verdict = newErrors.length || newAssets.length ? 'FAIL' : 'PASS';
+  const verdict = newErrors.length || newAssets.length || fixBlocking.length || fixPending ? 'FAIL' : 'PASS';
   const sha = git.shortHead(root);
-  const L = [`# ui-guard change check — ${verdict}`, '', `| | |`, `|---|---|`, `| Date | ${new Date().toISOString()} |`, `| HEAD | ${ch.head || 'none'} |`, `| Compared with | ${ch.base || ch.ref} |`, `| Changed UI files | ${ch.files.length} |`, `| New errors | ${newErrors.length} |`, `| New warnings/info | ${fresh.length - newErrors.length} |`, `| Existing near your change | ${near.length} |`, `| New missing assets | ${newAssets.length} |`, ''];
+  const L = [`# ui-guard change check — ${verdict}`, '', `| | |`, `|---|---|`, `| Date | ${new Date().toISOString()} |`, `| HEAD | ${ch.head || 'none'} |`, `| Compared with | ${ch.base || ch.ref} |`, `| Changed UI files | ${ch.files.length} |`, `| New errors + warnings | ${newErrors.length} |`, `| New info | ${fresh.length - newErrors.length} |`, `| Existing near your change | ${near.length} |`, `| New missing assets | ${newAssets.length} |`, ''];
   for (const [tool, reason] of Object.entries(ch.notChecked || {})) L.push(`> **NOT CHECKED:** ${tool} rules (${reason})`);
   for (const n of ch.notes || []) L.push(`> Note: ${n}`);
-  L.push('## New findings (on changed lines, not in the baseline)', '');
+  L.push('## Fix check (work items)', '');
+  if (fixPending) L.push('Work items were found but the fix checker did not run — run it, then `changes.js finish` again.');
+  else if (!fixTarget || fixTarget.skipped) L.push(`Skipped: ${(fixTarget && fixTarget.skipped) || 'not run'}.`);
+  else for (const v of fixVerdicts) {
+    L.push(`- **${v.workItem}** — ${v.status}${['Partial', 'SymptomOnly', 'NotAddressed'].includes(v.status) ? ' (blocks the push)' : ''}: ${v.summary || ''}`);
+    for (const c of v.criteria || []) L.push(`  - [${c.met}] ${c.text}${c.evidence ? ` (\`${c.evidence}\`)` : ''}`);
+  }
+  L.push('', '## New findings (on changed lines)', '');
   L.push(fresh.length ? fresh.map((f) => `- **${f.ruleId}** (${f.severity}) \`${f.file}:${f.line}\` — ${f.message}${f.fix ? ` · _fix:_ ${f.fix}` : ''}`).join('\n') : 'None.');
   L.push('', '## Missing assets (new, not in the assets baseline)', '', newAssets.length ? newAssets.map((x) => `- \`${x.file}:${x.line}\` -> ${x.problem}`).join('\n') : 'None.');
   L.push('', '## Existing near your change (info)', '');
@@ -100,7 +121,8 @@ function finish(root) {
   }
   u.writeJSON(path.join(p.checkTmp, 'done.json'), { verdict, time: new Date().toISOString() }); // lets cleanup.js delete tmp/check
   const cleanLine = require('./cleanup').finish(root, ARGS);
-  console.log(`${verdict}: ${newErrors.length} new error(s), ${newAssets.length} new missing asset(s), ${fresh.length - newErrors.length} new warning/info, ${near.length} existing near the change → ${u.relPosix(root, out)}`);
+  const fixLine = fixVerdicts.length ? `, work items: ${fixVerdicts.map((v) => `${v.workItem} ${v.status}`).join(', ')}` : fixPending ? ', fix checker not run' : '';
+  console.log(`${verdict}: ${newErrors.length} new error/warning(s), ${newAssets.length} new missing asset(s), ${fresh.length - newErrors.length} new info, ${near.length} existing near the change${fixLine} → ${u.relPosix(root, out)}`);
   console.log(cleanLine);
   process.exit(verdict === 'PASS' ? 0 : 1);
 }

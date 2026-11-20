@@ -1,11 +1,16 @@
 @charset "UTF-8";
-// u-sr-only / u-not-sr-only — documented multi-property exceptions to the one-property rule (STYLE-25).
+
+// @dependencies: tools/functions/_px.function.scss
+
+@use "../../tools" as *;
+
+// u-sr-only / u-not-sr-only: the documented accessibility exceptions to the one-property rule (R-24). Declared only here.
 .u-sr-only {
   position: absolute;
   overflow: hidden;
   inline-size: 1px;
   block-size: 1px;
-  margin: -1px;
+  margin: px(-1);
   padding: 0;
   border: 0;
   clip-path: inset(50%);

@@ -66,7 +66,20 @@ function wrappedInSelector(outer) {
   const head = outer.slice(0, stack[stack.length - 1]).split(/[;{}]/).pop().trim();
   return !/^@(media|supports|layer)\b/.test(head);
 }
+/** A Razor @foreach / @for / @while block is open at this position. */
+function insideRazorLoop(text, pos) {
+  const before = text.slice(0, pos);
+  const re = /@(foreach|for|while)\s*\([^)]*\)\s*\{/g;
+  let m, open = false;
+  while ((m = re.exec(before))) {
+    let depth = 0, i = m.index + m[0].length - 1;
+    for (; i < before.length; i++) { if (before[i] === '{') depth++; else if (before[i] === '}') { depth--; if (!depth) break; } }
+    if (i >= before.length) open = true;
+  }
+  return open;
+}
 function resolveAsset(root, ref) {
+  if (/^~\//.test(ref)) ref = ref.slice(2);
   const clean = ref.split(/[?#]/)[0].replace(/^[./]+/, '').replace(/^src\//, '');
   for (const c of [path.join(root, 'src', clean), path.join(root, 'public', clean.replace(/^assets\//, '')), path.join(root, 'src', 'assets', clean.replace(/^assets\//, ''))]) {
     try { if (fs.statSync(c).isFile()) return c; } catch { /* next */ }
@@ -80,7 +93,7 @@ function run(root, profile) {
   const boxFixed = boxFixedClasses(root, profile);
 
   // ----- templates: MEDIA-01, 02, 04 (img) and MEDIA-06 (video, iframe)
-  for (const f of files.filter((x) => x.kind === 'html' || x.kind === 'index')) {
+  for (const f of files.filter((x) => x.kind === 'html' || x.kind === 'index' || x.kind === 'cshtml')) {
     const text = u.readText(f.abs) || '';
     const idx = u.lineIndexer(text);
     const tagRe = /<(img|video|iframe)\b[^>]*>/gi;
@@ -93,8 +106,8 @@ function run(root, profile) {
         if (!sized) findings.push(mk(root, 'MEDIA-01', f.rel, line, 'Image has no `width` + `height` and no class that fixes its box â€” the page jumps when it loads.', 'Add `width` and `height` attributes with the intrinsic size (or fix the box with `aspect-ratio` / `inline-size` + `block-size` in its class).', { evidence: tag.replace(/\s+/g, ' ').slice(0, 120) }));
         // content image = data-bound source, or inside a loop; icons and priority images are never flagged
         const src = a.src ?? a.ngSrc ?? a['[src]'] ?? a['[ngSrc]'] ?? a['ngSrc'] ?? '';
-        const bound = '[src]' in a || '[ngSrc]' in a || /\{\{/.test(String(a.src || ''));
-        const inLoop = '*ngFor' in a || insideFor(text, m.index);
+        const bound = '[src]' in a || '[ngSrc]' in a || /\{\{|@/.test(String(a.src || ''));
+        const inLoop = '*ngFor' in a || insideFor(text, m.index) || (f.kind === 'cshtml' && insideRazorLoop(text, m.index));
         const eager = 'priority' in a || a.loading === 'eager' || a.fetchpriority === 'high';
         if ((bound || inLoop) && !('loading' in a) && !eager && !('priority' in a) && !/\.svg(\?|$)/i.test(String(src))) {
           findings.push(mk(root, 'MEDIA-02', f.rel, line, 'Content image (data-bound or inside a list) without `loading="lazy"`.', 'Add `loading="lazy"` (never on the first-screen / hero image â€” give that one `fetchpriority="high"`).', { evidence: tag.replace(/\s+/g, ' ').slice(0, 120) }));

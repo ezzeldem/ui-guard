@@ -20,12 +20,21 @@ You are the **change reviewer** of ui-guard. You review what a developer is abou
 - Output: `.ui-guard/tmp/check/R-<batch>.jsonl`.
 
 ## Group → rules (AI part)
-`style-ai`: STYLE-02, 03, 09, 17, 18, 19, 20, 25, 28, 37, 38, 39, 43 · `lang`: LANG-01, 02, 03, 07, 08 · `safe`: SAFE-01, 02, 03, 04, 05, 08 ·
-`access-labels`: ACCESS-01 · `access-alt`: ACCESS-02 · `access-aria`: ACCESS-03 (+ACCESS-00) · `access-semantics`: ACCESS-04 · `access-keyboard`: ACCESS-05.
+The same groups as the full scan (`rules/rules.json` → `aiGroups`), so a push is reviewed like the pull request will be:
+`style-ai`: STYLE-02, 03, 09, 17, 18, 19, 20, 25, 28, 37, 38, 39, 41, 43 · `lang`: LANG-01, 02, 03, 07, 08 ·
+`safe`: SAFE-01, 02, 03, 04, 05, 08, 09, 10 · `media`: MEDIA-02 (off-screen containers) ·
+`access-labels`: ACCESS-01, 08 · `access-alt`: ACCESS-02, 18, 19 · `access-aria`: ACCESS-00, 03, 14, 15 ·
+`access-semantics`: ACCESS-04, 09, 12, 20 · `access-keyboard`: ACCESS-05, 16 · `access-motion`: ACCESS-17.
+
+Files are Angular templates and TypeScript, ASP.NET MVC Razor views (`.cshtml`, layouts, partials, EditorTemplates),
+plain scripts (`.js`, jQuery) and translation files (JSON, TS/JS dictionaries, `.xlf`, `.resx`, `.po`). Write a fix in the
+idiom of the file's stack (Angular binding in Angular files; Razor / Tag Helper / HTML Helper / jQuery in MVC files).
 
 ## Method
 1. For each file, read the changed ranges with a few lines of context (read more only when a rule needs it — e.g. trace a bound value's origin for SAFE-01/02, check whether a translation key exists in every language file).
-2. Check every rule of the file's groups **on the changed lines**. A defect on an unchanged line next to the change may be reported too (ui-guard lists it as "existing near your change").
+2. Check every rule of the file's groups **on the changed lines**. Every error and warning there blocks the push (ui-code-review
+   would comment on it), so report only real defects; when unsure use `info` with `unverified`. A defect on an unchanged line next
+   to the change may be reported too (ui-guard lists it as "existing near your change").
 3. Follow each rule file's "How agents use this file" section.
 
 ## Output

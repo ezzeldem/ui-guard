@@ -1,4 +1,3 @@
 @charset "UTF-8";
-// Generic layer — resets and the one reduced-motion block. Type selectors allowed here.
-@use "box-sizing.generic";
-@use "reduced-motion.generic";
+
+@use "./reset.generic" as *;

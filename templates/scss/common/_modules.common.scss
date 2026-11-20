@@ -1,2 +1,4 @@
 @charset "UTF-8";
-// Shared modules (m-, ctrl-): composites, one library module per vendor component, control modules.
+
+// Shared modules (m-, ctrl-): used by five or more page entries or needed by any layout. One line per module:
+// @use "../modules/<name>.module" as *;

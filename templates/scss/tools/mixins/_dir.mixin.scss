@@ -1,0 +1,16 @@
+@charset "UTF-8";
+
+@use "sass:list";
+
+/// dir($dir) — styles for one writing direction, with the :dir() pseudo-class (no attribute selector, no ::ng-deep).
+/// @param {String} $dir rtl | ltr (required, no default)
+/// @output `&:dir(<dir>) { … }` — matches when the element's direction (inherited from <html dir>) is <dir>
+/// @example .c-x { @include dir(rtl) { inset-inline-start: 0; } } → .c-x:dir(rtl) { inset-inline-start: 0; }
+@mixin dir($dir) {
+  @if not list.index((rtl, ltr), $dir) {
+    @error "dir(): $dir `#{$dir}` is not a direction. Use rtl or ltr.";
+  }
+  &:dir(#{$dir}) {
+    @content;
+  }
+}

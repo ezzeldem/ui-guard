@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 'use strict';
-// §9.2 Color ramp: steps 50–900 derived from HSL parts. 500 = the input color (Δ = 0).
+// §9.2 Color ramp: steps 50–900 derived from the identity values. 500 = the input color (Δ = 0).
+// AXIS theme.md: a brand family shifts ONLY the lightness — 500 takes --hue/--saturation/--lightness as they are, every other
+// step is hsl(var(--hue) var(--saturation) calc(var(--lightness) ± n%)). A design ramp contributes its lightness steps only.
 const u = require('./lib/util');
 const color = require('./lib/color');
 
@@ -33,60 +35,72 @@ function defaultRamp(base) {
   return out;
 }
 
-/** Deltas from a full design ramp { "100": "#..", ... } relative to the base (500). */
+/** Deltas from a full design ramp { "100": "#..", ... } relative to the base (500): the lightness of each step only.
+ *  Hue/saturation differences of the design are not kept (the palette shifts only the lightness); designDrift() lists them. */
 function rampFromDesign(base, ramp) {
   const out = defaultRamp(base);
   for (const [k, v] of Object.entries(ramp)) {
     const st = +k;
     if (!STEPS.includes(st)) continue;
-    const c = parseInput(v);
-    let dh = c.h - base.h;
-    if (dh > 180) dh -= 360; if (dh < -180) dh += 360;
-    out[st] = { dh, ds: c.s - base.s, dl: c.l - base.l };
+    out[st] = { dh: 0, ds: 0, dl: parseInput(v).l - base.l };
   }
   out[500] = { dh: 0, ds: 0, dl: 0 };
   return out;
 }
 
+/** Steps of a design ramp whose hue or saturation differs from the base (not representable: listed for the report). */
+function designDrift(base, ramp) {
+  const out = [];
+  for (const [k, v] of Object.entries(ramp || {})) {
+    if (!STEPS.includes(+k) || +k === 500) continue;
+    const c = parseInput(v);
+    let dh = c.h - base.h;
+    if (dh > 180) dh -= 360; if (dh < -180) dh += 360;
+    if (dh || c.s !== base.s) out.push(`${k}: design hsl(${c.h} ${c.s}% ${c.l}%) → hsl(${base.h} ${base.s}% ${c.l}%) (only the lightness shifts)`);
+  }
+  return out;
+}
+
 const sign = (n, unit = '') => (n < 0 ? ` - ${-n}${unit}` : ` + ${n}${unit}`);
 
-/** CSS lines for one family. family: 'main' | 'secondary'; parts prefix '' or 'secondary-'. */
-function cssLines(family, partsPrefix, deltas) {
-  const H = `var(--${partsPrefix}hue)`, S = `var(--${partsPrefix}saturation)`, L = `var(--${partsPrefix}lightness)`;
+/** CSS lines for one family. family: 'main' | 'secondary'; suffix of its identity values: '' (--hue) or '-2' (--hue-2). */
+function cssLines(family, suffix, deltas) {
+  const H = `var(--hue${suffix})`, S = `var(--saturation${suffix})`, L = `var(--lightness${suffix})`;
   return STEPS.map((st) => {
     const d = deltas[st];
-    if (!d.dh && !d.ds && !d.dl) return `  --${family}-${st}: hsl(${H}, ${S}, ${L});`;
-    return `  --${family}-${st}: hsl(calc(${H}${sign(d.dh)}), calc(${S}${sign(d.ds, '%')}), calc(${L}${sign(d.dl, '%')}));`;
+    if (!d.dl) return `  --${family}-${st}: hsl(${H} ${S} ${L});`;
+    return `  --${family}-${st}: hsl(${H} ${S} calc(${L}${sign(d.dl, '%')}));`;
   });
 }
 
-function partLines(partsPrefix, base) {
-  return [`  --${partsPrefix}hue: ${base.h};`, `  --${partsPrefix}saturation: ${base.s}%;`, `  --${partsPrefix}lightness: ${base.l}%;`];
+/** Identity lines for colors.base.theme.css: --hue, --saturation, --lightness (suffix '' or '-2'). */
+function partLines(suffix, base) {
+  return [`  --hue${suffix}: ${base.h};`, `  --saturation${suffix}: ${base.s}%;`, `  --lightness${suffix}: ${base.l}%;`];
 }
 
 function table(base, deltas) {
   const rows = ['| step | h | s | l | hex |', '|---|---|---|---|---|'];
   for (const st of STEPS) {
     const d = deltas[st];
-    const h = base.h + d.dh, s = base.s + d.ds, l = base.l + d.dl;
+    const h = base.h, s = base.s, l = base.l + d.dl;
     rows.push(`| ${st} | ${h} | ${s}% | ${l}% | ${color.rgbToHex(color.hslToRgb(h, s, l))} |`);
   }
   return rows.join('\n');
 }
 
-module.exports = { parseInput, defaultRamp, rampFromDesign, cssLines, partLines, table, STEPS };
+module.exports = { parseInput, defaultRamp, rampFromDesign, designDrift, cssLines, partLines, table, STEPS };
 if (require.main === module) {
   const args = u.parseArgs(process.argv.slice(2));
   u.helpExit(args, `color-ramp.js — §9.2 build a 50–900 ramp from one brand color (500 = input).
 Usage: node color-ramp.js <#hex | "hsl(h s% l%)"> [--family main|secondary] [--ramp <json file or inline {"100":"#..",...}>] [--css]
   default ramp: lighter L + (97 − L) × {50 .90, 100 .78, 200 .60, 300 .42, 400 .22}; darker L − (L − 10) × {600 .18, 700 .36, 800 .54, 900 .72}
-  --css   print the CSS lines (HSL parts + steps) for colors.palette.theme.css`);
+  --css   print the identity lines (colors.base.theme.css) and the step lines (colors.palette.theme.css)`);
   if (!args._[0]) { console.error('Give a color. See --help.'); process.exit(1); }
   const base = parseInput(args._[0]);
   const family = args.family || 'main';
-  const prefix = family === 'main' ? '' : family + '-';
+  const suffix = family === 'main' ? '' : '-2';
   let deltas = defaultRamp(base);
   if (args.ramp) deltas = rampFromDesign(base, JSON.parse(u.exists(args.ramp) ? u.readText(args.ramp) : args.ramp));
   console.log(`${family}: hsl(${base.h} ${base.s}% ${base.l}%)\n` + table(base, deltas));
-  if (args.css) console.log('\n' + partLines(prefix, base).concat(cssLines(family, prefix, deltas)).join('\n'));
+  if (args.css) console.log('\n/* colors.base.theme.css */\n' + partLines(suffix, base).join('\n') + '\n/* colors.palette.theme.css */\n' + cssLines(family, suffix, deltas).join('\n'));
 }

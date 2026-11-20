@@ -15,10 +15,10 @@ const DOMAINS = ['scss', 'access', 'lang', 'safe'];
 const SNIP = 120;
 /** Which file kinds each domain scans (lint + scripts + its AI stages). */
 const DOMAIN_KINDS = {
-  scss: ['scss', 'css', 'html', 'index', 'ts'],
-  access: ['html', 'index', 'ts'],
-  lang: ['html', 'index', 'ts', 'translation'],
-  safe: ['html', 'index', 'ts', 'config'],
+  scss: ['scss', 'css', 'html', 'index', 'ts', 'cshtml', 'js'],
+  access: ['html', 'index', 'ts', 'cshtml', 'js'],
+  lang: ['html', 'index', 'ts', 'cshtml', 'js', 'translation'],
+  safe: ['html', 'index', 'ts', 'cshtml', 'js', 'config'],
 };
 /** Secret findings: the line is never stored, not even as a snippet (path + rule + a hash of the line only). */
 const NO_TEXT_RULES = new Set(['SAFE-04']);
@@ -143,7 +143,7 @@ function aiContext(domain, { pluginRoot } = {}) {
   const base = pluginRoot || project.PLUGIN_ROOT;
   const idx = u.readJSON(path.join(base, 'rules', 'rules.json'), { rules: [] });
   const stages = require('../ai-scan').STAGES[domain] || [];
-  return u.sha1([u.readText(path.join(base, d.rulesFile)) || '', JSON.stringify((idx.rules || []).filter((r) => doms.ofRule(r.id) === domain)), JSON.stringify(stages.map((s) => s.rules))].join('\n'));
+  return u.sha1([u.readText(path.join(base, d.rulesFile)) || '', d.mvcRulesFile ? u.readText(path.join(base, d.mvcRulesFile)) || '' : '', JSON.stringify((idx.rules || []).filter((r) => doms.ofRule(r.id) === domain)), JSON.stringify(stages.map((s) => s.rules))].join('\n'));
 }
 /** What of a file's stored knowledge for `domain` can be reused now: { lint, ai } (both need the file itself to be valid). */
 function reusable(ledger, rel, domain, ctx) {

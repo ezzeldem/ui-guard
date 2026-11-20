@@ -54,6 +54,12 @@ function run(root, profile) {
       if (!link) findings.push(mk(root, 'STYLE-36', 'src/index.html', headEndLine, `Theme file \`${tf}\` is not loaded with <link> in index.html.`, `Add <link rel="stylesheet" href="${tf}"> in <head>.`));
       else if (!/^(\.\/)?assets\//.test(link.href)) findings.push(mk(root, 'STYLE-36', 'src/index.html', link.line, `Theme link \`${link.href}\` is not loaded from assets/.`, `Use href="${tf}".`));
     }
+    // AXIS output.md: colors.base, colors.palette, fonts — in that order — and custom.theme.css last
+    const order = project.THEME_FILES.map((tf) => links.findIndex((l) => l.href.replace(/^\.?\//, '').endsWith('theme/' + tf)));
+    for (let k = 1; k < order.length - 1; k++) {
+      const prev = order.slice(0, k).filter((x) => x >= 0).pop();
+      if (order[k] >= 0 && prev !== undefined && order[k] < prev) findings.push(mk(root, 'STYLE-36', 'src/index.html', links[order[k]].line, `${project.THEME_FILES[k].split('/').pop()} is linked before ${links[prev].href.split('/').pop()} — the theme token files are linked colors.base, colors.palette, fonts.`, 'Reorder the theme <link>s: colors.base, colors.palette, fonts, then custom.theme.css last.'));
+    }
     const customIdx = links.findIndex((l) => /custom[._]theme\.css$/.test(l.href));
     if (customIdx >= 0 && customIdx !== links.length - 1) {
       findings.push(mk(root, 'STYLE-36', 'src/index.html', links[customIdx].line, `custom.theme.css is not the last stylesheet link in <head> (\`${links[links.length - 1].href}\` comes after it).`, 'Move the custom.theme.css <link> to the end of <head> (phase 1, checked with the pixel diff).'));
@@ -72,8 +78,10 @@ function run(root, profile) {
   for (const f of scss.filter((x) => x.abs.startsWith(commonDir + path.sep))) {
     for (const r of graph.reachable(g, f.abs)) if (!r.startsWith(commonDir + path.sep) && !viaCommon.has(r)) viaCommon.set(r, f.rel);
   }
+  // R-29: the importer is a page entry, a layout entry or a component style — never a file that is itself reached through common/
+  const reachedByCommon = new Set(viaCommon.keys());
   for (const [file, deps] of g) {
-    if (file.startsWith(commonDir + path.sep)) continue;
+    if (file.startsWith(commonDir + path.sep) || reachedByCommon.has(file)) continue;
     for (const d of deps) {
       if (!d.resolved || !viaCommon.has(d.resolved)) continue;
       if (/(^|\/)(tools|settings)(\/|$)/.test(u.relPosix(root, d.resolved))) continue;

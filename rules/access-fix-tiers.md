@@ -107,9 +107,10 @@ The box of an image is reserved when the page knows its size before the file loa
 
 ## Visually-hidden toolkit
 
-For hidden labels, legends, captions, skip links and status text use the project's visually-hidden utility. If the project
-has none, Foundation A added `.u-sr-only` (utilities layer: absolute position, 1px size, `clip-path: inset(50%)`, overflow
-hidden, no wrapping). Never hide text that must be announced with `display: none` or `visibility: hidden`.
+For hidden labels, legends, captions, skip links and status text use `.u-sr-only` — the one visually-hidden utility (AXIS
+accessibility rule 5: declared once in `utilities/accessibility/`, never re-implemented, so a project `.sr-only` /
+`.visually-hidden` is not reused). `foundation.js sr-only --apply` creates it when it is missing (absolute position, 1px size,
+`clip-path: inset(50%)`, overflow hidden, no wrapping). Never hide text that must be announced with `display: none` or `visibility: hidden`.
 
 ## Needs a decision (never changed by a fix)
 

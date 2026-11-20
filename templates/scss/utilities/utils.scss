@@ -1,4 +1,7 @@
 @charset "UTF-8";
-// Utilities entry — loaded last in style.scss so utilities win by load order (never by specificity).
-@use "accessibility/sr-only.utility";
-@use "visual/filter.utility";
+
+@use "./accessibility" as *;
+@use "./interaction" as *;
+@use "./layout" as *;
+@use "./typography" as *;
+@use "./visual" as *;

@@ -32,6 +32,18 @@ export const uiGuardConfigs = [
     },
   },
   {
+    // Plain scripts (ASP.NET MVC wwwroot / Scripts, jQuery): the same SAFE rules as TypeScript.
+    files: ['**/*.js'],
+    ignores: ['**/*.min.js', '**/wwwroot/lib/**'],
+    languageOptions: { ecmaVersion: 'latest', sourceType: 'script' },
+    rules: {
+      'no-eval': 'error', // SAFE-03
+      'no-implied-eval': 'error', // SAFE-03
+      'no-new-func': 'error', // SAFE-03
+      'no-console': 'warn', // SAFE-08
+    },
+  },
+  {
     files: ['**/*.html'],
     languageOptions: { parser: angular.templateParser },
     plugins: { '@angular-eslint/template': angular.templatePlugin },
@@ -40,6 +52,6 @@ export const uiGuardConfigs = [
 ];
 
 export default [
-  { ignores: ['**/node_modules/**', '**/dist/**', '**/.angular/**', '**/coverage/**', '.ui-guard/**'] },
+  { ignores: ['**/node_modules/**', '**/dist/**', '**/.angular/**', '**/coverage/**', '**/bin/**', '**/obj/**', '.ui-guard/**'] },
   ...uiGuardConfigs,
 ];

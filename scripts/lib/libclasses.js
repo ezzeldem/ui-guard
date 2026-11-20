@@ -96,6 +96,17 @@ function libraryReason(name, ctx) {
   if (ctx.scoped.has(name)) return 'the project styles it only under a library selector or ::ng-deep';
   return null;
 }
+/** The library a class belongs to, as a lowercase package name without a version (bootstrap, swiper, ngx-…), or null. */
+function libraryName(name, ctx) {
+  const p = patternReason(name, ctx.hasPrime, ctx.vendor);
+  if (p === 'Bootstrap class') return 'bootstrap';
+  if (p && /PrimeNG/.test(p)) return 'primeng';
+  const pre = LIB_PREFIXES.find((x) => name.startsWith(x));
+  if (pre) return { 'ngx-': 'ngx', 'mat-': 'material', 'mdc-': 'material', 'ng-': 'angular', 'swiper-': 'swiper', 'ngb-': 'ngbootstrap', 'cdk-': 'cdk' }[pre];
+  if (ctx.vendor.has(name)) return (ctx.vendor.get(name).toLowerCase().replace(/.(min.)?css$/, '').split(/[.d]/)[0].replace(/[^a-z-]/g, '') || 'vendor');
+  if (ctx.scoped.has(name)) return 'vendor';
+  return null;
+}
 const isStateClass = (name) => STATE.has(name);
 
 /** The class named by a STYLE-01 finding (stylelint or class-usage wording), or null. */
@@ -116,4 +127,4 @@ function splitFindings(findings, ctx) {
   return { kept, rest };
 }
 
-module.exports = { BOOTSTRAP, LIB_PREFIXES, STATE, patternReason, vendorMap, context, libraryReason, isStateClass, style01Class, splitFindings };
+module.exports = { BOOTSTRAP, LIB_PREFIXES, STATE, patternReason, vendorMap, context, libraryReason, libraryName, isStateClass, style01Class, splitFindings };

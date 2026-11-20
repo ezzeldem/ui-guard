@@ -1,7 +1,9 @@
 # packages/
 
-Vendor CSS kept as delivered: `packages/<lib><ver>/<lib><major>.<locale>.min.css`.
+Vendor CSS kept exactly as the library published it: `packages/<library><version>/<library><major>.<locale>.min.css`.
 
-- Never compiled, `@use`d, `@import`ed or modified (STYLE-27).
-- Prefer loading vendor CSS from `node_modules` in `angular.json` `styles`, listed **before** `src/assets/scss/style.scss`.
-- Overrides of vendor styles live in one library module per vendor component (`modules/_<comp>.<lib>.module.scss`, `m-` class).
+- Never compiled, `@use`d, `@import`ed or modified (STYLE-27, AXIS R-33).
+- In an Angular project vendor CSS is loaded from `node_modules` in `angular.json` `styles`, listed **first**, before
+  `common/common.scss` and `utilities/utils.scss`.
+- An override of a vendor component lives in its library module, `modules/_<vendor-component>.<library>.module.scss`,
+  on an `m-` class (R-30, R-36).

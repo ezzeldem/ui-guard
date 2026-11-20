@@ -13,7 +13,7 @@ const DOMAINS = {
     lint: { stylelint: true, eslint: false },
   },
   access: {
-    prefix: 'ACCESS', title: 'accessibility', rulesFile: 'rules/access.md',
+    prefix: 'ACCESS', title: 'accessibility', rulesFile: 'rules/access.md', mvcRulesFile: 'rules/access-mvc.md',
     scripts: ['access-check'],
     lint: { stylelint: false, eslint: true },
   },
@@ -29,6 +29,15 @@ const DOMAINS = {
   },
 };
 const NAMES = Object.keys(DOMAINS);
+
+/** Rule files an agent needs for `domain` and these files: the MVC part of ACCESS only when a .cshtml / .js file is in them. */
+function rulesFilesFor(name, files, pluginRoot) {
+  const d = get(name);
+  if (!d) return [];
+  const out = [d.rulesFile];
+  if (d.mvcRulesFile && (files || []).some((f) => /.(cshtml|js)$/i.test(typeof f === 'string' ? f : (f && (f.file || f.path)) || ''))) out.push(d.mvcRulesFile);
+  return pluginRoot ? out.map((r) => path.join(pluginRoot, r)) : out;
+}
 
 function get(name) {
   const d = DOMAINS[String(name || '').toLowerCase()];
@@ -92,4 +101,4 @@ function listText() {
   return NAMES.map((n) => `  ${n.padEnd(7)} ${DOMAINS[n].prefix.padEnd(7)} ${DOMAINS[n].title}`).join('\n');
 }
 
-module.exports = { DOMAINS, NAMES, get, owns, ofRule, paths, fromArgs, listText };
+module.exports = { DOMAINS, NAMES, get, owns, ofRule, paths, fromArgs, listText, rulesFilesFor };

@@ -1,7 +1,7 @@
 <section class="p-home">
   <h1>{{ 'home.title' | translate }}</h1>
   <p>{{ 'home.missing' | translate }}</p>
-  <div class="tile">{{ 'home.title' | translate }}</div>
+  <div class="tile" (click)="go()">{{ 'home.title' | translate }}</div>
   <img src="assets/images/missing.png">
   <img src="src/assets/images/icon-arrow.svg" width="8" height="8" alt="">
   <img [src]="item.photo" width="40" height="40" alt="">

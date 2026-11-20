@@ -114,6 +114,15 @@ function scriptReports(root, ph) {
   const fa = u.readJSON(path.join(root, '.ui-guard', 'scss', 'foundation-move.json'), null);
   return { mech, foundationMove: ph.kind === 'foundation-move' ? fa : null };
 }
+/**
+ * Foundation B leaves what is not AXIS-compliant in the legacy stylesheet, frozen (AXIS migration guide): a finding on a
+ * legacy file (other than the STYLE-48 move itself) is not something this phase fixes.
+ */
+function keptInLegacy(root, ph, f) {
+  if (ph.kind !== 'foundation-move' || f.ruleId === 'STYLE-48') return false;
+  const fm = u.readJSON(path.join(root, '.ui-guard', 'scss', 'foundation-move.json'), null);
+  return !!fm && (fm.legacy || []).includes(f.file);
+}
 function allowedFiles(root, ph) {
   const set = new Set([...(ph.files || []), ...(ph.extraFiles || [])]);
   const { mech } = scriptReports(root, ph);
@@ -124,7 +133,7 @@ function isAllowed(root, ph, f, set) {
   if (set.has(f) || f.startsWith('.ui-guard/')) return true;
   if (ph.kind === 'foundation-structure' || ph.kind === 'foundation-move') {
     const sr = project.scssRoot(project.readProfile(root));
-    if (f.startsWith(sr + '/') || f === 'angular.json' || f === 'src/index.html') return true;
+    if (f.startsWith(sr + '/') || f.startsWith('src/assets/themes/') || f === 'angular.json' || f === 'src/index.html') return true;
   }
   return false;
 }
@@ -479,10 +488,10 @@ if (require.main === module) {
     const res = runChecks.runAll(root, { files: files.length ? files : null, domain: DOMAIN });
     const now = res.findings.map((f) => merge.normalize(root, f)).filter(Boolean);
     const nowFp = new Set(now.map((f) => f.fingerprint));
-    const phaseFindings = (u.readJSON(dp(root).findings, []) || []).filter((f) => (ph.findings || []).includes(f.id) && (f.sources || []).some((s) => s === 'lint' || s === 'script'));
+    const phaseFindings = (u.readJSON(dp(root).findings, []) || []).filter((f) => (ph.findings || []).includes(f.id) && (f.sources || []).some((s) => s === 'lint' || s === 'script') && !keptInLegacy(root, ph, f));
     const notFixed = phaseFindings.filter((f) => nowFp.has(f.fingerprint));
     const baseline = fpLib.loadBaseline(root);
-    const newErrors = now.filter((f) => f.severity === 'error' && !baseline.has(f.fingerprint) && (files.includes(f.file)));
+    const newErrors = now.filter((f) => f.severity === 'error' && !baseline.has(f.fingerprint) && (files.includes(f.file)) && !keptInLegacy(root, ph, f));
     const report = { notFixed: notFixed.map((f) => `${f.id} ${f.ruleId} ${f.file}:${f.line}`), newErrors: newErrors.map((f) => `${f.ruleId} ${f.file}:${f.line} ${f.message}`), notes: res.notes };
     u.writeJSON(path.join(fixDir(root), `phase-${ph.id}-verify.json`), report);
     for (const n of res.notes) console.log('note: ' + n);
@@ -495,7 +504,8 @@ if (require.main === module) {
     const p = dp(root);
     const findings = u.readJSON(p.findings, []) || [];
     const fixedFps = [];
-    for (const f of findings) if ((ph.findings || []).includes(f.id) && f.status === 'confirmed') { f.status = 'fixed'; fixedFps.push(f.fingerprint); }
+    // a finding in the frozen legacy stylesheet stays open (migrate page by page): it is not fixed by Foundation B
+    for (const f of findings) if ((ph.findings || []).includes(f.id) && f.status === 'confirmed' && !keptInLegacy(root, ph, f)) { f.status = 'fixed'; fixedFps.push(f.fingerprint); }
     u.writeJSON(p.findings, findings);
     const left = fpLib.removeFromBaseline(root, fixedFps, DOMAIN);
     ph.status = 'done'; ph.doneAt = new Date().toISOString();

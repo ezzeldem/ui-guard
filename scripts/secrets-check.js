@@ -19,7 +19,7 @@ function mask(v) { return String(v).slice(0, 4) + '…'; }
 
 function run(root, profile) {
   const findings = [];
-  const files = project.listUiFiles(root, profile).filter((f) => f.kind === 'ts' || f.kind === 'config' || f.kind === 'html' || f.kind === 'index');
+  const files = project.listUiFiles(root, profile).filter((f) => ['ts', 'config', 'html', 'index', 'cshtml', 'js'].includes(f.kind));
   for (const f of files) {
     if (f.rel === 'angular.json') continue;
     const text = u.readText(f.abs) || '';

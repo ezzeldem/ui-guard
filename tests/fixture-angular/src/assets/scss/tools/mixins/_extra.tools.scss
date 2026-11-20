@@ -2,3 +2,7 @@
 @mixin gap-x($size) {
   column-gap: $size;
 }
+
+@mixin brand-text {
+  color: var(--main-500);
+}

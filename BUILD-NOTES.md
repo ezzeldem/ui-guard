@@ -64,7 +64,7 @@ The first real scan of a large project used ~6M tokens (96 agents, 3 rounds) and
 4. **Fix runs to the end** (`phase.js next` loop, `summary`), stopping only on build failure, 3 failed retries, unreadable/unwritable files or a usage limit.
    Without git it makes the backup itself (before: a question). Script-only phases skip the Opus review (proven by compile); the review runs once per
    phase the fixer touched, on the diff only (the diff file carries the phase findings in a `#` header).
-5. **STYLE-48 + Foundation A/B** (`scripts/foundation.js`, `lib/scss-text.js`): structure gap check; Foundation A creates the missing tree from the
+5. **STYLE-48 + Foundation A/B** (`scripts/foundation.js`, `lib/scss-text.js`; Foundation B since redesigned as the AXIS migration — see "AXIS parity" below): structure gap check; Foundation A creates the missing tree from the
    templates (generic/elements as empty files, no button, the icon-filter utility only when the palette has filter tokens); Foundation B moves the
    global stylesheets into segment files in cascade order (fine-grained rank per segment + index position; out-of-order rules stay with the previous
    target and are listed), rebases `url()`s, and proves it by compiling every injected global + theme `<link>` with the project's sass before/after
@@ -73,7 +73,7 @@ The first real scan of a large project used ~6M tokens (96 agents, 3 rounds) and
    logical properties (not for bidirectional apps), `@media` min/max width/height → `mq()` (missing breakpoint keys added; `max-width: X` ≡ `width < X+1`
    at whole pixels), BEM nesting of contiguous top-level parts, prefix renames (SCSS + templates + TS, all-or-nothing per class). Each step is kept
    only when the compiled CSS of the file is unchanged.
-7. **STYLE-11** no longer covers width/height/min-/max-* (rule text, rules.json, Stylelint plugin, fixer, skill, tests).
+7. **STYLE-11** covers width/height/min-/max-* again (AXIS R-09 literally): they become inline-size/block-size, also in bidirectional apps.
 8. **ACCESS**: `rules/access-fix-tiers.md`, `selector-impact.js`, `screens.js --styles` + `style-diff.js` (computed style + box), impact levels in
    `lib/access-impact.js` (High/Medium/Low, non-problems rejected, repeats collapsed, fix-first list), `needs-decision.md` collected by `phase.js summary`.
 9. Plan fixes: global stylesheets are Foundation B, never Pages (`*.component.scss` counts as a component); screenshot routes come from real routes
@@ -113,6 +113,80 @@ The first real scan of a large project used ~6M tokens (96 agents, 3 rounds) and
 - Fix: `phase.js snapshot` stores every ledger file's hash; `complete` / `fail` update the ledger (own statuses, fingerprint, facts,
   rename map, carry-over of the other domains incl. their findings.json lines and baseline fingerprints). `plan.js` leaves out
   findings the ledger parks as needs-decision / skipped (`--rescan` resets them).
+
+## AXIS parity (2026-11-20)
+
+ui-guard is now an exact copy of the AXIS SCSS standard the ui-code-review AXIS reviewer applies: everything ui-guard generates
+(init templates, Foundation A/B, the scss fixer) and accepts follows AXIS literally (`ui-code-review/skills/axis-scss/`).
+- **Structure / templates** (`templates/scss`): no `style.scss`; entries `common/common.scss` (`../generic`, `../elements`, then the
+  aggregators) and `utilities/utils.scss` (the five `@use "./<category>"` lines); five fixed utility categories, each with `_index.scss`
+  (`u-sr-only` in `accessibility/`, filters in `visual/`); `generic/_index.scss` + `_reset.generic.scss` (box-sizing, form controls
+  inherit the font, responsive media, the one reduced-motion block); `elements/_index.scss` only (base typography reads `--ff`/`--fs-*`/
+  `--lh-*`); no `settings/_index.scss`, new `settings/_colors.settings.scss` (maps referencing palette tokens); reserved
+  `pages/standalone/`, `pages/state/`; `@use` with relative `<path-to-root>` paths and `// @dependencies:` comments in the scss root.
+- **Tools:** one file per tool (`tools/functions/_px.function.scss`, `tools/mixins/_<name>.mixin.scss`) forwarded by folder indexes;
+  every tool documented and every parameter validated with `@error` (after/before/scroll included); `dir()` writes `&:dir(<dir>)`
+  (no `::ng-deep`, no attribute selector); `scroll()` takes its sizes and colours as parameters; `hover($trans: null)`.
+- **Theme files and tokens:** new `colors/colors.base.theme.css` (`--hue/--saturation/--lightness`, `-2` for the second brand, the
+  `--filter-primary|secondary|neutral-25|neutral-400` filters); the palette no longer changes between clients and brand ramps shift
+  only the lightness (`color-ramp.js`); `add-theme` edits only the base file; `--shadow-100` replaces `--div-shadow`; font tokens
+  `--ff`, `--fs-*`, `--fw-*`, `--lh-*`; utilities `u-filter-neutral-25`/`u-filter-neutral-400` replace light/gray. Links in
+  `index.html`: base, palette, fonts, custom (last); `lib/project.js` `THEME_FILES` has the four files.
+- **Foundation A:** creates the AXIS tree, generates `_colors.settings.scss` from the palette, wires both entries + four theme links,
+  upgrades an old single `style.scss` entry. **Foundation B** follows the AXIS migration guide: the legacy stylesheet stays linked
+  right after the vendor CSS and frozen; only AXIS-compliant pieces move (tokens, `@font-face` to every theme's `fonts.theme.css`,
+  `$variables`, one tool file per mixin/function, element rules, resets, single-property `u-` rules by category, vendor overrides under
+  an existing `m-` block). A rule passes only rules it can never conflict with (`lib/cascade.js`; `sameRender(..., { reorder: true })`
+  accepts such permutations); the rest is reported as legacy and STYLE-48 no longer requires it gone (`foundation-move.json` `legacy`).
+  `sr-only` always creates/uses `u-sr-only` (no reuse of `.sr-only` / `.visually-hidden`).
+- **Lint:** `selector-max-class: 0` in generic/elements (STYLE-49), `selector-max-universal: 0` and `:root`/`:host` disallowed
+  elsewhere (STYLE-06), attribute selectors only `[aria-*]` / `:is([dir="rtl"])` on a project class (mixins included, no tools
+  exemption), `::ng-deep` an error everywhere, px rule on `$variables` and theme CSS (only `_breakpoints.settings.scss` exempt), colour
+  literals and functions (`hwb lab lch oklab oklch color` added) only in `theme/colors/*.css`, logical properties and
+  no-duplicate-selectors on in custom/fonts, `custom.theme.css` rejects `*`/`:root`/`html`, no
+  `consecutive-duplicates-with-different-syntaxes` ignore, utility short names (`u-ff- u-fs- u-fw- u-bg- u-text- u-text-align-`),
+  `ui-guard/no-important` (only the generic reduced-motion block), `ui-guard/module-classes` (library modules nest vendor classes in
+  `.m-<component>`; `common/_classes.common.scss` exempt), a routed page style may `@use` page-local objects/components/modules.
+- **Severities = AXIS priority** (Critical → error, High → warning, Medium → info): STYLE-04, 40, 41, 42, 44 warning; STYLE-31, 45
+  error. STYLE-41 is fixable (`@include hover`); STYLE-44 checks every theme with 3:1 for large text and control borders; STYLE-46 uses
+  the AXIS budgets (common 20 KB, utils 8 KB, theme 3 KB, page 12 KB, 60 KB per page; vendor not budgeted).
+- **New rules STYLE-49..55:** element-only generic/elements, Elements base background + font tokens, tool parameters validated, no
+  hard-coded tool values, generated colour utilities, vendor overrides in library modules, settings map comments. rules.json: 108 rules;
+  every STYLE rule has an `axis` field (AXIS rule IDs); rules/style.md has an AXIS column. Still 5 commands.
+- **Scripts:** `structure-check.js` (exact AXIS file-name regexes per segment, R-28 import routes, tools, STYLE-42/50..55),
+  `angular-config-check.js` (theme link order; R-29 importers are only entries and component styles), `tokens-check.js` (pre-AXIS
+  names, font keys, base/fonts hold no shade, `:host` no longer exempt for fluid tokens, contrast per theme), `theme-check.js`,
+  `web-check.js` (budgets), `scss-fix.js` (`@use "<path-to-root>/tools"`, `deps` step), `scaffold.js`, `color-ramp.js`,
+  `libclasses.libraryName`.
+
+## AXIS parity — judgment calls
+
+Where the AXIS text left room, the stricter reading was taken:
+- (a) Font family keys: `--ff` for one family, `--ff-1`, `--ff-2` … when there is more than one (theme.md, literally). The template has
+  only `--ff`; `--fb` is reported as a pre-AXIS name (rename to `--ff-2`, and `--ff` → `--ff-1`) instead of keeping `--ff` beside `--ff-2`.
+- (b) A STYLE rule that implements AXIS rules of different priority takes the highest priority's severity (STYLE-19, STYLE-25,
+  STYLE-28, STYLE-42). STYLE-15, 30, 35 and 37 keep ui-guard's severity (no matching AXIS rule).
+- (c) A module may `@use` only components: R-28 says only a module may `@use` a component; a module `@use`-ing an object or another
+  module is reported.
+- (d) Foundation B moves rules whose values still need fixing (px, physical properties, colour literals): the later scss-fix phases of
+  the same run fix them with their own proofs. It never moves unprefixed classes, colour utilities or `@keyframes`.
+- (e) `@dependencies` is a documented best practice, not a numbered rule: generated everywhere (templates, Foundation B, the scss-fix
+  `deps` step) but no STYLE rule reports a missing one.
+- (f) A design ramp's hue/saturation differences are dropped (only the lightness shifts) and listed in the init report.
+- (g) `hover()`'s transition is opt-in (`$trans: null`) so `@include hover` is pixel-neutral as the STYLE-41 fix; the standard button
+  passes `hover(0.2)`.
+- (h) Only `:is([dir="rtl"])` (not `ltr`) is allowed, chained onto a project class.
+- (i) STYLE-46: Angular bundles vendor + legacy + common + utils into one `styles.css`, so the 60 KB per-page ceiling is applied to it;
+  common and utils are measured separately by compiling their entries.
+- (j) R-TOOL-5 (compile each tool's example once) is a process rule: ui-guard's own self-tests compile the tool examples; projects are
+  not checked for it.
+- (k) `u-<short>-<step>` utilities (`u-fs-sm`) name a token step and are not treated as breakpoint names (R-UTIL-6).
+- (l) `_index.scss` files hold only `@charset` and `@use`/`@forward` lines (no comments).
+- (m) The generic reset template adds form-control `font: inherit` and responsive media (AXIS generic key features) — new projects only.
+- (n) `:host` has no AXIS exemption: lint reports it; the fixer moves its styles onto the component's root BEM class only with pixel
+  proof, otherwise it is a decision.
+- (o) A library module's block must be `.m-<vendor-component>` from its file name; a vendor class anywhere outside a library module
+  or `common/_classes.common.scss` is a STYLE-54 finding (also when nested under a `c-`/`p-` block), since R-30 allows only an `m-` wrapper.
 
 ## Package versions verified (npm, 2026-11-13)
 stylelint 18.0.0 (17.16.0 used), stylelint-scss 7.5.0 (peer ^16.8.2‖^17‖^18), postcss-scss 4.0.9, eslint 10.15.0 (9.39.5 used — see Review fixes), angular-eslint 22.6.0 (eslint ^9‖^10), typescript-eslint 8.72.2 (TS <6.1 → 5.9.3), sass 1.108.2, playwright 1.65.1, pixelmatch 8.0.0 (ESM, loaded via dynamic import), pngjs 7.0.0.

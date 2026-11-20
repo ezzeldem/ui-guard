@@ -101,6 +101,9 @@ const LOGICAL = {
   'border-end-start-radius': ['border-bottom-left-radius', 'border-bottom-right-radius'], 'border-end-end-radius': ['border-bottom-right-radius', 'border-bottom-left-radius'],
   'scroll-margin-inline-start': ['scroll-margin-left', 'scroll-margin-right'], 'scroll-margin-inline-end': ['scroll-margin-right', 'scroll-margin-left'],
   'scroll-padding-inline-start': ['scroll-padding-left', 'scroll-padding-right'], 'scroll-padding-inline-end': ['scroll-padding-right', 'scroll-padding-left'],
+  // sizes: the same box in both directions (horizontal writing mode)
+  'inline-size': ['width', 'width'], 'block-size': ['height', 'height'], 'min-inline-size': ['min-width', 'min-width'], 'max-inline-size': ['max-width', 'max-width'],
+  'min-block-size': ['min-height', 'min-height'], 'max-block-size': ['max-height', 'max-height'],
 };
 const LOGICAL_VALUES = { 'text-align': { start: ['left', 'right'], end: ['right', 'left'] }, float: { 'inline-start': ['left', 'right'], 'inline-end': ['right', 'left'] }, clear: { 'inline-start': ['left', 'right'], 'inline-end': ['right', 'left'] } };
 
@@ -181,9 +184,15 @@ function normalize(css, { rootPx = 16, dir = 'ltr', tokens: tokenColors = null }
 }
 
 /** Compare two normalized forms. Returns { same, reason }. */
-function sameRender(a, b) {
+function sameRender(a, b, { reorder = false } = {}) {
   if (a.ordered.length !== b.ordered.length) return { same: false, reason: `different number of rules (${a.ordered.length} → ${b.ordered.length})` };
-  for (let i = 0; i < a.ordered.length; i++) if (a.ordered[i] !== b.ordered[i]) return { same: false, reason: `rule ${i + 1} differs: ${u.clip(a.ordered[i], 90)} → ${u.clip(b.ordered[i], 90)}` };
+  for (let i = 0; i < a.ordered.length; i++) {
+    if (a.ordered[i] === b.ordered[i]) continue;
+    // reorder: the same rules in another order are still the same page when no two swapped rules can decide the
+    // same property at the same specificity and importance (lib/cascade.js) — used by Foundation B
+    if (reorder) { const p = require('./cascade').samePermutation(a.ordered, b.ordered); if (!p.same) return p; break; }
+    return { same: false, reason: `rule ${i + 1} differs: ${u.clip(a.ordered[i], 90)} → ${u.clip(b.ordered[i], 90)}` };
+  }
   const ja = JSON.stringify(a.free), jb = JSON.stringify(b.free);
   if (ja !== jb) {
     const ta = a.free.tokens, tb = b.free.tokens;

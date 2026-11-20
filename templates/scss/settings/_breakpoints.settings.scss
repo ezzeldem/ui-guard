@@ -1,5 +1,7 @@
 @charset "UTF-8";
-// Breakpoints map. Read by tools/mixins/_mq.tools.scss. Values in rem (px in comments, root 16px).
+
+// $breakpoints — one named viewport threshold per key (rem, px equivalent in the comment, root 16px).
+// Read by tools/mixins/_mq.mixin.scss: `@include mq(min|max, w|h, <key>)` → `(width >= value)` / `(width < value)`.
 $breakpoints: (
   mob-min: 20rem,       // 320px
   mob: 25rem,           // 400px

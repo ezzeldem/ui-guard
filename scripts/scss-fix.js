@@ -2,10 +2,13 @@
 'use strict';
 // Zero-token mechanical SCSS fixes for /ui-guard:fix scss — run BEFORE the fixer agent, on the phase's files only.
 //   charset   @charset "UTF-8"; on line 1
-//   use-tools @use "tools" as *; right after it (every component SCSS; segment files when they use a tool)
+//   use-tools @use "<path-to-root>/tools" as *; right after it (every component SCSS: "tools" through includePaths; segment
+//             files when they use a tool: the relative path, AXIS best-practices.md)
+//   deps      // @dependencies: <tool file> lines after @charset for every tool the file reads (AXIS tools.md)
 //   px        16px → px(16) (root font size from the profile; 1px stays; custom properties untouched)
-//   logical   physical → logical properties, EXCEPT width/height and min/max-width/height (STYLE-11); only when the app
-//             has ONE direction (a bidirectional app would flip in the other direction → listed as "decide")
+//   logical   physical → logical properties (STYLE-11 = AXIS R-09). Sizes (width/height, min-/max-) → inline-size/block-size
+//             always (the same in both directions); sides (margin-left, left, text-align: left…) only when the app has ONE
+//             direction (a bidirectional app would flip in the other direction → listed as "decide")
 //   mq        @media (min-width/max-width …) → @include mq(…) with the project's breakpoints (missing keys are added)
 //   bem       top-level .block__x / .block-variant rules right after .block → nested &__x / &-variant (same compiled CSS)
 //   colors    hex / rgb() / rgba() in variables and tokens → hsl(H, S%, L%[, A]) when the round trip is exact; a colour in a component that
@@ -43,7 +46,13 @@ const PHYS = {
   'border-top-left-radius': 'border-start-start-radius', 'border-top-right-radius': 'border-start-end-radius', 'border-bottom-left-radius': 'border-end-start-radius', 'border-bottom-right-radius': 'border-end-end-radius',
   left: 'inset-inline-start', right: 'inset-inline-end', top: 'inset-block-start', bottom: 'inset-block-end',
   'scroll-margin-left': 'scroll-margin-inline-start', 'scroll-margin-right': 'scroll-margin-inline-end', 'scroll-padding-left': 'scroll-padding-inline-start', 'scroll-padding-right': 'scroll-padding-inline-end',
+  'scroll-margin-top': 'scroll-margin-block-start', 'scroll-margin-bottom': 'scroll-margin-block-end', 'scroll-padding-top': 'scroll-padding-block-start', 'scroll-padding-bottom': 'scroll-padding-block-end',
 };
+/** Sizes: the same box in LTR and RTL (horizontal writing mode), so they convert in a bidirectional app too. */
+const SIZE = { width: 'inline-size', height: 'block-size', 'min-width': 'min-inline-size', 'max-width': 'max-inline-size', 'min-height': 'min-block-size', 'max-height': 'max-block-size' };
+function tSize(t) {
+  return mapCode(t, (code) => code.replace(/(^|[;{}\s])([a-z-]+)(\s*:\s*)([^;{}]+)(?=[;}])/g, (m, pre, prop, colon, val) => (SIZE[prop] ? pre + SIZE[prop] + colon + val : m)));
+}
 const SWAP_RTL = { 'inline-start': 'inline-end', 'inline-end': 'inline-start', 'start-start': 'start-end', 'start-end': 'start-start', 'end-start': 'end-end', 'end-end': 'end-start' };
 const PHYS_VALUES = { 'text-align': { left: 'start', right: 'end' }, float: { left: 'inline-start', right: 'inline-end' }, clear: { left: 'inline-start', right: 'inline-end' } };
 
@@ -78,12 +87,42 @@ function tCharset(t) {
 
 function definesTool(t) { return TOOL_NAMES.find((n) => new RegExp(`@(mixin|function)\\s+${n}\\b`).test(t)); }
 function hasToolsUse(t) { return /@use\s+["'][^"']*tools["']\s+as\s+\*/.test(t); }
-function tUseTools(t) {
+/** The tool files a text reads (AXIS @dependencies comment), in our one-file-per-tool layout. */
+function toolDeps(t) {
+  const code = t.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, '');
+  const out = [];
+  if (/(^|[^\w-])px\(/.test(code)) out.push('tools/functions/_px.function.scss');
+  for (const n of TOOL_NAMES.filter((x) => x !== 'px')) if (new RegExp(`@include\\s+${n}\\b`).test(code)) out.push(`tools/mixins/_${n}.mixin.scss`);
+  return out;
+}
+/**
+ * `@use "<path-to-root>/tools" as *;` right after @charset (+ the `// @dependencies:` lines, tools.md). A file under the
+ * scss root reaches the tools by its relative path (AXIS best-practices.md); a component style by the includePaths entry.
+ * rel/sr: the file and the scss root (posix, project-relative).
+ */
+function tUseTools(t, rel = '', sr = '') {
   if (hasToolsUse(t)) return t;
   const lines = t.split('\n');
   const at = /^@charset/.test(lines[0]) ? 1 : 0;
-  lines.splice(at, 0, '@use "tools" as *;');
+  const inRoot = sr && rel.startsWith(sr + '/');
+  const up = inRoot ? '../'.repeat(rel.slice(sr.length + 1).split('/').length - 1) : '';
+  lines.splice(at, 0, `@use "${inRoot ? up + 'tools' : 'tools'}" as *;`);
   return lines.join('\n');
+}
+/** `// @dependencies: <file>` lines right after @charset for every tool the file reads (a comment: the CSS is unchanged). */
+function tDeps(t) {
+  const deps = toolDeps(t).filter((d) => !t.includes(`@dependencies: ${d}`));
+  if (!deps.length) return t;
+  const lines = t.split('\n');
+  const at = /^@charset/.test(lines[0]) ? 1 : 0;
+  const block = deps.map((d) => `// @dependencies: ${d}`);
+  // after the existing @dependencies lines, else right after @charset with a blank line around
+  let k = at;
+  while (k < lines.length && (lines[k].trim() === '' || /^\/\/ @dependencies:/.test(lines[k]))) k++;
+  const last = lines.slice(at, k).map((l, i) => (/^\/\/ @dependencies:/.test(l) ? at + i : -1)).filter((i) => i >= 0).pop();
+  if (last !== undefined) lines.splice(last + 1, 0, ...block);
+  else lines.splice(at, 0, ...(at ? [''] : []), ...block, '');
+  return lines.join('\n').replace(/\n{3,}/g, '\n\n');
 }
 
 function tPx(t, rootPx) {
@@ -278,14 +317,16 @@ function applyFile(root, rel, opts) {
   if (!colorOnly && isScss && (comp || /\b(px|mq|dir|after|before|hover|scroll)\(|@include\s+(px|mq|dir|after|before|hover|scroll)\b/.test(original) || /\d+px\b/.test(original) || /@media\s/.test(original))) {
     const own = definesTool(original);
     if (own) res.skipped.push({ what: 'use-tools', reason: `the file defines its own \`${own}\` — STYLE-38: remove it and @use the tools (judgment)` });
-    else steps.push(['use-tools', (t) => tUseTools(t)]);
+    else steps.push(['use-tools', (t) => tUseTools(t, rel, opts.sr)]);
   }
   if (!colorOnly) steps.push(colorStep);
   if (!colorOnly && isScss) steps.push(['px', (t) => tPx(t, opts.rootPx)]);
+  if (!colorOnly) steps.push(['size', (t) => tSize(t)]);
   if (colorOnly) { /* settings, tools and theme files get the colour step only */ } else if (opts.dir === 'both') { if (Object.keys(PHYS).some((p) => new RegExp(`(^|[;{\\s])${p}\\s*:`).test(original)) || /text-align\s*:\s*(left|right)/.test(original)) res.skipped.push({ what: 'logical', reason: 'the app switches direction (rtl + ltr): a logical property would flip in the other direction — decide per rule' }); }
   else steps.push(['logical', (t) => tLogical(t, opts.dir)]);
   if (!colorOnly && isScss) steps.push(['mq', (t) => tMq(t, opts.bp, [])]);
   if (!colorOnly && isScss) steps.push(['bem', (t) => tBem(t, [])]);
+  if (!colorOnly && isScss) steps.push(['deps', (t) => tDeps(t)]);
   // mq needs to report skipped items: run once for its notes
   if (!colorOnly && isScss) { const notes = []; tMq(original, { key: () => 'x' }, notes); for (const n of notes) res.skipped.push({ what: 'mq', reason: n }); }
   for (const [name, fn] of steps) {
@@ -354,7 +395,7 @@ function run(root, { files, phaseId, dry, withRenames }) {
   const componentStyles = require('./foundation').componentStyles(root);
   const allScss = project.listUiFiles(root, profile).filter((f) => f.kind === 'scss').map((f) => u.readText(f.abs) || '');
   const colorOnly = (rel) => /(^|\/)theme\//.test(rel) || rel.startsWith(`${sr}/settings/`) || rel.startsWith(`${sr}/tools/`);
-  const opts = { loadPaths, rootPx: profile.rootFontSize || 16, dir: dirMode(profile), bp, renames: safeRenames, dry, componentStyles, palette: cf.palette(root, profile), fnVars: cf.colourFnVars(allScss), colorOnly, newTokens: new Map(), paletteFiles: paletteFiles(root, profile) };
+  const opts = { sr, loadPaths, rootPx: profile.rootFontSize || 16, dir: dirMode(profile), bp, renames: safeRenames, dry, componentStyles, palette: cf.palette(root, profile), fnVars: cf.colourFnVars(allScss), colorOnly, newTokens: new Map(), paletteFiles: paletteFiles(root, profile) };
   for (const rel of files.filter((f) => /\.s?css$/.test(f))) {
     if (/\/packages\//.test(rel)) continue;
     const r = applyFile(root, rel, opts);
@@ -395,7 +436,7 @@ function run(root, { files, phaseId, dry, withRenames }) {
   return report;
 }
 
-module.exports = { run, tCharset, tUseTools, tPx, tLogical, tMq, tBem, renameInHtml, renameInTs, renameInScss, dirMode, readBreakpoints };
+module.exports = { run, tCharset, tUseTools, tDeps, tPx, tLogical, tSize, tMq, tBem, renameInHtml, renameInTs, renameInScss, dirMode, readBreakpoints };
 if (require.main === module) {
   const args = u.parseArgs(process.argv.slice(2), ['renames']);
   u.helpExit(args, HELP);

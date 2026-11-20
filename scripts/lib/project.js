@@ -5,20 +5,40 @@ const path = require('path');
 const u = require('./util');
 
 const PLUGIN_ROOT = path.resolve(__dirname, '..', '..');
-const EXCLUDED_DIRS = new Set(['node_modules', 'dist', '.angular', 'coverage', '.ui-guard', '.git', '.githooks', '.vscode', '.idea']);
+// bin/obj: .NET build output (ui-code-review skips them too).
+const EXCLUDED_DIRS = new Set(['node_modules', 'dist', '.angular', 'coverage', '.ui-guard', '.git', '.githooks', '.vscode', '.idea', 'bin', 'obj']);
 const ASSET_EXT = new Set(['svg', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'avif', 'bmp', 'ico', 'woff', 'woff2', 'ttf', 'otf', 'eot', 'mp4', 'webm', 'ogg', 'mov']);
 
-/** Nearest folder (walking up) that contains angular.json. */
+/**
+ * Nearest folder (walking up) that contains angular.json. When there is none, the nearest folder with a .sln
+ * (else a .csproj) — an ASP.NET MVC / Razor project, reviewed with the same rules as ui-code-review.
+ */
 function findRoot(start = process.cwd()) {
   let dir = path.resolve(start);
   try { if (fs.statSync(dir).isFile()) dir = path.dirname(dir); } catch { /* not a path on disk yet */ dir = path.dirname(dir); }
+  const first = dir;
   for (;;) {
     if (u.exists(path.join(dir, 'angular.json'))) return dir;
     const up = path.dirname(dir);
-    if (up === dir) return null;
+    if (up === dir) break;
     dir = up;
   }
+  for (const ext of ['.sln', '.csproj']) {
+    dir = first;
+    for (;;) {
+      let names = [];
+      try { names = fs.readdirSync(dir); } catch { /* unreadable */ }
+      if (names.some((n) => n.toLowerCase().endsWith(ext))) return dir;
+      const up = path.dirname(dir);
+      if (up === dir) break;
+      dir = up;
+    }
+  }
+  return null;
 }
+
+/** 'angular' when the root has angular.json, else 'mvc' (ASP.NET MVC / Razor). */
+function stackOf(root) { return root && u.exists(path.join(root, 'angular.json')) ? 'angular' : 'mvc'; }
 
 function paths(root) {
   const ug = path.join(root, '.ui-guard');
@@ -87,12 +107,22 @@ function segmentOf(rel, profile) {
   return { segment: 'other', prefixes: [] };
 }
 
+// Same translation-file patterns as ui-code-review (scripts/get-review-target.js): Angular JSON / TS / JS dictionaries,
+// Angular built-in i18n (.xlf, messages.<lang>.json), .NET .resx, .po and JSON under Resources.
+const TRANSLATION_FOLDERS = '(i18n|l10n|locale|locales|lang|langs|translations|resources)';
+const TRANSLATION_RE = new RegExp([
+  `((^|/)${TRANSLATION_FOLDERS}/.+\\.json$)`,
+  '(\\.(i18n|translations?|locale)\\.(ts|js)$)',
+  `((^|/)${TRANSLATION_FOLDERS}/(.+/)?[a-z]{2}([-_][A-Za-z]{2,4})?\\.(ts|js)$)`,
+  '(\\.(xlf|xliff)$)',
+  '((^|/)messages(\\.[A-Za-z-]+)?\\.json$)',
+  '(\\.(resx|po)$)',
+].join('|'), 'i');
 function isTranslationPath(rel, profile) {
-  if (/\.i18n\.ts$/.test(rel) || /\.xlf$/.test(rel) || /\.xliff$/.test(rel)) return true;
+  if (TRANSLATION_RE.test(rel)) return true;
   if (!/\.json$/.test(rel)) return false;
   const i18nPaths = (profile && profile.i18n && profile.i18n.paths) || [];
-  if (i18nPaths.some((p) => rel.startsWith(p.replace(/\/?$/, '/')))) return true;
-  return /(^|\/)(i18n|locale|locales|translations|lang)\//.test(rel);
+  return i18nPaths.some((p) => rel.startsWith(p.replace(/\/?$/, '/')));
 }
 
 /** Classify a forward-slash relative path. Returns kind or null when excluded / not a UI file. */
@@ -107,11 +137,15 @@ function classify(rel, profile) {
   if (rel === 'angular.json') return 'config';
   if (rel === 'src/index.html') return 'index';
   const ext = (base.split('.').pop() || '').toLowerCase();
+  // The UI files ui-code-review reviews: html, scss, css, ts, cshtml, js (minified, spec and .d.ts files excluded).
   if (ext === 'html') return 'html';
   if (ext === 'scss') return 'scss';
   if (ext === 'css') return 'css';
-  if (ext === 'ts') return rel.startsWith('src/') ? 'ts' : null;
+  if (ext === 'ts') return 'ts';
+  if (ext === 'cshtml') return 'cshtml';
+  if (ext === 'js') return 'js';
   if (ext === 'json' && /^src\/(assets|environments)\//.test(rel)) return 'config';
+  if (ext === 'json' && /(^|\/)(wwwroot|Scripts|scripts|Content)\//.test(rel)) return 'config';
   // Images, fonts, video and any binary are OUT of the scan (checked only by /ui-guard:assets for missing paths).
   return null;
 }
@@ -153,11 +187,12 @@ function themeDirs(root, profile) {
   return out;
 }
 
-const THEME_FILES = ['colors/colors.palette.theme.css', 'fonts/fonts.theme.css', 'custom.theme.css'];
+// The four theme files, fixed names in fixed folders (AXIS theme.md). Link order in index.html: base, palette, fonts, custom (last).
+const THEME_FILES = ['colors/colors.base.theme.css', 'colors/colors.palette.theme.css', 'fonts/fonts.theme.css', 'custom.theme.css'];
 function isThemeTokenFile(rel) { return /(^|\/)theme\/(colors|fonts)\/[^/]+\.css$/.test(rel) || /(^|\/)theme\/custom\.theme\.css$/.test(rel); }
 
 module.exports = {
-  PLUGIN_ROOT, EXCLUDED_DIRS, findRoot, paths, hasProfile, readProfile, scssRoot, roleMap, DEFAULT_ROLE_MAP, SEGMENTS,
+  PLUGIN_ROOT, EXCLUDED_DIRS, findRoot, stackOf, TRANSLATION_RE, paths, hasProfile, readProfile, scssRoot, roleMap, DEFAULT_ROLE_MAP, SEGMENTS,
   SEGMENT_PREFIX, STATE_PREFIXES, segmentOf, classify, listUiFiles, isTranslationPath, loadRulesIndex, ruleById,
   themeDirs, THEME_FILES, isThemeTokenFile, themeNameProblem, DEFAULT_THEME,
 };

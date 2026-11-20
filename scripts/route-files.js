@@ -10,33 +10,41 @@ const project = require('./lib/project');
 const SIGNALS = {
   // style files: only when something in them needs judgment (segment purity, vendor overrides, icons, buttons, tokens)
   'style-ai': { style: /::ng-deep|filter\s*:|\b(btn|button)\b|@extend|--[\w-]+\s*:|\.(o|m|ctrl|u|l|p)-[\w-]/, segments: /\/(layout|modules|objects|utilities|pages|components|common)\//, text: /\bclass\s*=|ngClass|\[class[.\]]|classList|addClass|removeClass|querySelector|@HostBinding\(\s*['"]class/ },
-  lang: { text: />\s*[^<{\s][^<{]*[A-Za-z؀-ۿ][^<]*</, ts: /\b(toast|toastr|snack|alert|confirm|dialog|title|setTitle|Validators|message|notify|swal|error)\b[^\n]*['"`][^'"`\n]*[A-Za-z؀-ۿ]{2,}|\?\s*['"`][^'"`]+['"`]\s*:\s*['"`]|lang\s*===?/i, html: /\s(placeholder|title|alt|aria-label|aria-placeholder|label)\s*=\s*"[^"{]*[A-Za-z؀-ۿ]/ },
-  safe: { text: /innerHTML|outerHTML|bypassSecurityTrust|\beval\s*\(|Function\s*\(|localStorage|sessionStorage|document\.cookie|console\.|insertAdjacentHTML|document\.write|setTimeout\s*\(\s*['"`]|setInterval\s*\(\s*['"`]|javascript:|\b(key|secret|token|password|passwd|apikey)\b/i, kinds: ['config'] },
-  'access-labels': { text: /<input|<select|<textarea|formControlName|ngModel|ControlValueAccessor|<label|<button[^>]*>\s*<(i|img|svg|mat-icon|fa-icon)/i },
-  'access-alt': { text: /<img|<svg|<i\s+class=|<mat-icon|<fa-icon|background-image|icon|<video|<audio|<iframe|<canvas|<object|<embed/i },
-  'access-aria': { text: /aria-|role\s*=|dropdown|tab|dialog|modal|menu|combobox|listbox|tree|Validators|toast|@HostBinding|\[attr\./i },
-  'access-semantics': { text: /\(click\)|<table|<ul|<ol|<h[1-6]|<nav|<main|<form|\slang\s*=|\sdir\s*=|<header|<footer|<section|routerLink/i, kinds: ['index'] },
-  'access-motion': { text: /autoplay|carousel|swiper|slick|marquee|setTimeout|setInterval|timeout|toast|snack|animation|@keyframes/i },
-  'access-keyboard': { text: /tabindex|\(keydown|\(keyup|@HostListener|\.focus\(|modal|overlay|dropdown|tabs|\(click\)|autofocus/i },
+  lang: { text: />\s*[^<{\s@][^<{]*[A-Za-z؀-ۿ][^<]*</, ts: /\b(toast|toastr|snack|alert|confirm|dialog|title|setTitle|Validators|message|notify|swal|error|ViewBag\.Title|ViewData\["Title"\]|ErrorMessage|Display\s*\(\s*Name)\b[^\n]*['"`][^'"`\n]*[A-Za-z؀-ۿ]{2,}|\?\s*['"`][^'"`]+['"`]\s*:\s*['"`]|lang\s*===?/i, html: /\s(placeholder|title|alt|aria-label|aria-placeholder|label)\s*=\s*"[^"{]*[A-Za-z؀-ۿ]/ },
+  safe: { text: /innerHTML|outerHTML|bypassSecurityTrust|\beval\s*\(|Function\s*\(|localStorage|sessionStorage|document\.cookie|console\.|insertAdjacentHTML|document\.write|setTimeout\s*\(\s*['"`]|setInterval\s*\(\s*['"`]|javascript:|\b(key|secret|token|password|passwd|apikey)\b|Html\.Raw|HtmlString|MvcHtmlString|BeginForm|AntiForgery|method\s*=\s*["']?post|\.(html|append|prepend|before|after|replaceWith)\(|\$\(\s*['"`]\s*<|\$\.(ajax|post)\b|type\s*:\s*['"](POST|PUT|DELETE)|<script[^>]*>[\s\S]*@Model/i, kinds: ['config'] },
+  'access-labels': { js: /createElement\(\s*['"](input|select|textarea)|<(input|select|textarea|label)\b/i, text: /<input|<select|<textarea|formControlName|ngModel|ControlValueAccessor|<label|asp-for|Html\.(TextBox|Password|DropDownList|ListBox|TextArea|CheckBox|RadioButton|Editor|Label)|EditorFor|LabelFor|<button[^>]*>\s*<(i|img|svg|mat-icon|fa-icon)/i },
+  'access-alt': { js: /<img\b|<svg\b|createElement\(\s*['"](img|svg)/i, text: /<img|<svg|<i\s+class=|<mat-icon|<fa-icon|background-image|icon|<video|<audio|<iframe|<canvas|<object|<embed/i },
+  'access-aria': { js: /aria-|setAttribute\(\s*['"]role|\.attr\(\s*['"](aria-|role)|\.(load|html)\(|\$\.(ajax|get|post)\b|toggleClass|slideToggle|\.(show|hide)\(/i, text: /aria-|role\s*=|dropdown|tab|dialog|modal|menu|combobox|listbox|tree|Validators|toast|@HostBinding|\[attr\.|asp-validation|ValidationMessage|ValidationSummary|data-val|\.(load|html)\(|\$\.(ajax|get|post)\b/i },
+  'access-semantics': { js: /\.on\(\s*['"]click|onclick|addEventListener\(\s*['"]click|<(table|ul|ol|h[1-6]|nav|form)\b/i, text: /\(click\)|<table|<ul|<ol|<h[1-6]|<nav|<main|<form|\slang\s*=|\sdir\s*=|<header|<footer|<section|routerLink|onclick|BeginForm|@RenderBody|@RenderSection|asp-action|ActionLink|\.on\(\s*['"]click/i, kinds: ['index'] },
+  // MEDIA-02 off-screen containers (modal, closed tab/accordion/dropdown, table row, footer) — /ui-guard:check only
+  media: { text: /<img\b[^>]*>/i, js: /<img\b/i },
+  'access-motion': { js: /autoplay|carousel|swiper|slick|marquee|setInterval/i, text: /autoplay|carousel|swiper|slick|marquee|setTimeout|setInterval|timeout|toast|snack|animation|@keyframes/i },
+  'access-keyboard': { js: /\.focus\(|tabindex|keydown|keyup|\.on\(\s*['"]key|addEventListener\(\s*['"]key/i, text: /tabindex|\(keydown|\(keyup|@HostListener|\.focus\(|modal|overlay|dropdown|tabs|\(click\)|autofocus|onclick|onkey|\.on\(\s*['"](click|key)|keydown|keyup|addEventListener/i },
 };
+
+const CONFIG_JS = /(^|\/)[^/]*\.(config|conf)\.[cm]?js$|(^|\/)(karma|protractor|webpack|gulpfile|gruntfile|babel|jest|eslint|prettier|tailwind|postcss|vite|rollup|bundleconfig)[\w.-]*\.[cm]?js$/i;
 
 /** AI groups for one file. f = { path, kind }; unparsed = Set of translation files the i18n script could not parse. */
 function groupsFor(root, f, unparsed = new Set()) {
   const groups = new Set();
-  const isText = ['html', 'ts', 'scss', 'css', 'index', 'config', 'translation'].includes(f.kind);
+  const isText = ['html', 'ts', 'scss', 'css', 'index', 'config', 'translation', 'cshtml', 'js'].includes(f.kind);
   const text = isText ? (u.readText(u.fromPosix(root, f.path)) || '') : '';
   if (f.kind === 'translation') { if (unparsed.has(f.path)) groups.add('lang'); return [...groups]; }
+  // Tool / build config scripts never go to the AI (secrets in them are still found by secrets-check.js, 0 tokens).
+  if (f.kind === 'js' && CONFIG_JS.test(f.path)) return [];
   for (const [g, s] of Object.entries(SIGNALS)) {
     if (s.kinds && s.kinds.includes(f.kind)) groups.add(g);
     if (!text) continue;
     if (g === 'lang') {
-      if ((f.kind === 'html' || f.kind === 'index') && (s.text.test(text) || s.html.test(text))) groups.add(g);
-      if (f.kind === 'ts' && s.ts.test(text)) groups.add(g);
+      if ((f.kind === 'html' || f.kind === 'index' || f.kind === 'cshtml') && (s.text.test(text) || s.html.test(text))) groups.add(g);
+      if ((f.kind === 'ts' || f.kind === 'js' || f.kind === 'cshtml') && s.ts.test(text)) groups.add(g);
       continue;
     }
     if (['scss', 'css'].includes(f.kind) && g.startsWith('access-')) continue;
     if (g === 'style-ai' && ['scss', 'css'].includes(f.kind)) { if (s.style.test(text) || s.segments.test(f.path)) groups.add(g); continue; }
-    if (s.text && s.text.test(text)) groups.add(g);
+    // .js: the stricter js signal where a group has one (generic words like tab/menu/icon/timeout do not route a script)
+    const re = f.kind === 'js' && s.js ? s.js : s.text;
+    if (re && re.test(text)) groups.add(g);
   }
   if (/\/packages\//.test(f.path) || f.path === 'angular.json') groups.clear();
   return [...groups].sort();
@@ -114,7 +122,7 @@ function routesFor(root, files, entries = routeMap(root)) {
   return [...out].sort();
 }
 
-module.exports = { groupsFor, routeMap, routesFor, realRoutes, UTILITY_ROUTE, SIGNALS };
+module.exports = { CONFIG_JS, groupsFor, routeMap, routesFor, realRoutes, UTILITY_ROUTE, SIGNALS };
 if (require.main === module) {
   const args = u.parseArgs(process.argv.slice(2));
   u.helpExit(args, `route-files.js — print the AI rule groups each inventory file would need (debug aid; the scan uses ai-scan.js).
