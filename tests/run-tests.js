@@ -191,9 +191,9 @@ async function main() {
     const hooks = u.readJSON(path.join(PLUGIN, 'hooks', 'hooks.json'));
     assert.ok(hooks.hooks.PostToolUse[0].matcher === 'Edit|Write|MultiEdit' && hooks.hooks.PreToolUse[0].matcher.includes('Bash'));
   });
-  await test('rules.json lists every rule in the rule files (108: STYLE-48..55, ACCESS-06..22, SAFE-09/10, FIX-01..03) with checker/group/lintRules', () => {
+  await test('rules.json lists every rule in the rule files (110: STYLE-48..57, ACCESS-06..22, SAFE-09/10, FIX-01..03) with checker/group/lintRules', () => {
     const idx = u.readJSON(path.join(PLUGIN, 'rules', 'rules.json'));
-    assert.strictEqual(idx.rules.length, 108);
+    assert.strictEqual(idx.rules.length, 110);
     for (const r of idx.rules.filter((x) => x.id.startsWith('STYLE-'))) assert.ok(Array.isArray(r.axis) && r.axis.length, r.id + ' lists the AXIS rules it implements');
     assert.ok(idx.rules.find((r) => r.id === 'STYLE-48' && r.checker.includes('script')), 'STYLE-48 is a script rule');
     assert.ok(/inline-size\/block-size/.test(idx.rules.find((r) => r.id === 'STYLE-11').title), 'STYLE-11 converts width/height (AXIS R-09)');

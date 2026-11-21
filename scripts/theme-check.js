@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 'use strict';
-// STYLE-32, STYLE-33, STYLE-35, STYLE-36 (SCSS @use/@import of theme files).
+// STYLE-32, STYLE-33, STYLE-35, STYLE-36 (SCSS @use/@import of theme files),
+// STYLE-56 (theme folders hold plain .css only), STYLE-57 (project-images and theme files never go into the build).
 const fs = require('fs');
 const path = require('path');
 const u = require('./lib/util');
@@ -95,6 +96,40 @@ function run(root, profile) {
       }
     }
   }
+  // STYLE-56: every stylesheet in a theme folder (active theme/ and every src/assets/themes/<name>/) is plain .css
+  const sr = project.scssRoot(profile);
+  const themeRoots = [path.join(root, ...sr.split('/'), 'theme'), path.join(root, 'src', 'assets', 'themes')].filter((d) => u.isDir(d));
+  for (const dir of themeRoots) {
+    for (const f of u.walk(dir)) {
+      const ext = (path.extname(f) || '').toLowerCase();
+      if (!['.scss', '.sass', '.less', '.styl'].includes(ext)) continue;
+      const base = path.basename(f).replace(/^_/, '').replace(/\.(scss|sass|less|styl)$/i, '.css');
+      findings.push(mk(root, 'STYLE-56', u.relPosix(root, f), 1, `\`${path.basename(f)}\` is a ${ext.slice(1)} file in a theme folder — theme files are plain CSS (<link>ed from index.html and swapped after the build, never compiled).`, `Write it as plain CSS: \`${base}\` (one of the four fixed theme files). Sass features (variables, nesting, @use, mixins) become plain CSS or move to the SCSS segments.`));
+    }
+  }
+  // STYLE-57: compiled code never references project-images/ or a theme file — the build copies (hashed) or inlines it,
+  // so the file swapped after the build is never used. Only theme CSS (<link>ed) and templates (src="assets/…") point at them.
+  const SWAP_RE = /(^|[/"'(])(project-images|themes)\/|(^|\/)theme\/[^"')]*\.css\b|\.theme\.css\b/;
+  for (const f of project.listUiFiles(root, profile)) {
+    if (!['scss', 'css', 'ts'].includes(f.kind)) continue;
+    if (project.segmentOf(f.rel, profile).segment === 'theme' || /^src\/assets\/themes\//.test(f.rel)) continue;
+    const t = u.readText(f.abs) || '';
+    const res = f.kind === 'ts'
+      ? [/\bimport\s+(?:[\w{}*\s,]+\s+from\s+)?["']([^"']+)["']/g, /\b(?:require|import)\(\s*["']([^"']+)["']\s*\)/g, /\bstyleUrls?\s*:\s*\[?\s*["']([^"']+)["']/g]
+      : [/url\(\s*["']?([^"')]+)["']?\s*\)/g];
+    for (const re of res) {
+      let m;
+      while ((m = re.exec(t))) {
+        const ref = m[1];
+        if (/^(data:|https?:|\/\/|#)/.test(ref) || !SWAP_RE.test(ref)) continue;
+        const line = u.lineAt(t, m.index);
+        if (f.kind === 'ts') findings.push(mk(root, 'STYLE-57', f.rel, line, `\`${u.clip(ref, 70)}\` is imported in code — the build bundles it, so the client file swapped after the build is never used.`, 'Never import a project image or theme file. Point at it at run time: `src="assets/project-images/<file>"` in the template, theme CSS by <link> in index.html.'));
+        else findings.push(mk(root, 'STYLE-57', f.rel, line, ref.startsWith('/')
+          ? `\`url(${u.clip(ref, 70)})\` in a compiled stylesheet — a client asset belongs to the theme, and a root path breaks under a non-root base href.`
+          : `\`url(${u.clip(ref, 70)})\` in a compiled stylesheet — the build copies the file into the bundle (hashed name), so the client image swapped after the build is never shown.`, 'Move this brand-asset/background rule to custom.theme.css (its url() resolves at run time and swaps with the theme), or use <img src="assets/project-images/<file>"> in the template.'));
+      }
+    }
+  }
   // Image files (MEDIA-08) are not part of the scan: /ui-guard:assets checks referenced files exist.
   void fs;
   return findings;
@@ -102,4 +137,5 @@ function run(root, profile) {
 
 module.exports = { run };
 if (require.main === module) cli('theme-check', `theme-check.js — theme files: STYLE-32 (token files :root only), STYLE-33 (custom.theme.css),
-STYLE-35 (same token names in every theme), STYLE-36 (theme files never @use'd from SCSS). Images are not checked here (see /ui-guard:assets).`, run);
+STYLE-35 (same token names in every theme), STYLE-36 (theme files never @use'd from SCSS),
+STYLE-56 (theme folders hold plain .css only), STYLE-57 (project-images / theme files never referenced from compiled code). Images are not checked here (see /ui-guard:assets).`, run);

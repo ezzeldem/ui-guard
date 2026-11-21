@@ -15,6 +15,11 @@ Keep replies short. Keep a task list.
 Run scripts as `node "PLUGIN/scripts/<name>.js" --root "<project root>"`.
 **Never** run git write commands. **Never install anything.** **Never ask a question** (no "continue?", no token estimate before running). **Never run two agents at the same time.**
 
+## Apply the rules literally
+You and every agent you start apply the rules files exactly as written: nothing the rules and the developer's request do not
+ask for, no exception the rule does not list, no name or value that the rule and `.ui-guard/profile.md` do not give. A case the
+rule text does not clearly cover is reported (needs-decision / skipped), never guessed.
+
 ## 0. The domain
 The first word of the arguments is the domain: `scss` (STYLE rules), `access` (ACCESS), `lang` (LANG) or `safe` (SAFE).
 - `html` → section H only (one pass over every template for all four domains).

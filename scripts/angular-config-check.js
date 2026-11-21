@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 'use strict';
-// STYLE-27 (packages/ + vendor order), STYLE-29 (double import), STYLE-36 (theme files via <link>, custom.theme.css last).
+// STYLE-27 (packages/ + vendor order), STYLE-29 (double import), STYLE-36 (theme files via <link>, custom.theme.css last),
+// STYLE-57 (nothing from themes/ or project-images/ in angular.json styles).
 const path = require('path');
 const u = require('./lib/util');
 const project = require('./lib/project');
@@ -8,7 +9,7 @@ const ng = require('./lib/angular');
 const graph = require('./lib/sass-graph');
 const { mk, cli } = require('./lib/findings');
 
-const THEME_RE = /(^|\/)theme\/.*\.css$|\.theme\.css$|custom[._]theme\.css$|(^|\/)fonts?\/[^/]*\.css$/;
+const THEME_RE = /(^|\/)theme\/.*\.s?css$|\.theme\.s?css$|custom[._]theme\.s?css$|(^|\/)fonts?\/[^/]*\.css$|(^|\/)(themes|project-images)\//;
 
 function stylesheetLinks(html) {
   const head = /<head[^>]*>([\s\S]*?)<\/head>/i.exec(html);
@@ -35,7 +36,7 @@ function run(root, profile) {
     ngc.styles.forEach((s, i) => {
       const inp = s.input || '';
       const line = ng.lineOf(ngc.text, inp);
-      if (THEME_RE.test(inp)) findings.push(mk(root, 'STYLE-36', 'angular.json', line, `Swappable theme file \`${inp}\` is in angular.json \`styles\` — it is bundled and cannot be swapped after the build.`, 'Remove it from styles; link it from index.html (assets/…).'));
+      if (THEME_RE.test(inp)) findings.push(mk(root, /(^|\/)(themes|project-images)\//.test(inp) ? 'STYLE-57' : 'STYLE-36', 'angular.json', line, `Swappable theme file \`${inp}\` is in angular.json \`styles\` — it is bundled and cannot be swapped after the build.`, 'Remove it from styles; link it from index.html (assets/…).'));
       else if (inp.includes(sr + '/packages/') || /(^|\/)packages\//.test(inp) && inp.startsWith('src/')) findings.push(mk(root, 'STYLE-27', 'angular.json', line, `\`${inp}\` from packages/ is compiled through angular.json.`, 'Load vendor CSS from node_modules in styles; packages/ is never compiled.'));
       else if (/^(\.\/)?node_modules\//.test(inp)) {
         if (projectIdx >= 0 && s.inject) findings.push(mk(root, 'STYLE-27', 'angular.json', line, `Vendor CSS \`${inp}\` is listed after the project entry \`${ngc.styles[projectIdx].input}\`.`, 'List vendor CSS before the project styles entry.'));

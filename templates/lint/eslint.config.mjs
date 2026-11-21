@@ -28,7 +28,6 @@ export const uiGuardConfigs = [
       'no-eval': 'error', // SAFE-03
       'no-implied-eval': 'error', // SAFE-03
       'no-new-func': 'error', // SAFE-03
-      'no-console': 'warn', // SAFE-08
     },
   },
   {
@@ -40,7 +39,6 @@ export const uiGuardConfigs = [
       'no-eval': 'error', // SAFE-03
       'no-implied-eval': 'error', // SAFE-03
       'no-new-func': 'error', // SAFE-03
-      'no-console': 'warn', // SAFE-08
     },
   },
   {

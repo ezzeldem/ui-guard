@@ -14,6 +14,11 @@ Read-only git only. **Never push** — not even after a PASS; the developer deci
 The goal: what passes here gets **no comment** from ui-code-review on the pull request. So every new error **and warning** on a
 changed line fails the check (info does not), and so does a work item that is not fully fixed.
 
+## Apply the rules literally
+You and every agent you start apply the rules files exactly as written: nothing the rules and the developer's request do not
+ask for, no exception the rule does not list, no name or value that the rule and `.ui-guard/profile.md` do not give. A case the
+rule text does not clearly cover is reported (needs-decision / skipped), never guessed.
+
 1. No `.ui-guard/profile.md` → say "ui-guard is not set up here — run `/ui-guard:init` (new Angular project) or `/ui-guard:scan <domain>` (existing project: scss, access, lang, safe)." and stop.
 2. `node PLUGIN/scripts/changes.js collect [--ref <ref>]` → changed UI files (commits not on the upstream + uncommitted + untracked;
    html, scss, css, ts, cshtml, js and translation files), changed line ranges, lint + scripts on them, the `/ui-guard:assets` check

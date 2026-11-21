@@ -13,7 +13,7 @@
 10. **Merge clustering**: deterministic findings cluster only by fingerprint (two real findings on neighboring lines stay two); AI findings join within ±2 lines. Same-line distinct deterministic messages are joined, never dropped. Binary assets / `dist/` fingerprint on rule+file only.
 11. **init** deletes Angular's comment-only default `src/styles.scss` after removing it from `styles` (one global entry).
 12. `externalDependencies: ["assets/*"]` is written as specified; whether the Angular builder honors it for CSS `url()` was **not verified** (no Angular CLI here).
-13. **Added after the build (developer's decision):** BEM written nested — elements and variants inside the block (`&__icon`, `&-secondary`); new rule **STYLE-47** (warning, `ui-guard/nest-block-parts`). Variants stay `-variant`, `--modifier` stays forbidden (STYLE-04). The palette template has one `:root` block per section; `no-duplicate-selectors` is off for theme token files.
+13. **Added after the build (developer's decision):** BEM written nested — elements and variants inside the block (`&__icon`, `&-secondary`); new rule **STYLE-47** (`ui-guard/nest-block-parts`; raised from warning to **error** later). Variants stay `-variant`, `--modifier` stays forbidden (STYLE-04). The palette template has one `:root` block per section; `no-duplicate-selectors` is off for theme token files.
 14. Fixture's MEDIA-03 (>200 KB image) and STYLE-46 (dist CSS) files are generated at test time, not stored.
 
 ## Redesign after the first real scan (2026-11-14)

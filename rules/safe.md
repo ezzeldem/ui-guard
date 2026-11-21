@@ -25,11 +25,14 @@ validation on the API, SQL) are out of scope.
   form input, storage, a translation with parameters). Read back to where the value is set before reporting. A constant
   string written in the code, or a value the code builds only from constants, is safe. A translation with no parameters is safe.
 - If deciding a finding needs a file you can't open (the service that fills a value, the server action), don't report it.
+- Report only defects that need a change: no observations, optional hardening, or a finding you could not confirm from the
+  files you can read.
 - **Is not a defect:** Firebase web config, Google Maps browser keys restricted by referrer, public OAuth client IDs, Sentry
   DSNs and similar values that are public by design — dismiss and give the reason. The ASP.NET Core form tag helper (SAFE-10).
 - `secrets-check.js` produces SAFE-04 **candidates**; confirm or reject each with a one-line reason.
   `web-check.js` reports the clear SAFE-09 (`'@Model.X'` inside `<script>`) and SAFE-10 (`BeginForm` / `<form method="post">`
   without a token) cases; the AI judges `@Html.Raw` / `HtmlString` and AJAX calls.
-- Never print a secret value in a finding. Quote at most the variable name and the first 4 characters followed by `…`.
-- Not in scope: `.spec.ts` and test files, code that is commented out, mock data, and sample values in documentation comments.
+- Never print any part of a secret value in a finding (not even its first characters): name only the variable, key or file.
+- Not in scope: `.spec.ts` and test files, code that is commented out, mock data, and sample values in documentation comments;
+  minified files, `.d.ts`, and anything under `node_modules`, `dist`, `bin`, `obj`.
 - One finding per rule per line.

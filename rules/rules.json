@@ -20,7 +20,9 @@
         "**/*.scss",
         "**/*.css",
         "**/*.html",
-        "**/*.ts"
+        "**/*.ts",
+        "**/*.js",
+        "**/*.cshtml"
       ],
       "title": "Authored classes carry their segment/role or state prefix",
       "inScan": true,
@@ -53,7 +55,9 @@
       "appliesTo": [
         "**/*.scss",
         "**/*.html",
-        "**/*.ts"
+        "**/*.ts",
+        "**/*.js",
+        "**/*.cshtml"
       ],
       "title": "js-* hook classes have no styles",
       "inScan": true,
@@ -73,7 +77,9 @@
       "lintRules": [],
       "appliesTo": [
         "**/*.html",
-        "**/*.ts"
+        "**/*.ts",
+        "**/*.js",
+        "**/*.cshtml"
       ],
       "title": "Who sets a class decides its prefix (is-/has- static, js- runtime)",
       "inScan": true,
@@ -86,7 +92,8 @@
       "id": "STYLE-04",
       "severity": "warning",
       "checker": [
-        "stylelint"
+        "stylelint",
+        "ai"
       ],
       "group": "style",
       "family": "style",
@@ -96,7 +103,11 @@
       ],
       "appliesTo": [
         "**/*.scss",
-        "**/*.css"
+        "**/*.css",
+        "**/*.html",
+        "**/*.ts",
+        "**/*.js",
+        "**/*.cshtml"
       ],
       "title": "BEM block__element, one level, no --modifier",
       "inScan": true,
@@ -414,7 +425,8 @@
       "appliesTo": [
         "**/layout/**",
         "**/pages/**",
-        "src/app/**/*.scss"
+        "src/app/**/*.scss",
+        "src/app/layout/**/*.html"
       ],
       "title": "Layout holds chrome only; pages hold own content only",
       "inScan": true,
@@ -585,8 +597,6 @@
         "R-24",
         "R-UTIL-1",
         "R-UTIL-2",
-        "R-UTIL-3",
-        "R-UTIL-4",
         "R-UTIL-5",
         "R-UTIL-6"
       ]
@@ -617,7 +627,8 @@
       "id": "STYLE-27",
       "severity": "error",
       "checker": [
-        "script"
+        "script",
+        "ai"
       ],
       "group": "style",
       "family": "style",
@@ -625,7 +636,8 @@
       "lintRules": [],
       "appliesTo": [
         "angular.json",
-        "**/packages/**"
+        "**/packages/**",
+        "src/index.html"
       ],
       "title": "packages/ never compiled; vendor CSS before project styles",
       "inScan": true,
@@ -692,7 +704,8 @@
       "id": "STYLE-30",
       "severity": "error",
       "checker": [
-        "stylelint"
+        "stylelint",
+        "ai"
       ],
       "group": "style",
       "family": "style",
@@ -928,7 +941,11 @@
       "title": "No outline removal without :focus-visible replacement",
       "inScan": true,
       "axis": [
-        "A11Y-CSS-1"
+        "A11Y-CSS-1",
+        "R-COMP-5",
+        "R-LAY-4",
+        "R-MOD-5",
+        "R-PAGE-5"
       ]
     },
     {
@@ -950,14 +967,19 @@
       "title": ":hover inside (hover: hover) with matching :focus-visible (fixable: @include hover)",
       "inScan": true,
       "axis": [
-        "A11Y-CSS-2"
+        "A11Y-CSS-2",
+        "R-COMP-5",
+        "R-LAY-4",
+        "R-MOD-5",
+        "R-PAGE-5"
       ]
     },
     {
       "id": "STYLE-42",
       "severity": "warning",
       "checker": [
-        "script"
+        "script",
+        "ai"
       ],
       "group": "style",
       "family": "style",
@@ -965,14 +987,19 @@
       "lintRules": [],
       "appliesTo": [
         "**/generic/**",
-        "**/utilities/**"
+        "**/utilities/**",
+        "**/*.scss"
       ],
-      "title": "One reduced-motion block in generic; u-sr-only declared once in utilities/accessibility/ and never re-implemented",
+      "title": "One reduced-motion block in generic; u-sr-only and u-not-sr-only declared once in utilities/accessibility/ and never re-implemented",
       "inScan": true,
       "axis": [
         "A11Y-CSS-3",
         "A11Y-CSS-5",
-        "R-20"
+        "R-20",
+        "R-COMP-5",
+        "R-LAY-4",
+        "R-MOD-5",
+        "R-PAGE-5"
       ]
     },
     {
@@ -992,7 +1019,11 @@
       "title": "Interactive targets at least 1.5rem",
       "inScan": true,
       "axis": [
-        "A11Y-CSS-6"
+        "A11Y-CSS-6",
+        "R-COMP-5",
+        "R-LAY-4",
+        "R-MOD-5",
+        "R-PAGE-5"
       ]
     },
     {
@@ -1012,7 +1043,11 @@
       "inScan": true,
       "axis": [
         "A11Y-CSS-4",
-        "R-THEME-4"
+        "R-THEME-4",
+        "R-COMP-5",
+        "R-LAY-4",
+        "R-MOD-5",
+        "R-PAGE-5"
       ]
     },
     {
@@ -1057,7 +1092,7 @@
     },
     {
       "id": "STYLE-47",
-      "severity": "warning",
+      "severity": "error",
       "checker": [
         "stylelint"
       ],
@@ -1212,7 +1247,8 @@
       "severity": "warning",
       "checker": [
         "script",
-        "stylelint"
+        "stylelint",
+        "ai"
       ],
       "group": "style",
       "family": "style",
@@ -1252,6 +1288,109 @@
       ]
     },
     {
+      "id": "STYLE-56",
+      "severity": "error",
+      "checker": [
+        "script"
+      ],
+      "group": "style",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [],
+      "appliesTo": [
+        "src/assets/themes/**",
+        "src/assets/scss/theme/**"
+      ],
+      "title": "Theme folders hold plain .css only — no .scss/.sass/.less",
+      "inScan": true,
+      "axis": [
+        "R-THEME-5"
+      ]
+    },
+    {
+      "id": "STYLE-57",
+      "severity": "error",
+      "checker": [
+        "script"
+      ],
+      "group": "style",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/*.scss",
+        "**/*.css",
+        "**/*.ts",
+        "angular.json"
+      ],
+      "title": "project-images and theme files never go into the build (swapped after it)",
+      "inScan": true,
+      "axis": [
+        "R-THEME-5",
+        "R-PKG-4"
+      ]
+    },
+    {
+      "id": "STYLE-58",
+      "severity": "warning",
+      "checker": [
+        "ai"
+      ],
+      "group": "style-ai",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/utilities/**",
+        "**/*.html",
+        "**/*.cshtml"
+      ],
+      "title": "Utilities win by load order only and add to a block, never replace it",
+      "inScan": true,
+      "axis": [
+        "R-UTIL-3",
+        "R-UTIL-4"
+      ]
+    },
+    {
+      "id": "STYLE-59",
+      "severity": "error",
+      "checker": [
+        "ai"
+      ],
+      "group": "style-ai",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/*.scss"
+      ],
+      "title": "SCSS variables, maps and lists live in settings; kebab-case names",
+      "inScan": true,
+      "axis": [
+        "R-SET-2"
+      ]
+    },
+    {
+      "id": "STYLE-60",
+      "severity": "warning",
+      "checker": [
+        "ai"
+      ],
+      "group": "style-ai",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/tools/**"
+      ],
+      "title": "Each tool's documented example compiles as documented; an invalid argument raises @error",
+      "inScan": true,
+      "axis": [
+        "R-TOOL-5"
+      ]
+    },
+    {
       "id": "LANG-01",
       "severity": "warning",
       "checker": [
@@ -1263,6 +1402,7 @@
       "lintRules": [],
       "appliesTo": [
         "**/*.html",
+        "**/*.ts",
         "**/*.cshtml"
       ],
       "title": "Literal user-visible text in templates",
@@ -1343,8 +1483,13 @@
       "lintRules": [],
       "appliesTo": [
         "src/assets/i18n/**",
+        "**/i18n/**/*.json",
+        "**/Resources/**/*.json",
+        "**/messages*.json",
         "**/*.i18n.ts",
+        "**/*.translations.ts",
         "**/*.xlf",
+        "**/*.xliff",
         "**/*.resx",
         "**/*.po"
       ],
@@ -1364,8 +1509,13 @@
       "lintRules": [],
       "appliesTo": [
         "src/assets/i18n/**",
+        "**/i18n/**/*.json",
+        "**/Resources/**/*.json",
+        "**/messages*.json",
         "**/*.i18n.ts",
+        "**/*.translations.ts",
         "**/*.xlf",
+        "**/*.xliff",
         "**/*.resx",
         "**/*.po"
       ],
@@ -1406,8 +1556,13 @@
       "lintRules": [],
       "appliesTo": [
         "src/assets/i18n/**",
+        "**/i18n/**/*.json",
+        "**/Resources/**/*.json",
+        "**/messages*.json",
         "**/*.i18n.ts",
+        "**/*.translations.ts",
         "**/*.xlf",
+        "**/*.xliff",
         "**/*.resx",
         "**/*.po"
       ],
@@ -1563,15 +1718,12 @@
       "id": "SAFE-08",
       "severity": "warning",
       "checker": [
-        "eslint",
         "ai"
       ],
       "group": "safe",
       "family": "safe",
       "rulesFile": "rules/safe.md",
-      "lintRules": [
-        "no-console"
-      ],
+      "lintRules": [],
       "appliesTo": [
         "**/*.ts",
         "**/*.html",
@@ -1631,6 +1783,7 @@
       "lintRules": [],
       "appliesTo": [
         "**/*.html",
+        "**/*.ts",
         "**/*.cshtml"
       ],
       "title": "img without fixed box (width+height / class)",
@@ -1650,6 +1803,7 @@
       "lintRules": [],
       "appliesTo": [
         "**/*.html",
+        "**/*.ts",
         "**/*.cshtml"
       ],
       "title": "content image without loading=lazy",
@@ -1667,9 +1821,7 @@
       "rulesFile": "rules/media.md",
       "lintRules": [],
       "appliesTo": [
-        "**/*.html",
-        "src/assets/**",
-        "public/**"
+        "**/*.{png,jpg,jpeg,gif,bmp,webp,avif,svg,woff,woff2,ttf,otf,eot,mp4,webm,mov}"
       ],
       "title": "asset file too big",
       "inScan": true,
@@ -1687,9 +1839,13 @@
       "lintRules": [],
       "appliesTo": [
         "**/*.html",
+        "**/*.ts",
+        "**/*.cshtml",
+        "**/*.scss",
+        "**/*.css",
         "src/assets/**",
         "public/**",
-        "**/*.cshtml"
+        "wwwroot/**"
       ],
       "title": "raster used as icon (SVG exists)",
       "inScan": true,
@@ -1725,6 +1881,7 @@
       "lintRules": [],
       "appliesTo": [
         "**/*.html",
+        "**/*.ts",
         "**/*.cshtml"
       ],
       "title": "video autoplay / iframe not lazy",
@@ -1733,7 +1890,7 @@
     },
     {
       "id": "MEDIA-07",
-      "severity": "error",
+      "severity": "warning",
       "checker": [
         "assets"
       ],
@@ -2371,18 +2528,26 @@
       "rules": [
         "STYLE-02",
         "STYLE-03",
+        "STYLE-04",
         "STYLE-09",
         "STYLE-17",
         "STYLE-18",
         "STYLE-19",
         "STYLE-20",
         "STYLE-25",
+        "STYLE-27",
         "STYLE-28",
+        "STYLE-30",
         "STYLE-37",
         "STYLE-38",
         "STYLE-39",
+        "STYLE-42",
         "STYLE-43",
-        "STYLE-52"
+        "STYLE-52",
+        "STYLE-54",
+        "STYLE-58",
+        "STYLE-59",
+        "STYLE-60"
       ]
     },
     "lang": {
@@ -2497,7 +2662,6 @@
     "no-eval": "SAFE-03",
     "no-implied-eval": "SAFE-03",
     "no-new-func": "SAFE-03",
-    "no-console": "SAFE-08",
     "@angular-eslint/template/label-has-associated-control": "ACCESS-01",
     "@angular-eslint/template/alt-text": "ACCESS-02",
     "@angular-eslint/template/elements-content": "ACCESS-02",

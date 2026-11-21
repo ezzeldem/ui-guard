@@ -20,13 +20,19 @@ description: Use whenever creating or editing .scss, .css, .html or Angular .ts 
 6. Every authored class has its role prefix — in SCSS **and** in templates/TS: `o- c- l- m- ctrl- p- u-`, state `is- has- js-`.
    The prefix follows the folder → role map in `.ui-guard/profile.md`. Vendor overrides only in `modules/_<component>.<library>.module.scss`
    on `.m-<component>`, vendor parts nested inside it.
-7. BEM `block__element`, one level, never `--modifier`; variants are `c-button c-button-secondary`. Write elements and variants
-   inside the block: `.c-button { &__icon { … } &-secondary { … } }`.
+7. BEM `block__element`, one level, never `--modifier`; variants are `c-button c-button-secondary`. **Always** write elements
+   and variants inside their block with `&` — never as separate top-level rules and never repeating the block name:
+   `.c-card { &__title { … } &__body { … } &-featured { … } }`, not `.c-card {}` + `.c-card__title {}` (STYLE-47, error).
+   Elements sit side by side directly under the block (never `&__a { &__b {} }`).
 8. A class changed by code (`[class.x]`, `[ngClass]`, `classList`, `Renderer2`) is `js-…`; a static state is `is-`/`has-`.
 9. Angular component styles `@use` only settings/tools; a routed page style may also `@use` its page-local objects, components
    and modules. Files never move out of their segment folder. Nesting depth ≤ 4.
 10. `:hover` only through `@include hover { … }` (adds the same `:focus-visible`). Screen-reader-only text uses `u-sr-only`
     (never a re-implementation). Utilities: one property, `u-{property}-{value}` with `ff fs fw bg text text-align`.
+10b. Theme files are **plain `.css` only** — never a `.scss`/`.sass` file in `theme/` or `src/assets/themes/` (STYLE-56). Theme
+    files and client images in `project-images/` are swapped after the build, so compiled code never points at them: no
+    `url(…project-images/…)` in `.scss` or component styles, no TS `import` of them, nothing from `themes/` in `angular.json`
+    `styles` (STYLE-57). A client image is used from `custom.theme.css` or as `<img src="assets/project-images/<file>">`.
 11. Single-color icons are saved black and colored with `u-filter-primary|secondary|neutral-25|neutral-400`.
 12. Buttons use the shared `c-button` (+ variant). Do not build another button.
 13. Every user-visible text (text nodes, `placeholder`, `title`, `alt`, `aria-label`, toasts, titles) is a translation key added to **every** language file.

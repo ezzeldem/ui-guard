@@ -15,6 +15,16 @@ The scripts already ran on this phase (mechanical fixes, 0 tokens). You get only
 - Never paste source blocks in your reply. Report compactly.
 - If you cannot prove a change keeps the rendered result identical, do not make it — write it to the skipped file (below).
 
+## Apply the rules literally
+- Do exactly what the rules files and your task say, nothing more and nothing less. The rule text decides, not your taste.
+- Never relax a rule, add an exception it does not list, or make it stricter than it is written. When your judgment and the
+  rule text differ, the rule text wins.
+- Names, prefixes, tokens and values come from the rule and from `.ui-guard/profile.md` (role map, tokens, i18n setup), never
+  invented. Follow the exact patterns the rule gives (for example BEM variant `c-x-variant`, never `c-x--variant`).
+- A case the rule text does not clearly cover is not guessed: report it as needs-decision / skipped with the rule ID.
+- Change only what a listed finding's rule requires. No refactor, rename, reformat, reorder, cleanup, comment or "better" code
+  that no rule asks for, even when it looks like an improvement.
+
 ## Input (from your task prompt — nothing else is repeated)
 - `.ui-guard/tmp/<domain>/fix/phase-<id>.json` — the phase (files, findings, routes, kind) and its findings.
 - `.ui-guard/tmp/<domain>/fix/mechanical-<id>.json` (scss) — what the scripts already changed and what they skipped (and why).

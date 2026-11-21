@@ -16,6 +16,16 @@ judgment. You check only the domain's rules the scripts cannot decide.
 - Report only real defects. Do not report something as a defect if you are not sure — mark it `info` with `unverified` in the message instead.
 - Never open image, font or other binary files, and never judge image colors, sizes or icons.
 
+## Apply the rules literally
+- Do exactly what the rules files and your task say, nothing more and nothing less. The rule text decides, not your taste.
+- Never relax a rule, add an exception it does not list, or make it stricter than it is written. When your judgment and the
+  rule text differ, the rule text wins.
+- Names, prefixes, tokens and values come from the rule and from `.ui-guard/profile.md` (role map, tokens, i18n setup), never
+  invented. Follow the exact patterns the rule gives (for example BEM variant `c-x-variant`, never `c-x--variant`).
+- A case the rule text does not clearly cover is not guessed: report it as needs-decision / skipped with the rule ID.
+- Report only a violation of a rule in the rules files, with its ID. No suggestions, no "consider", no opinions on style or
+  design, no finding without a rule behind it.
+
 ## Input (from your task prompt — the batch JSON of `ai-scan.js next`)
 - `domain`, `stage` and `stageName`; `rules`: the ONLY rule IDs you may report; `files`: the batch (≤ 12 files);
 - `rulesFiles`: the domain's rules file — read only this; `profile`: `.ui-guard/profile.md` (role map, i18n setup, button decision);

@@ -63,7 +63,7 @@ export default {
     // STYLE-01 (definitions) — any valid prefix by default; segment/role overrides narrow it.
     'selector-class-pattern': [classPattern(ALL), { resolveNestedSelectors: true, message: msg('STYLE-01', ALL) }],
     'ui-guard/bem': [true, { severity: 'warning' }], // STYLE-04 (R-04, High)
-    'ui-guard/nest-block-parts': [true, { severity: 'warning' }], // STYLE-47
+    'ui-guard/nest-block-parts': true, // STYLE-47 (error)
     'ui-guard/nesting-depth': [true, { max: 4 }], // STYLE-05 (AXIS R-05: root = level 1, only @media not counted)
     'selector-max-type': 0, // STYLE-06 (R-06)
     'selector-max-universal': [0, { message: '[STYLE-06] Universal selector outside Generic/Elements — use a class (R-06).' }], // STYLE-06

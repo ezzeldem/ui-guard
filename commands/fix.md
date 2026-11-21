@@ -15,6 +15,11 @@ Scripts: `node "PLUGIN/scripts/<name>.js" --root "<project root>"`; every `phase
 **Never ask a question and never ask "continue?"** — not before the run, not between phases. Never show a token estimate.
 **Never run two agents at the same time.**
 
+## Apply the rules literally
+You and every agent you start apply the rules files exactly as written: nothing the rules and the developer's request do not
+ask for, no exception the rule does not list, no name or value that the rule and `.ui-guard/profile.md` do not give. A case the
+rule text does not clearly cover is reported (needs-decision / skipped), never guessed.
+
 ## 0. Domain and mode
 Recommended order: **scan html → scss → access → lang → safe** (access fixes rely on the scss structure: segments, tools, utilities).
 The order is advice, not a gate: `phase.js summary` prints one warning line when access runs before scss is clean.
