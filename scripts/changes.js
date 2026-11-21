@@ -42,6 +42,8 @@ function collect(root, ref) {
   const ranges = git.changedRanges(root, base, files);
   const det = runChecks.runAll(root, { files });
   const dir = p.checkTmp;
+  // A new check starts clean: reviewer output, the fix target and the fix verdict of an earlier run never leak into this one.
+  require('fs').rmSync(dir, { recursive: true, force: true });
   try { require('fs').unlinkSync(path.join(dir, 'done.json')); } catch { /* none */ }
   u.writeJSONL(path.join(dir, 'deterministic.jsonl'), det.findings);
   const status = { stylelint: det.stylelint, eslint: det.eslint };
@@ -53,10 +55,11 @@ function collect(root, ref) {
     const mvc = part.some((x) => /.(cshtml|js)$/i.test(x.file) && x.groups.some((g) => g.startsWith('access-')));
     batches.push({ batch: String(batches.length + 1).padStart(3, '0'), files: part, ...(mvc ? { extraRules: ['rules/access-mvc.md'] } : {}) });
   }
-  // /ui-guard:assets as a step: only problems NOT in .ui-guard/assets-baseline.json count (fast, never blocks on known items)
+  // /ui-guard:assets as a step: only problems ON a changed line (the same scope as ui-code-review's PERF-07 comment) and NOT in
+  // .ui-guard/assets-baseline.json count — a missing file referenced by an untouched line never blocks the push
   const assets = require('./assets').check(root);
   const abl = new Set((u.readJSON(path.join(p.ug, 'assets-baseline.json'), { fingerprints: [] }).fingerprints) || []);
-  const newAssets = assets.problems.filter((x) => !abl.has(x.fingerprint));
+  const newAssets = assets.problems.filter((x) => !abl.has(x.fingerprint) && ranges[x.file] && inRanges(x.line, x.line, ranges[x.file]));
   void status;
   u.writeJSON(path.join(dir, 'changes.json'), { base, head: git.head(root), ref: ref || null, files, ranges, notes: det.notes, notChecked: det.notChecked, newAssets });
   u.writeJSON(path.join(dir, 'batches.json'), batches);
