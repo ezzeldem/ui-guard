@@ -458,7 +458,7 @@ async function main() {
     const [main, kept] = md.split('## Library classes (kept as they are)');
     for (const lib of ['form-control', 'show', 'ngx-skeleton-loader', 'lib-inner']) { assert.ok(!main.includes('`.' + lib + '`'), lib + ' must not have a rename row'); assert.ok(kept.includes('`.' + lib + '`'), lib + ' must be in the kept section'); }
     assert.ok(/`\.tile` \| `\.c-tile`/.test(main), main);
-    assert.ok(/`\.open` \| \(decide: state class, check TS usages\)/.test(main) && !/\.c-open/.test(md), main);
+    assert.ok(/`\.open` \| `\.is-open`/.test(main) && !/\.c-open/.test(md) && !/\(decide/.test(main), 'state class named is-open (fixed in markup), never c-, never "decide": ' + main);
     assert.ok(/Bootstrap class/.test(kept) && /library prefix `ngx-`/.test(kept) && /::ng-deep/.test(kept));
     const plan = u.readJSON(path.join(np, '.ui-guard', 'scss', 'plan.json'));
     assert.strictEqual(plan.phases.reduce((n, p) => n + p.findings.length, 0), 2, 'library STYLE-01 findings are not counted in the plan');
@@ -483,6 +483,30 @@ async function main() {
     assert.strictEqual(run('class-usage.js', [], np).code, 0);
     const usage = readJSONL(path.join(np, '.ui-guard', 'tmp', 'scan', 'script-class-usage.jsonl')).map((f) => /Class `([\w-]+)`/.exec(f.message)[1]).sort();
     assert.deepStrictEqual(usage, ['dropdown-panel', 'modal-box', 'text-red']);
+  });
+  await test('1c. class-usage wording (no "needs the prefix"): every class gets a real name — role prefix, kebab-case, BEM element, js- for toggled state; a CSS-framework dependency stays library', () => {
+    const np = freshCopy(path.join(__dirname, 'fixture-new'), 'names-proj');
+    u.writeText(path.join(np, 'src', 'app', 'x.component.scss'), '@charset "UTF-8";\n.login-form {\n  gap: 0;\n}\n.qBtn {\n  gap: 0;\n}\n.btn_sign_with_user {\n  gap: 0;\n}\n.card-wrap {\n  gap: 0;\n  .title {\n    gap: 0;\n  }\n}\n.completed {\n  gap: 0;\n}\n.small {\n  gap: 0;\n}\n');
+    u.writeText(path.join(np, 'src', 'app', 'x.component.html'), '<form class="login-form"><button class="qBtn btn_sign_with_user small"></button><div class="card-wrap"><span class="title" [class.completed]="done"></span></div></form>\n');
+    const pj = u.readJSON(path.join(np, 'package.json')); pj.dependencies = { ...(pj.dependencies || {}), bootstrap: '^5.3.3' }; u.writeJSON(path.join(np, 'package.json'), pj);
+    u.writeText(path.join(np, 'node_modules', 'bootstrap', 'dist', 'css', 'bootstrap.css'), '.btn{}.row{}.container{}.d-flex{}.small{}\n');
+    assert.strictEqual(run('profile.js', ['--refresh', '--answers', '{"projectType":"existing"}'], np).code, 0);
+    assert.strictEqual(run('class-usage.js', [], np).code, 0);
+    const rows = readJSONL(path.join(np, '.ui-guard', 'tmp', 'scan', 'script-class-usage.jsonl'));
+    assert.ok(rows.length && rows.every((f) => /has no role\/state prefix/.test(f.message) && !/needs the prefix/.test(f.message)), 'class-usage wording');
+    u.writeJSON(path.join(np, '.ui-guard', 'scss', 'findings.json'), rows.map((f, i) => ({ ...f, id: 'F-' + String(i + 1).padStart(6, '0'), status: 'confirmed' })));
+    const r = run('plan.js', ['--domain', 'scss', '--keep-tmp'], np); assert.strictEqual(r.code, 0, r.out);
+    const md = u.readText(path.join(np, '.ui-guard', 'scss', 'renames.md'));
+    const [main, kept] = md.split('## Library classes (kept as they are)');
+    assert.ok(!/\(decide/.test(main), 'no "decide" row: ' + main);
+    for (const [from, to] of [['login-form', 'c-login-form'], ['qBtn', 'c-q-btn'], ['btn_sign_with_user', 'c-btn-sign-with-user'], ['card-wrap', 'c-card-wrap'], ['title', 'c-card-wrap__title'], ['completed', 'js-completed']]) assert.ok(new RegExp('`\\.' + from + '` \\| `\\.' + to + '`').test(main), `${from} → ${to}: ${main}`);
+    assert.ok(!main.includes('`.small`') && !rows.some((f) => /Class `small`/.test(f.message)), '.small belongs to Bootstrap (a dependency): no finding, no rename row');
+  });
+  await test('1d. scss-fix: a quoted data URI with ")" inside url("…") does not swallow the code after it (rename still reaches the later rules)', () => {
+    const sf = require('../scripts/scss-fix');
+    const t = '.a {\n  background: url("data:image/svg+xml,%3csvg fill=\'rgb(1,2,3)\' stroke=\'url(%23g)\'%3e");\n}\n.b {\n  gap: 0;\n}\n';
+    const n = sf.renameInScss(t, 'b', 'c-b');
+    assert.ok(/\.c-b \{/.test(n) && n.includes('rgb(1,2,3)'), n);
   });
   await test('2. phases are split by files AND findings (≤ 15 files or ≤ 300 findings), one feature group per part, plan.md ≤ 150 lines', () => {
     const sp = freshCopy(path.join(__dirname, 'fixture-new'), 'split-proj');

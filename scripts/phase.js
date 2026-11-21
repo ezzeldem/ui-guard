@@ -60,7 +60,7 @@ function workingChanged(root) { return [...new Set([...(git.git(root, ['diff', '
 
 // ---------- projects that are not a git repo ----------
 const hasGit = (root) => git.isRepo(root);
-const NO_GIT_WARNING = 'WARNING: this project is not a git repository, so there is NO way to undo a fix with git. /ui-guard:fix copies the project to a backup folder first.';
+const NO_GIT_WARNING = 'WARNING: this project is not a git repository, so there is NO way to undo a fix with git. /ui-guard:fix does not make a backup copy; the fix runs on the project files directly.';
 const backupFile = (root) => path.join(project.paths(root).tmp, 'backup.json');
 const backupInfo = (root) => u.readJSON(backupFile(root), null);
 
@@ -143,7 +143,7 @@ function isAllowed(root, ph, f, set) {
 function undoHint(root, ph) {
   if (hasGit(root)) return `To discard them yourself: \`git restore -- ${(ph.files || []).join(' ')}\` (and remove the new files it created).`;
   const b = backupInfo(root);
-  return `This project has no git. To undo, copy the files back from the backup: ${b ? b.path || 'the backup you made yourself' : 'the backup you made yourself'}`;
+  return b && b.path ? `This project has no git. To undo, copy the files back from the backup: ${b.path}` : 'This project has no git and ui-guard makes no backup copy, so there is no automatic undo.';
 }
 
 function writeLog(root, ph, { ok, verdict, reason, retries, review }) {

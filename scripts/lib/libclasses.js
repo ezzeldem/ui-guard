@@ -47,6 +47,14 @@ function vendorMap(root, profile) {
   if (ngc && !ngc.error) for (const s of ngc.styles) if (/node_modules\//.test(s.input || '')) files.push(path.join(root, ...s.input.replace(/^\.\//, '').split('/')));
   const pk = path.join(root, ...project.scssRoot(profile).split('/'), 'packages');
   if (u.isDir(pk)) files.push(...u.walk(pk).filter((f) => f.endsWith('.css')));
+  // a CSS framework the project depends on is a library even when it is pulled in through SCSS (@import "bootstrap/…") instead of angular.json:
+  // its classes (display-4, lead, small, min-vh-100, overflow-hidden …) must never be renamed
+  const pkg = u.readJSON(path.join(root, 'package.json'), {});
+  const deps = { ...(pkg.dependencies || {}), ...(pkg.devDependencies || {}) };
+  for (const [dep, rel] of [['bootstrap', 'dist/css/bootstrap.css'], ['bootstrap-icons', 'font/bootstrap-icons.css']]) {
+    const f = path.join(root, 'node_modules', dep, ...rel.split('/'));
+    if (deps[dep] && u.exists(f) && !files.includes(f)) files.push(f);
+  }
   for (const f of files) {
     const t = u.readText(f);
     if (!t) continue;

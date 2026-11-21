@@ -119,7 +119,7 @@ function mask(text) {
     .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '))
     .replace(/(^|[^:])\/\/[^\n]*/g, (m, p) => p + m.slice(p.length).replace(/[^\n]/g, ' '))
     .replace(/(["'])(?:\\.|(?!\1)[^\\\n])*\1/g, (m) => m.replace(/[^\n]/g, ' '))
-    .replace(/url\([^)]*\)/gi, (m) => m.replace(/[^\n]/g, ' '));
+    .replace(/url\(\s*(?:"[^"]*"|'[^']*'|[^)]*)\s*\)/gi, (m) => m.replace(/[^\n]/g, ' '));
 }
 
 /** Sass variables that a Sass colour function reads: converting their colour could change the computed result. */

@@ -149,7 +149,7 @@ from your dependencies' CSS, classes styled only under `::ng-deep`); their overr
 ```
 
 - **No questions, no "continue?".** If there is no `findings.json` yet, fix runs the scan first. Without git it copies the
-  project to `<project>-backup-<date>` first.
+  project is NOT backed up (ui-guard never copies the project; there is no undo without git).
 - **Per phase:** screenshots before (if Playwright is installed) → **scripts first** (Foundation A/B, or the mechanical
   scss fixes: `@charset`, `@use "<path-to-root>/tools" as *` and the `@dependencies` comments, px → `px()`, logical properties (sizes included), `@media` → `mq()`,
   BEM nesting, prefix renames in SCSS + templates + TS — each proven by compiling the file before and after) → the
@@ -235,7 +235,7 @@ The plugin has 5 commands: `init`, `scan`, `fix`, `check`, `assets`.
 | Setup changed (new routes, new folders) | `node <plugin>/scripts/profile.js --refresh` (kept answers stay). |
 | Port in use when fix starts the app | It tries the next free port; no question. If no server comes up, the proof is static and the summary says so. |
 | `git push --no-verify` | Skips the git hook. That is git's choice; the rules still apply in review. |
-| `/ui-guard:fix` in a project that is not a git repo | It copies the project to `<project>-backup-<date>` (without node_modules, dist, .angular) before the first change and names the path in the summary. Undo hints point at the backup. |
+| `/ui-guard:fix` in a project that is not a git repo | It warns once (no undo) and runs on the project files directly — it never makes a backup copy. |
 | ESLint crashes (ESLint 10, eslint-scope TypeError) | The report says exactly that and the rules stay **NOT CHECKED**. The fix is yours to run: `npm install -D eslint@^9 angular-eslint@^<Angular major> typescript-eslint`. |
 | Token use | Logged silently at the end of each report (measured, or estimated when the agent result gives no number). There is no cap and no question. |
 | A phase says `failed` | Read `.ui-guard/<domain>/fixes/phase-<id>.md` and the diff images. The run stopped there; fix the cause or decide, then run `/ui-guard:fix <domain>` again — it continues from that phase. |

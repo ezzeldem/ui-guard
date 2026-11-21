@@ -79,7 +79,7 @@ function factsOf(rel, kind, text) {
     return f.inlineTemplate ? { ...f, ...templateFacts({ rel, text }) } : f;
   }
   if (kind === 'scss' || kind === 'css') {
-    const plain = text.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, '').replace(/url\([^)]*\)|"[^"]*"|'[^']*'/g, '');
+    const plain = text.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, '').replace(/url\(\s*(?:"[^"]*"|'[^']*'|[^)]*)\s*\)|"[^"]*"|'[^']*'/g, '');
     return { definedClasses: uniq([...plain.matchAll(/\.(-?[_a-zA-Z][\w-]*)/g)].map((m) => m[1])), imports: uniq([...text.matchAll(/@(?:use|import|forward)\s+['"]([^'"]+)['"]/g)].map((m) => m[1]), 60) };
   }
   if (kind === 'translation') { try { return { keys: Object.keys(JSON.parse(text)).length }; } catch { return { keys: null, unparsed: true }; } }

@@ -62,7 +62,7 @@ The first real scan of a large project used ~6M tokens (96 agents, 3 rounds) and
    `unverified` script finding; tokens are a silent log in the report. Invalid agent output → one rerun with the error, then skip.
    Scan sets up lint inside `.ui-guard/lint/` only (`setup-project.js lint --internal`) and never installs.
 4. **Fix runs to the end** (`phase.js next` loop, `summary`), stopping only on build failure, 3 failed retries, unreadable/unwritable files or a usage limit.
-   Without git it makes the backup itself (before: a question). Script-only phases skip the Opus review (proven by compile); the review runs once per
+   Without git it makes NO backup (the developer asked for none) and asks nothing. Script-only phases skip the Opus review (proven by compile); the review runs once per
    phase the fixer touched, on the diff only (the diff file carries the phase findings in a `#` header).
 5. **STYLE-48 + Foundation A/B** (`scripts/foundation.js`, `lib/scss-text.js`; Foundation B since redesigned as the AXIS migration — see "AXIS parity" below): structure gap check; Foundation A creates the missing tree from the
    templates (generic/elements as empty files, no button, the icon-filter utility only when the palette has filter tokens); Foundation B moves the

@@ -39,8 +39,8 @@ file needs-rescan. `phase.js fail` marks every file it modified needs-rescan. Sh
 ## 1. Prepare (no questions)
 1. No `.ui-guard/D/findings.json` → run the whole `/ui-guard:scan D` procedure first (read `PLUGIN/commands/scan.md`, sections 1–4;
    no reply in between), then continue here.
-2. `phase.js gitcheck`. Exit 5 (not a git repo) → `phase.js backup` (copies the project without node_modules/dist/.angular) and
-   note the backup path for the summary. With git, `phase.js dirty <id>` per phase only feeds the summary.
+2. `phase.js gitcheck`. Exit 5 (not a git repo) → **never make a backup copy of the project** (no `phase.js backup`, no `<project>-backup-*`
+   folder, no question) — just note in the summary that there is no git, so no undo. With git, `phase.js dirty <id>` per phase only feeds the summary.
 3. Verification mode: Playwright + pixelmatch + pngjs installed (profile `installed`, refresh with `profile.js --refresh`) → `visual`;
    otherwise `static`. In `static` mode say clearly in the summary that no screenshot was compared, and for access the fix is
    limited to Tier A and Tier B where the elements layer has no rule for the tag (C/D go to needs-decision, reason "needs visual
@@ -105,7 +105,7 @@ Say exactly why and at which phase. Items the fixer could not prove neutral are 
 2. `phase.js summary --domain D [--stopped "<why>" --at <id>]` → `.ui-guard/D/fix-summary.md`. Print it: phases done, files
    changed, remaining findings, skipped (unsure) items, the verification mode, the `plan.md` and `report.md` paths.
    For access it also writes `.ui-guard/access/needs-decision.md` — show that list once, grouped, each item with its options.
-3. The backup path when there is no git; for a stopped phase, how to undo it (`git restore -- <files>` or the backup).
+3. For a stopped phase, how to undo it (`git restore -- <files>`); without git say there is no undo (no backup is made).
 **Do not commit.**
 
 ## 4. Cleanup (automatic, done by the script — not by you)

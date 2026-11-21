@@ -84,7 +84,13 @@ function mapCode(text, fn) {
   while (i < text.length) {
     const sk = st.skipToken(text, i, true);
     if (sk >= 0) { out += fn(chunk) + text.slice(i, sk); chunk = ''; i = sk; continue; }
-    if (/^url\(/i.test(text.slice(i, i + 4))) { const e = text.indexOf(')', i); const end = e < 0 ? text.length : e + 1; out += fn(chunk) + text.slice(i, end); chunk = ''; i = end; continue; }
+    if (/^url\(/i.test(text.slice(i, i + 4))) {
+      // url("data:image/svg+xml,…rgb(…)…") — a quoted argument ends at its closing quote, not at the first ")" inside it
+      let j = i + 4; while (j < text.length && /\s/.test(text[j])) j++;
+      const from = text[j] === '"' || text[j] === "'" ? st.skipToken(text, j, true) : i;
+      const e = text.indexOf(')', from); const end = e < 0 ? text.length : e + 1;
+      out += fn(chunk) + text.slice(i, end); chunk = ''; i = end; continue;
+    }
     chunk += text[i]; i++;
   }
   return out + fn(chunk);
@@ -343,6 +349,7 @@ function applyFile(root, rel, opts) {
   if (!colorOnly && isScss) steps.push(['deps', (t) => tDeps(t)]);
   // mq needs to report skipped items: run once for its notes
   if (!colorOnly && isScss) { const notes = []; tMq(original, { key: () => 'x' }, notes); for (const n of notes) res.skipped.push({ what: 'mq', reason: n }); }
+  if (opts.renameOnly) steps.splice(0, steps.length, ...steps.filter((s) => s[0] === 'rename')); // a stylesheet of another phase: only the class rename
   for (const [name, fn] of steps) {
     let next;
     const bpBefore = opts.bp.snapshot();
@@ -358,6 +365,23 @@ function applyFile(root, rel, opts) {
   }
   if (cur !== original && !opts.dry) fs.writeFileSync(abs, cur);
   return res;
+}
+
+/** Files ordered so that every stylesheet comes AFTER the stylesheets it @use/@import/@forwards (matched by file name; cycles are cut). */
+function orderByImports(root, rels) {
+  const stem = (p) => path.basename(String(p)).replace(/\.s?css$/i, '').replace(/^_/, '');
+  const byStem = new Map();
+  for (const r of rels) { const k = stem(r); if (!byStem.has(k)) byStem.set(k, []); byStem.get(k).push(r); }
+  const deps = new Map(rels.map((r) => {
+    const t = (u.readText(u.fromPosix(root, r)) || '').replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, '');
+    const out = new Set();
+    for (const m of t.matchAll(/@(?:use|import|forward)\s+(?:(?:"[^"]*"|'[^']*')\s*,\s*)*["']([^"']+)["']/g)) for (const d of byStem.get(stem(m[1])) || []) if (d !== r) out.add(d);
+    return [r, out];
+  }));
+  const done = new Set(), order = [];
+  const visit = (r, stack) => { if (done.has(r) || stack.has(r)) return; stack.add(r); for (const d of deps.get(r)) visit(d, stack); stack.delete(r); done.add(r); order.push(r); };
+  for (const r of rels) visit(r, new Set());
+  return order;
 }
 
 /** colors.palette.theme.css of the active theme and of every theme source (the active one first); [] when the project has no palette. */
@@ -399,23 +423,28 @@ function run(root, { files, phaseId, dry, withRenames }) {
   const styleFiles = project.listUiFiles(root, profile).filter((f) => f.kind === 'scss' || f.kind === 'css');
   const definers = (cls) => styleFiles.filter((f) => new RegExp(`\\.${esc(cls)}(?![\\w-])`).test(u.readText(f.abs) || '')).map((f) => f.rel);
   const inPhase = new Set(files);
+  const outsideFiles = new Set();
   for (const r of renames) {
     const dyn = uiFiles.find((f) => dynamicUse(u.readText(f.abs) || '', r.from));
     const outside = definers(r.from).filter((f) => !inPhase.has(f));
     if (dyn) report.skipped.push({ file: dyn.rel, what: `rename .${r.from} → .${r.to}`, reason: 'the class name is built by code there — rename by hand (judgment)' });
-    else if (outside.length) report.skipped.push({ file: outside[0], what: `rename .${r.from} → .${r.to}`, reason: `also styled in ${outside.length} file(s) outside this phase — renamed in the phase that holds all of them (judgment)` });
-    else safeRenames.push({ ...r, definers: definers(r.from) });
+    else { safeRenames.push({ ...r, definers: definers(r.from) }); for (const f of outside) outsideFiles.add(f); } // styled in other phases too: those stylesheets get ONLY this rename (proven by compiling)
   }
   const componentStyles = require('./foundation').componentStyles(root);
   const allScss = project.listUiFiles(root, profile).filter((f) => f.kind === 'scss').map((f) => u.readText(f.abs) || '');
   const colorOnly = (rel) => /(^|\/)theme\//.test(rel) || rel.startsWith(`${sr}/settings/`) || rel.startsWith(`${sr}/tools/`);
   const opts = { sr, loadPaths, rootPx: profile.rootFontSize || 16, dir: dirMode(profile), base: baseDir(profile), bp, renames: safeRenames, dry, componentStyles, palette: cf.palette(root, profile), fnVars: cf.colourFnVars(allScss), colorOnly, newTokens: new Map(), paletteFiles: paletteFiles(root, profile) };
-  for (const rel of files.filter((f) => /\.s?css$/.test(f))) {
-    if (/\/packages\//.test(rel)) continue;
-    const r = applyFile(root, rel, opts);
-    report.files.push({ file: rel, applied: r.applied, ...(r.colors ? { colors: r.colors } : {}) });
+  // one ordered pass: a stylesheet that imports another one is proven AFTER it (the compile reads the imported file from disk, so a
+  // renamed class must already be renamed there); files of other phases get only the class rename
+  const phaseFiles = files.filter((f) => /\.s?css$/.test(f) && !/\/packages\//.test(f));
+  const outsideOnly = [...outsideFiles].filter((f) => !phaseFiles.includes(f));
+  for (const rel of orderByImports(root, [...phaseFiles, ...outsideOnly])) {
+    const outside = outsideOnly.includes(rel);
+    const r = applyFile(root, rel, outside ? { ...opts, renameOnly: true } : opts);
+    report.files.push({ file: rel, applied: r.applied, ...(outside ? { outsidePhase: true } : {}), ...(r.colors ? { colors: r.colors } : {}) });
     for (const s of r.skipped) report.skipped.push({ file: rel, ...s });
     for (const d of r.decisions || []) report.decisions.push(d);
+    if (outside && r.applied.includes('rename')) report.extraFiles.push(rel);
   }
   // STYLE-34: colours moved out of .scss → added to EVERY palette (active + each theme source) so a theme swap keeps them.
   // Only tokens that a written file really uses (var(--token)) are added; each carries its round-trip proof in the report.
