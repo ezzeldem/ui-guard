@@ -171,7 +171,7 @@ async function main() {
   console.log('Plugin structure');
   await test('plugin.json, marketplace.json, 5 commands, 5 agents (explicit model), 1 skill, hooks.json', () => {
     const pj = u.readJSON(path.join(PLUGIN, '.claude-plugin', 'plugin.json'));
-    assert.strictEqual(pj.name, 'ui-guard'); assert.strictEqual(pj.version, '1.0.0'); assert.strictEqual(pj.author.name, 'Ezz Elden Mohamed');
+    assert.strictEqual(pj.name, 'ui-guard'); assert.strictEqual(pj.version, '1.0.2'); assert.strictEqual(pj.author.name, 'Ezz Elden Mohamed');
     const mk = u.readJSON(path.join(PLUGIN, '.claude-plugin', 'marketplace.json'));
     assert.ok(mk.name && mk.owner && mk.owner.name && mk.plugins[0].name === 'ui-guard');
     const cmds = fs.readdirSync(path.join(PLUGIN, 'commands')).sort();
@@ -507,6 +507,47 @@ async function main() {
     const t = '.a {\n  background: url("data:image/svg+xml,%3csvg fill=\'rgb(1,2,3)\' stroke=\'url(%23g)\'%3e");\n}\n.b {\n  gap: 0;\n}\n';
     const n = sf.renameInScss(t, 'b', 'c-b');
     assert.ok(/\.c-b \{/.test(n) && n.includes('rgb(1,2,3)'), n);
+  });
+  await test('1e. STYLE-47: tBemInline writes &__x only for confirmed element classes (direct children of the block); everything else and the text around it stay byte-identical', () => {
+    const sf = require('../scripts/scss-fix');
+    const t = '@charset "UTF-8";\n.c-a {\n  color: red;\n\n  // note\n  .c-a__x {\n    gap: 0;\n  }\n  .c-a__y:hover, .c-a__z {\n    gap: 1;\n  }\n  .c-a__w .c-a__x { gap: 2; }\n  .other { gap: 3; }\n}\n// trailing\n';
+    const n = sf.tBemInline(t, new Set(['c-a__x', 'c-a__y', 'c-a__z']));
+    assert.ok(/\n {2}&__x \{/.test(n) && /&__y:hover, &__z \{/.test(n), n);
+    assert.ok(/\.c-a__w \.c-a__x \{ gap: 2; \}/.test(n) && /\.other \{/.test(n) && n.endsWith('// trailing\n'), 'unconfirmed / compound selectors untouched: ' + n);
+    assert.strictEqual(sf.tBemInline(t, new Set(['nope'])), t, 'nothing confirmed → identical text');
+    assert.strictEqual(sf.tBemInline(t, new Set()), t);
+  });
+  await test('1f. a class authored in the global legacy stylesheet (src/styles.scss) gets NO rename row (shared, frozen legacy) — it is listed under "Legacy classes"; component classes still get one', () => {
+    const np = freshCopy(path.join(__dirname, 'fixture-new'), 'legacy-proj');
+    u.writeText(path.join(np, 'src', 'styles.scss'), '.shared-box {\n  gap: 0;\n}\n');
+    u.writeText(path.join(np, 'src', 'app', 'x.component.scss'), '@charset "UTF-8";\n.own-box {\n  gap: 0;\n}\n');
+    u.writeText(path.join(np, 'src', 'app', 'x.component.html'), '<div class="shared-box own-box"></div>\n');
+    assert.strictEqual(run('profile.js', ['--refresh', '--answers', '{"projectType":"existing"}'], np).code, 0);
+    assert.strictEqual(run('class-usage.js', [], np).code, 0);
+    const rows = readJSONL(path.join(np, '.ui-guard', 'tmp', 'scan', 'script-class-usage.jsonl'));
+    u.writeJSON(path.join(np, '.ui-guard', 'scss', 'findings.json'), rows.map((f, i) => ({ ...f, id: 'F-' + String(i + 1).padStart(6, '0'), status: 'confirmed' })));
+    const r = run('plan.js', ['--domain', 'scss', '--keep-tmp'], np); assert.strictEqual(r.code, 0, r.out);
+    const md = u.readText(path.join(np, '.ui-guard', 'scss', 'renames.md'));
+    const main = md.split('## Library classes')[0];
+    const legacy = md.split('## Legacy classes (not renamed)')[1] || '';
+    assert.ok(/`\.own-box` \| `\.c-own-box`/.test(main), md);
+    assert.ok(!main.includes('`.shared-box`') && legacy.includes('`.shared-box`'), 'shared-box is listed as legacy, never renamed: ' + md);
+  });
+  await test('1g. standalone depth: the five accessibility area texts and the AXIS guides/segments are ui-guard\'s OWN files (no mention of another plugin, no dangling path) and the scan reads them', () => {
+    const rulesDir = path.join(__dirname, '..', 'rules');
+    const walkFiles = (d) => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walkFiles(path.join(d, e.name)) : [path.join(d, e.name)]));
+    const own = [...walkFiles(path.join(rulesDir, 'access')), ...walkFiles(path.join(rulesDir, 'axis'))];
+    assert.ok(own.length >= 40, 'access area files + core + axis docs: ' + own.length);
+    for (const f of own) { const t = fs.readFileSync(f, 'utf8'); assert.ok(!/ui-code-review|accessibility-framework|CLAUDE_PLUGIN_ROOT/.test(t), `${path.relative(rulesDir, f)} must not depend on another plugin`); }
+    // every path a copied file names inside rules/ exists
+    for (const f of own) for (const m of fs.readFileSync(f, 'utf8').matchAll(/rules\/(access|axis)\/[\w./<>|*-]+\.md/g)) { if (/[<>|*]/.test(m[0])) continue; assert.ok(fs.existsSync(path.join(__dirname, '..', m[0])), `${path.relative(rulesDir, f)} names a missing file ${m[0]}`); }
+    const d = require('../scripts/lib/domains');
+    const acc = d.rulesFilesFor('access', ['a.component.html'], '').map((x) => x.split('\\').join('/'));
+    for (const a of ['area-1-labels', 'area-2-alt', 'area-3-aria', 'area-4-semantics', 'area-5-keyboard']) assert.ok(acc.includes(`rules/access/${a}.md`), a);
+    const sc = d.rulesFilesFor('scss', ['src/app/pages/home/home.component.scss', 'src/assets/scss/tools/_x.scss', 'src/app/layout/header/header.component.scss'], '').map((x) => x.split('\\').join('/'));
+    for (const x of ['rules/axis/guides/rules.md', 'rules/axis/segments/pages.md', 'rules/axis/segments/tools.md', 'rules/axis/segments/layout.md']) assert.ok(sc.includes(x), x);
+    assert.strictEqual(d.axisSegmentFor('src/app/shared/navbar/navbar.component.scss'), 'components');
+    assert.strictEqual(d.axisSegmentFor('src/assets/scss/theme/colors/colors.base.theme.css'), 'theme');
   });
   await test('2. phases are split by files AND findings (≤ 15 files or ≤ 300 findings), one feature group per part, plan.md ≤ 150 lines', () => {
     const sp = freshCopy(path.join(__dirname, 'fixture-new'), 'split-proj');

@@ -236,10 +236,19 @@ function renames(findings, phaseOf, root, ctx, filePhase = {}) {
   // when it is styled only inside another block. The row runs in the LAST phase that holds one of its files, so all definers are done.
   const taken = new Set([...Object.keys(usage || {}), ...kept.keys()]);
   const names = require('./lib/class-names');
+  // A class authored in a GLOBAL legacy stylesheet (src/styles.scss, src/styles/*.scss — not an Angular component style and not in the
+  // SCSS root) is shared by pages and components: it has no single role, so no prefix can be right, and the frozen legacy stylesheet is
+  // migrated page by page (Foundation B), never edited by a rename. It is listed below, never renamed.
+  const comp = require('./foundation').componentStyles(root);
+  const sRoot = project.scssRoot(profile);
+  const isLegacy = (f) => /\.s?css$/.test(f) && !f.startsWith(sRoot + '/') && !comp.has(f) && !/^src\/app\/.*\.s?css$/.test(f) && !/^src\/assets\/themes\//.test(f);
+  const legacy = new Map();
   for (const [cls, rec] of [...classes].sort((a, b) => (a[0] < b[0] ? -1 : 1))) {
     const list = (usage && usage[cls]) || [];
     const defs = list.filter((x) => x.how === 'definition');
     const uses = list.filter((x) => x.how !== 'definition');
+    const legacyDef = defs.find((d) => isLegacy(d.file));
+    if (legacyDef) { legacy.set(cls, { file: legacyDef.file, uses: list.length }); continue; }
     const state = libs.isStateClass(cls) || names.isCodeToggled(uses);
     const defFile = (defs.find((d) => /\.s?css$/.test(d.file) && !/(^|\/)theme\//.test(d.file)) || defs[0] || {}).file;
     const outer = !state && defFile ? parentBlock(root, defFile, cls) : null;
@@ -259,8 +268,15 @@ function renames(findings, phaseOf, root, ctx, filePhase = {}) {
     L.push('| Class | Why it is kept | Usages |', '|---|---|---|');
     for (const [c, r] of [...kept.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1))) L.push(`| \`.${c}\` | ${r.reason} | ${r.uses == null ? '?' : r.uses} |`);
   } else L.push('None found.');
+  L.push('', '## Legacy classes (not renamed)', '',
+    'Authored in a global legacy stylesheet (not a component or page style): shared by several pages/components, so they have no single role prefix,',
+    'and the frozen legacy stylesheet is migrated page by page (a rule moves to its segment first, then the class is renamed). They stay STYLE-01 findings.', '');
+  if (legacy.size) {
+    L.push('| Class | Authored in | Usages |', '|---|---|---|');
+    for (const [c, r] of [...legacy.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1))) L.push(`| \`.${c}\` | ${r.file} | ${r.uses || '?'} |`);
+  } else L.push('None found.');
   L.push('', 'Not scriptable (needs judgment, not listed): class renames found only by AI rules (STYLE-02/03), token moves between files.');
-  return { text: L.join('\n') + '\n', count: rows.size, kept: kept.size };
+  return { text: L.join('\n') + '\n', count: rows.size, kept: kept.size, legacy: legacy.size };
 }
 
 function run(root, domain) {

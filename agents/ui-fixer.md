@@ -30,7 +30,7 @@ The scripts already ran on this phase (mechanical fixes, 0 tokens). You get only
   every finding in this file** (AI and script findings alike). A "verify left / not fixed" list in the prompt only says which
   script findings are still in the code after the scripts ran — it never narrows the job.
 - `.ui-guard/tmp/<domain>/fix/mechanical-<id>.json` (scss) — what the scripts already changed and what they skipped (and why).
-- The domain's rules file only: `rules/style.md` (scss) · `rules/access.md` + `rules/access-fix-tiers.md` (access; + `rules/access-mvc.md` when the phase has `.cshtml` / `.js` files) · `rules/lang.md` · `rules/safe.md`.
+- The domain's rules file only: `rules/style.md` + the AXIS guides `rules/axis/guides/rules.md` and the segment document of each file in `rules/axis/segments/` (scss) · `rules/access.md` + the five `rules/access/area-*.md` + `rules/access-fix-tiers.md` (access; + `rules/access-mvc.md` when the phase has `.cshtml` / `.js` files) · `rules/lang.md` · `rules/safe.md`.
 - `.ui-guard/profile.md` (root font size, direction, role map, button decision, i18n files); for scss also `.ui-guard/scss/renames.md`.
 - Templates (scss): `${CLAUDE_PLUGIN_ROOT}/templates/scss/`, `templates/theme/`.
 - On a retry: the exact failure (lint, build, reviewer reasons, pixel or style diff). Fix exactly those.

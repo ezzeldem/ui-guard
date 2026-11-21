@@ -268,7 +268,8 @@ function run(root, profile) {
     for (const f of files.filter((x) => ['html', 'index', 'ts', 'cshtml', 'js'].includes(x.kind))) {
       const text = u.readText(f.abs) || '';
       for (const k of usedKeys(text, f.kind === 'html' || f.kind === 'index' || f.kind === 'cshtml')) {
-        const missing = langs.filter((l) => !keysByLang[l].has(k.key) && ![...keysByLang[l]].some((x) => x.startsWith(k.key + '.')));
+        // a key is looked up whole at its full path: a parent object that merely starts with the key does not count as the key
+        const missing = langs.filter((l) => !keysByLang[l].has(k.key));
         if (!missing.length) continue;
         if (!k.certain && !k.key.includes('.') && missing.length === langs.length) continue; // bare word: probably not a key
         findings.push(mk(root, 'LANG-04', f.rel, k.line, `Key \`${k.key}\` is missing in: ${missing.join(', ')} — the user sees the raw key.`, `Add ${k.key} to every language file.`));

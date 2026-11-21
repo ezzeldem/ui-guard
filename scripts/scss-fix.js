@@ -267,6 +267,40 @@ function tBem(t, skipped) {
   return res.join('') + trailing;
 }
 
+/**
+ * `.block { .block__x {…} }` → `.block { &__x {…} }` (STYLE-47) for the element classes in `confirmed` only: the rule note allows it when a
+ * script confirms the class is defined once and used only in the block's own template (the nested form has the higher specificity).
+ * Only direct children of a top-level `.block {}` whose selector STARTS with `.block__x` are rewritten; every other selector is left alone.
+ */
+function tBemInline(t, confirmed) {
+  if (!confirmed || !confirmed.size) return t;
+  const stmts = st.splitTop(t);
+  const res = stmts.map((s) => {
+    const m = s.block && /^\.([a-zA-Z][\w-]*)$/.exec(s.head);
+    if (!m) return s.text !== undefined ? s.text : (s.trailing || '');
+    const block = m[1];
+    const inner = st.blockInner(s);
+    const kids = st.splitTop(inner);
+    let any = false;
+    const rebuilt = kids.map((k) => {
+      if (!k.block) return k.text !== undefined ? k.text : (k.trailing || '');
+      const parts = k.head.split(',').map((p) => p.trim());
+      const ok = parts.every((p) => { const mm = new RegExp(`^\\.(${esc(block)}__[\\w-]+)(?![\\w-])`).exec(p); return !!mm && confirmed.has(mm[1]); });
+      if (!ok) return k.text;
+      any = true;
+      const head = parts.map((p) => p.replace('.' + block + '__', '&__')).join(', ');
+      return k.lead + head + k.body.slice(k.head.length);
+    }).join('');
+    if (!any) return s.text;
+    const lastEnd = kids.length && kids[kids.length - 1].end !== undefined ? kids[kids.length - 1].end : 0;
+    const b = s.body, open = b.indexOf('{'), close = b.lastIndexOf('}');
+    return s.lead + b.slice(0, open + 1) + rebuilt + inner.slice(lastEnd) + b.slice(close);
+  });
+  const last = stmts[stmts.length - 1];
+  const trailing = last && last.trailing ? '' : t.slice(last ? last.end : 0);
+  return res.join('') + trailing;
+}
+
 // ---------- renames (SCSS + templates + TS) ----------
 function renameRows(root, phaseId) {
   const t = u.readText(domains.paths(root, 'scss').renames) || '';
@@ -332,6 +366,12 @@ function applyFile(root, rel, opts) {
   const colorStep = ['colors', (t) => { const c = cf.convert(t, { palette: opts.palette, fnVars: opts.fnVars, rel, move: isScss && !!opts.paletteFiles.length, newTokens: opts.newTokens }); lastColors = c; for (const k of c.skipped) res.skipped.push({ what: `L${k.line} ${k.what}`, reason: k.reason }); res.decisions.push(...c.decisions); return c.text; }];
   if (colorOnly) steps.push(colorStep);
   if (!colorOnly && opts.renames.length) steps.push(['rename', (t) => opts.renames.reduce((x, r) => renameInScss(x, r.from, r.to), t)]);
+  // STYLE-47: `.block { .block__x }` → `&__x` for confirmed element classes; the proof reference is the renamed CSS with exactly that selector change
+  const bemEls = opts.bemElements || [];
+  const flatCss = (c) => bemEls.reduce((x, e) => x.replace(new RegExp(`\\.${esc(e.block)} \\.${esc(e.cls)}(?![\\w-])`, 'g'), '.' + e.cls), c);
+  const refFlat = st.normalize(flatCss(renameCss(before.css)), nopt);
+  let flat = false;
+  if (!colorOnly && isScss && bemEls.length) steps.push(['bem-inline', (t) => tBemInline(t, new Set(bemEls.map((e) => e.cls)))]);
   if (!colorOnly) steps.push(['charset', (t) => tCharset(t)]);
   if (!colorOnly && isScss && (comp || /\b(px|mq|dir|after|before|hover|scroll)\(|@include\s+(px|mq|dir|after|before|hover|scroll)\b/.test(original) || /\d+px\b/.test(original) || /@media\s/.test(original))) {
     const own = definesTool(original);
@@ -356,12 +396,13 @@ function applyFile(root, rel, opts) {
     try { next = fn(cur); } catch (e) { res.skipped.push({ what: name, reason: 'transform failed: ' + e.message }); continue; }
     if (next === cur) continue;
     const after = isScss ? compileText(root, abs, next, opts.bp.loadPathsWith()) : { css: next };
-    const ref = name === 'rename' || renamed ? refRenamed : refPlain;
+    const ref = name === 'bem-inline' || flat ? refFlat : (name === 'rename' || renamed ? refRenamed : refPlain);
     const cmp = after.error ? { same: false, reason: 'does not compile: ' + u.clip(after.error, 120) } : st.sameRender(ref, st.normalize(after.css, nopt));
     if (!cmp.same) { opts.bp.restore(bpBefore); res.skipped.push({ what: name, reason: 'not proven neutral — ' + cmp.reason }); continue; }
     cur = next; res.applied.push(name);
     if (name === 'colors' && lastColors) res.colors = { converted: lastColors.converted, tokenized: lastColors.tokenized, ...(lastColors.moved.length ? { movedToPalette: lastColors.moved } : {}) };
     if (name === 'rename') renamed = true;
+    if (name === 'bem-inline') flat = true;
   }
   if (cur !== original && !opts.dry) fs.writeFileSync(abs, cur);
   return res;
@@ -430,10 +471,28 @@ function run(root, { files, phaseId, dry, withRenames }) {
     if (dyn) report.skipped.push({ file: dyn.rel, what: `rename .${r.from} → .${r.to}`, reason: 'the class name is built by code there — rename by hand (judgment)' });
     else { safeRenames.push({ ...r, definers: definers(r.from) }); for (const f of outside) outsideFiles.add(f); } // styled in other phases too: those stylesheets get ONLY this rename (proven by compiling)
   }
+  // BEM elements made by the renames (`block__x`): nested as `&__x` only when the class is defined in ONE rule and used only in the template
+  // of the stylesheet's own component (rule note under STYLE-47); the others stay nested (specificity) and are reported as unsure
+  const bemElements = [];
+  {
+    const cu = require('./class-usage');
+    const defs = cu.definitions(root, profile);
+    const usedIn = new Map();
+    for (const f of uiFiles) for (const x of cu.usages(u.readText(f.abs) || '', f.kind !== 'ts')) { if (!usedIn.has(x.cls)) usedIn.set(x.cls, new Set()); usedIn.get(x.cls).add(f.rel); }
+    for (const r of safeRenames.filter((x) => x.to.includes('__'))) {
+      const rules = new Map();
+      for (const d of [...(defs.get(r.from) || []), ...(defs.get(r.to) || [])]) rules.set(`${d.file}:${d.line}`, d.file);
+      const uses = [...(usedIn.get(r.from) || []), ...(usedIn.get(r.to) || [])];
+      const defFile = [...rules.values()][0];
+      const own = !!defFile && uses.every((f) => path.posix.dirname(f) === path.posix.dirname(defFile));
+      if (rules.size === 1 && own) bemElements.push({ block: r.to.split('__')[0], cls: r.to, file: defFile });
+      else report.skipped.push({ file: defFile || '', what: `bem-inline .${r.to.split('__')[0]} { .${r.to} } → &__${r.to.split('__').slice(1).join('__')}`, reason: `${rules.size} rule(s) style it${own ? '' : ' and it is used outside its own template'} — \`&__x\` lowers the specificity, so it stays nested (rule note under STYLE-47; unsure)` });
+    }
+  }
   const componentStyles = require('./foundation').componentStyles(root);
   const allScss = project.listUiFiles(root, profile).filter((f) => f.kind === 'scss').map((f) => u.readText(f.abs) || '');
   const colorOnly = (rel) => /(^|\/)theme\//.test(rel) || rel.startsWith(`${sr}/settings/`) || rel.startsWith(`${sr}/tools/`);
-  const opts = { sr, loadPaths, rootPx: profile.rootFontSize || 16, dir: dirMode(profile), base: baseDir(profile), bp, renames: safeRenames, dry, componentStyles, palette: cf.palette(root, profile), fnVars: cf.colourFnVars(allScss), colorOnly, newTokens: new Map(), paletteFiles: paletteFiles(root, profile) };
+  const opts = { sr, loadPaths, rootPx: profile.rootFontSize || 16, dir: dirMode(profile), base: baseDir(profile), bp, renames: safeRenames, bemElements, dry, componentStyles, palette: cf.palette(root, profile), fnVars: cf.colourFnVars(allScss), colorOnly, newTokens: new Map(), paletteFiles: paletteFiles(root, profile) };
   // one ordered pass: a stylesheet that imports another one is proven AFTER it (the compile reads the imported file from disk, so a
   // renamed class must already be renamed there); files of other phases get only the class rename
   const phaseFiles = files.filter((f) => /\.s?css$/.test(f) && !/\/packages\//.test(f));
@@ -445,6 +504,14 @@ function run(root, { files, phaseId, dry, withRenames }) {
     for (const s of r.skipped) report.skipped.push({ file: rel, ...s });
     for (const d of r.decisions || []) report.decisions.push(d);
     if (outside && r.applied.includes('rename')) report.extraFiles.push(rel);
+  }
+  // a confirmed element class that is STILL written with its full name (deeper than a direct child of the block: inside another element's
+  // rule or a compound selector) cannot become `&__x` without changing the class name or the specificity → reported, never silent
+  if (!dry || bemElements.length) {
+    for (const e of bemElements) {
+      const code = (u.readText(u.fromPosix(root, e.file)) || '').replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, '');
+      if (new RegExp(`(^|[^&\\w-])\\.${esc(e.cls)}(?![\\w-])`).test(code)) report.skipped.push({ file: e.file, what: `bem-inline .${e.block} { … .${e.cls} } → &__…`, reason: 'nested deeper than a direct child of the block (inside another element\'s rule or a compound selector): `&__x` would change the selector — kept with its full name (STYLE-47; unsure)' });
+    }
   }
   // STYLE-34: colours moved out of .scss → added to EVERY palette (active + each theme source) so a theme swap keeps them.
   // Only tokens that a written file really uses (var(--token)) are added; each carries its round-trip proof in the report.
@@ -479,7 +546,7 @@ function run(root, { files, phaseId, dry, withRenames }) {
   return report;
 }
 
-module.exports = { run, tCharset, tUseTools, tDeps, tPx, tLogical, tSize, tMq, tBem, renameInHtml, renameInTs, renameInScss, dirMode, baseDir, DIR_SPECIFIC, readBreakpoints };
+module.exports = { run, tCharset, tUseTools, tDeps, tPx, tLogical, tSize, tMq, tBem, tBemInline, renameInHtml, renameInTs, renameInScss, dirMode, baseDir, DIR_SPECIFIC, readBreakpoints };
 if (require.main === module) {
   const args = u.parseArgs(process.argv.slice(2), ['renames']);
   u.helpExit(args, HELP);

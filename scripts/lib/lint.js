@@ -4,13 +4,14 @@
 const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
+const { pathToFileURL } = require('url');
 const u = require('./util');
-const { paths, loadRulesIndex } = require('./project');
+const { paths, loadRulesIndex, PLUGIN_ROOT } = require('./project');
 const fp = require('./fingerprint');
 
-/** Resolve a package's CLI entry inside the project's node_modules (walking up). */
-function resolveBin(root, pkg, binName) {
-  let dir = root;
+/** A package's CLI entry inside node_modules, walking up from `start`. */
+function binFrom(start, pkg, binName) {
+  let dir = start;
   for (;;) {
     const pj = path.join(dir, 'node_modules', ...pkg.split('/'), 'package.json');
     const meta = u.readJSON(pj);
@@ -21,6 +22,67 @@ function resolveBin(root, pkg, binName) {
     const up = path.dirname(dir);
     if (up === dir) return null;
     dir = up;
+  }
+}
+
+/**
+ * The project's own linter first; when the project has none, the copy bundled INSIDE the plugin (its own node_modules). Nothing is ever
+ * installed in the project — a scan no longer skips 30+ rules just because the project has no Stylelint / ESLint.
+ */
+function resolveBin(root, pkg, binName) {
+  return binFrom(root, pkg, binName) || binFrom(PLUGIN_ROOT, pkg, binName);
+}
+
+/** Does the PROJECT (not the plugin) have this package in its node_modules? */
+function projectHas(root, pkg) {
+  let dir = root;
+  for (;;) {
+    if (u.exists(path.join(dir, 'node_modules', ...pkg.split('/'), 'package.json'))) return true;
+    const up = path.dirname(dir);
+    if (up === dir) return false;
+    dir = up;
+  }
+}
+
+/** Absolute entry of a package bundled with the plugin, or null. */
+function bundledEntry(pkg) {
+  try { return require.resolve(pkg, { paths: [PLUGIN_ROOT] }); } catch { return null; }
+}
+
+/**
+ * Write the ui-guard lint configs into .ui-guard/lint/ from the plugin templates. A package the project does not have (stylelint,
+ * postcss-scss, stylelint-scss, angular-eslint, typescript-eslint) is imported from the plugin's own bundled copy by absolute path, so the
+ * configs load from .ui-guard/lint/ without anything in the project's node_modules. Idempotent: a file is written only when it changed.
+ */
+function prepareConfigs(root) {
+  const p = paths(root);
+  if (!u.isDir(p.lint)) return;
+  const T = path.join(PLUGIN_ROOT, 'templates', 'lint');
+  const abs = (pkg) => { const e = !projectHas(root, pkg) && bundledEntry(pkg); return e || null; };
+  for (const f of ['stylelint-ui-guard.mjs', 'stylelint.config.mjs', 'eslint.config.mjs']) {
+    let t = u.readText(path.join(T, f));
+    if (t == null) continue;
+    for (const pkg of ['stylelint', 'angular-eslint', 'typescript-eslint']) {
+      const e = abs(pkg);
+      if (e) t = t.split(`from '${pkg}'`).join(`from '${pathToFileURL(e).href}'`);
+    }
+    for (const pkg of ['postcss-scss', 'stylelint-scss']) {
+      const e = abs(pkg);
+      if (e) t = t.split(`'${pkg}'`).join(JSON.stringify(e.split(path.sep).join('/')));
+    }
+    const dest = path.join(p.lint, f);
+    if (u.readText(dest) !== t) fs.writeFileSync(dest, t);
+  }
+  // the settings the configs read (written from the profile; rewritten here so a cleaned or older .ui-guard/lint/ always works)
+  const project = require('./project');
+  const profile = project.readProfile(root);
+  const idx = loadRulesIndex();
+  const settings = { scssRoot: project.scssRoot(profile), themesRoot: 'src/assets/themes', roleMap: project.roleMap(profile) };
+  const map = { lintMap: idx.lintMap, severity: Object.fromEntries(idx.rules.map((r) => [r.id, r.severity])) };
+  for (const [name, data] of [['lint-settings.json', settings], ['lint-map.json', map]]) {
+    const dest = path.join(p.lint, name);
+    const text = JSON.stringify(data, null, 2) + '\n';
+    if (u.readText(dest) !== text) fs.writeFileSync(dest, text);
   }
 }
 
@@ -36,7 +98,9 @@ function eslintConfig(root) {
 }
 
 function runNode(root, bin, args, timeoutMs) {
-  return spawnSync(process.execPath, [bin, ...args], { cwd: root, encoding: 'utf8', maxBuffer: 512 * 1024 * 1024, timeout: timeoutMs, windowsHide: true });
+  // require(esm) is switched off: with it on, a bundled Stylelint loading our ESM config that imports Stylelint fails with ERR_REQUIRE_CYCLE_MODULE
+  const env = { ...process.env, NODE_OPTIONS: `${process.env.NODE_OPTIONS || ''} --no-experimental-require-module`.trim() };
+  return spawnSync(process.execPath, [bin, ...args], { cwd: root, encoding: 'utf8', maxBuffer: 512 * 1024 * 1024, timeout: timeoutMs, windowsHide: true, env });
 }
 
 function severityFor(ruleId, fallback) {
@@ -60,7 +124,8 @@ function chunk(arr, n) { const out = []; for (let i = 0; i < arr.length; i += n)
 function stylelint(root, files, { timeoutMs = 600000 } = {}) {
   if (!files.length) return { available: true, findings: [] };
   const bin = resolveBin(root, 'stylelint', 'stylelint');
-  if (!bin) return { available: false, reason: 'stylelint is not installed in this project', findings: [] };
+  if (!bin) return { available: false, reason: 'stylelint is not installed in this project nor bundled with the plugin', findings: [] };
+  prepareConfigs(root);
   const cfg = stylelintConfig(root);
   if (!cfg) return { available: false, reason: 'no ui-guard Stylelint config (.ui-guard/lint/stylelint.config.cjs)', findings: [] };
   const findings = [];
@@ -97,7 +162,8 @@ function stylelint(root, files, { timeoutMs = 600000 } = {}) {
 function eslint(root, files, { timeoutMs = 600000 } = {}) {
   if (!files.length) return { available: true, findings: [] };
   const bin = resolveBin(root, 'eslint', 'eslint');
-  if (!bin) return { available: false, reason: 'eslint is not installed in this project', findings: [] };
+  if (!bin) return { available: false, reason: 'eslint is not installed in this project nor bundled with the plugin', findings: [] };
+  prepareConfigs(root);
   const cfg = eslintConfig(root);
   if (!cfg) return { available: false, reason: 'no ui-guard ESLint config (.ui-guard/lint/eslint.config.*)', findings: [] };
   const findings = [];
@@ -147,7 +213,7 @@ function lintFiles(root, files) {
   };
 }
 
-module.exports = { resolveBin, stylelint, eslint, lintFiles, mapRule, stylelintConfig, eslintConfig };
+module.exports = { resolveBin, projectHas, prepareConfigs, stylelint, eslint, lintFiles, mapRule, stylelintConfig, eslintConfig };
 if (require.main === module) {
   const a = u.parseArgs(process.argv.slice(2));
   u.helpExit(a, `lint.js — run the project's Stylelint/ESLint on files and print ui-guard findings.

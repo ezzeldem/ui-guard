@@ -7,7 +7,7 @@
       "name": "ui-guard",
       "source": "./",
       "description": "Angular UI standards guard: init, scan, phased zero-pixel fixes, edit and push checks.",
-      "version": "1.0.1"
+      "version": "1.0.2"
     }
   ]
 }

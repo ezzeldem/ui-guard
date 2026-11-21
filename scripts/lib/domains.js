@@ -9,11 +9,17 @@ const path = require('path');
 const DOMAINS = {
   scss: {
     prefix: 'STYLE', title: 'SCSS architecture, classes and theme', rulesFile: 'rules/style.md',
+    // the AXIS standard itself (rules with priorities, the review checklist, naming, stylesheet accessibility) is always read with style.md;
+    // the segment document of every file in the batch is added by rulesFilesFor (axisSegmentFor)
+    areaRulesFiles: ['rules/axis/guides/rules.md', 'rules/axis/guides/review-checklist.md', 'rules/axis/guides/naming-conventions.md', 'rules/axis/guides/accessibility.md'],
+    segmentDocs: true,
     scripts: ['foundation', 'theme-check', 'tokens-check', 'angular-config-check', 'web-check', 'class-usage', 'structure-check'],
     lint: { stylelint: true, eslint: false },
   },
   access: {
     prefix: 'ACCESS', title: 'accessibility', rulesFile: 'rules/access.md', mvcRulesFile: 'rules/access-mvc.md',
+    // the five area texts (what to detect, how to fix, the stack section, the hard rules): read together with access.md by the scan, the fixer and the reviewer
+    areaRulesFiles: ['rules/access/area-1-labels.md', 'rules/access/area-2-alt.md', 'rules/access/area-3-aria.md', 'rules/access/area-4-semantics.md', 'rules/access/area-5-keyboard.md'],
     scripts: ['access-check'],
     lint: { stylelint: false, eslint: true },
   },
@@ -31,10 +37,21 @@ const DOMAINS = {
 const NAMES = Object.keys(DOMAINS);
 
 /** Rule files an agent needs for `domain` and these files: the MVC part of ACCESS only when a .cshtml / .js file is in them. */
+/** The AXIS segment document that governs one stylesheet (settings, tools, generic, … utilities, theme, or the component/layout/page style of an Angular component). */
+function axisSegmentFor(file) {
+  const f = String(file || '').split('\\').join('/');
+  if (!/\.s?css$/.test(f)) return null;
+  const m = /(^|\/)(settings|tools|generic|elements|common|objects|components|layout|modules|pages|packages|utilities|theme)\//.exec(f.replace(/^src\/app\//, 'x/'));
+  if (m && !/^src\/app\//.test(f)) return m[2];
+  if (/^src\/app\//.test(f)) return /(^|\/)(layout|layouts|shell)[^/]*\//.test(f) ? 'layout' : /(^|\/)(pages?|features?|routes?)\//.test(f) ? 'pages' : 'components';
+  return null;
+}
+
 function rulesFilesFor(name, files, pluginRoot) {
   const d = get(name);
   if (!d) return [];
-  const out = [d.rulesFile];
+  const out = [d.rulesFile, ...(d.areaRulesFiles || [])];
+  if (d.segmentDocs) for (const x of new Set((files || []).map((f) => axisSegmentFor(typeof f === 'string' ? f : (f && (f.file || f.path)) || '')).filter(Boolean))) out.push(`rules/axis/segments/${x}.md`);
   if (d.mvcRulesFile && (files || []).some((f) => /.(cshtml|js)$/i.test(typeof f === 'string' ? f : (f && (f.file || f.path)) || ''))) out.push(d.mvcRulesFile);
   return pluginRoot ? out.map((r) => path.join(pluginRoot, r)) : out;
 }
@@ -101,4 +118,4 @@ function listText() {
   return NAMES.map((n) => `  ${n.padEnd(7)} ${DOMAINS[n].prefix.padEnd(7)} ${DOMAINS[n].title}`).join('\n');
 }
 
-module.exports = { DOMAINS, NAMES, get, owns, ofRule, paths, fromArgs, listText, rulesFilesFor };
+module.exports = { DOMAINS, NAMES, get, owns, ofRule, paths, fromArgs, listText, rulesFilesFor, axisSegmentFor };

@@ -140,6 +140,16 @@ Class prefixes: `o-` `c-` `l-` `m-` `ctrl-` `p-` `u-`, and states `is-` `has-` `
 | HTML/TS lint | `eslint@^9`, `angular-eslint`, `typescript-eslint` |
 | Screenshots (zero-pixel proof) | `playwright`, `pixelmatch`, `pngjs` |
 
+**Rule depth (standalone).** ui-guard carries the full text of its two largest standards itself, with no dependency on another plugin:
+`rules/access/` (the five accessibility areas — what to detect, how to fix, the Angular / ASP.NET MVC sections, the hard rules — plus the stack
+idioms and source-tracing notes) and `rules/axis/` (the AXIS guides and the 13 segment documents). The scan reads the area files together with
+`access.md`, and the segment document of every stylesheet in a batch together with `style.md`; the fixer and the reviewer read the same files.
+
+**Stylelint and ESLint need no install in the project:** when the project does not have them, the plugin runs the copies bundled in its own
+`node_modules` (nothing is written to the project's `node_modules` or `package.json`; the configs stay in `.ui-guard/lint/`). So every
+`stylelint` / `eslint` rule is checked by script on every scan, not only in projects that happen to have the tools. Only Playwright /
+pixelmatch (the zero-pixel proof) still has to be installed by the developer.
+
 If a tool is missing, declined or crashes, the report says **NOT CHECKED** and why. Those rules are never sent to the AI silently.
 
 ## What it never does

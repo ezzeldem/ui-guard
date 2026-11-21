@@ -1,6 +1,6 @@
 {
   "name": "ui-guard",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Keeps Angular UI code on the team's UI standards (AXIS SCSS architecture, translation, security, media and accessibility rules): init new projects, scan and phase-fix old ones with zero pixel change, and guard every edit and push.",
   "author": { "name": "Ezz Elden Mohamed" },
   "license": "UNLICENSED",

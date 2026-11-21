@@ -65,7 +65,8 @@ The first word of the arguments is the domain: `scss` (STYLE rules), `access` (A
 1. `angular.json` must exist, else stop: "This is not an Angular project."
 2. No `.ui-guard/profile.md` → `profile.js --refresh`.
 3. No `.ui-guard/lint/` → `setup-project.js lint --internal` (configs inside `.ui-guard/` only; nothing else is written).
-4. Tools are never installed. A missing or crashing linter is reported as NOT CHECKED in the report, with the exact install
+4. Tools are never installed in the project. Stylelint / ESLint come from the PROJECT when it has them, else from the copies bundled in the
+   plugin's own `node_modules` (so their rules are always checked by script). A crashing or unavailable linter is reported as NOT CHECKED in the report, with the exact install
    command from `setup-project.js tools` in your final reply (ESLint is pinned: `eslint@^9 angular-eslint@^<major> typescript-eslint`).
 
 ## 2. Scripts first — the whole project for D (0 tokens)
