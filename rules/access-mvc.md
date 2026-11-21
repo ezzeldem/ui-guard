@@ -100,7 +100,9 @@ method name, and put the count in the finding.
   no `tabindex` or key handler; positive `tabindex` in views and in `htmlAttributes` (`new { tabindex = 1 }`); collapsed panels
   hidden by a class that is not `display:none`; a custom modal that does not move focus in, close on Escape or restore focus
   (a Bootstrap modal with its documented markup already does — don't duplicate); `.html()`, `.load()` or `innerHTML` replacing
-  a region that had focus, and handlers bound directly to replaced content (use delegation:
+  a region that had focus — report every such swap, and every `.slideToggle()` / `.show()` / `.hide()` of a panel, whose function
+  neither moves focus to the new content nor restores it to the trigger (runtimeCheck: needed); a click on a link or button inside
+  a row with its own `onclick` also fires the row handler (report under ACCESS-05); and handlers bound directly to replaced content (use delegation:
   `$(container).on('keydown', '.js-x', …)`); after an AJAX swap focus goes to the new heading (`tabindex="-1"`) or back to the
   trigger; `autofocus`; no skip link in the layout (target `<main id tabindex="-1">`); `<a class="disabled">` still focusable.
   Fixes: a native element first; otherwise `tabindex="0"` plus a `keydown` handler in the project's script style that calls the

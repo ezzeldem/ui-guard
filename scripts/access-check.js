@@ -159,6 +159,9 @@ function checkTemplate(root, rel, tpl, add, ctx) {
   }
   const h1s = nodes.filter((n) => n.tag === 'h1');
   if (h1s.length > 1) for (const n of h1s.slice(1)) E('ACCESS-10', n, 'A second <h1> in the same template: the page has one main heading.', 'Use <h2> and move the look to a class (or change the level by input for a shared component).', { impact: 'medium', tier: 'C' });
+  // a routed page (not a fragment) with no <h1> whose first heading is <h3>–<h6>: levels are skipped from the top
+  const firstH = nodes.find((n) => /^h[1-6]$/.test(n.tag));
+  if (ctx && ctx.routed && !h1s.length && firstH && +firstH.tag[1] >= 3) E('ACCESS-10', firstH, `This routed page has no <h1> and its first heading is <${firstH.tag}>: heading levels are skipped.`, 'Make the page title an <h1> (or <h2> when the shell already renders the <h1>) and keep the look with a class.', { impact: 'medium', tier: 'C' });
   const links = nodes.filter((n) => n.tag === 'a' && !n.dynamic && plain(n) && !has(n, 'aria-label'));
   const dest = (n) => String(n.attrs.href || n.attrs.routerLink || n.attrs['[routerLink]'] || n.attrs['[href]'] || '');
   const byText = new Map();
@@ -198,12 +201,16 @@ function run(root, profile) {
   const add = (id, file, line, message, fix, extra) => findings.push(mk(root, id, file, line, message, fix, extra));
   let box = null;
   try { box = require('./media-check').boxInfoClasses(root, profile); } catch { /* no styles to read */ }
+  let pageDirs = [];
+  try { pageDirs = require('./lib/access-impact').pageDirsOf(root); } catch { /* no routes */ }
   for (const f of project.listUiFiles(root, profile)) {
     if (!['html', 'ts', 'index'].includes(f.kind)) continue;
     const text = u.readText(f.abs) || '';
+    const dir = f.rel.replace(/\/[^/]+$/, '');
+    const routed = pageDirs.includes(dir);
     for (const tpl of h.templatesOf(f.rel, f.kind === 'index' ? text.replace(/<html\b/i, '<html') : text)) {
       if (f.kind === 'index') continue; // index.html is the document, not a component template
-      checkTemplate(root, f.rel, tpl, add, { box });
+      checkTemplate(root, f.rel, tpl, add, { box, routed });
     }
   }
   checkDocument(root, profile, add);

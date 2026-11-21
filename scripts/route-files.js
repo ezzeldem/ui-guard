@@ -19,7 +19,8 @@ const SIGNALS = {
   // MEDIA-02 off-screen containers (modal, closed tab/accordion/dropdown, table row, footer) — /ui-guard:check only
   media: { text: /<img\b[^>]*>/i, js: /<img\b/i },
   'access-motion': { js: /autoplay|carousel|swiper|slick|marquee|setInterval/i, text: /autoplay|carousel|swiper|slick|marquee|setTimeout|setInterval|timeout|toast|snack|animation|@keyframes/i },
-  'access-keyboard': { js: /\.focus\(|tabindex|keydown|keyup|\.on\(\s*['"]key|addEventListener\(\s*['"]key/i, text: /tabindex|\(keydown|\(keyup|@HostListener|\.focus\(|modal|overlay|dropdown|tabs|\(click\)|autofocus|onclick|onkey|\.on\(\s*['"](click|key)|keydown|keyup|addEventListener/i },
+  // a script that swaps content (.html/.load/innerHTML) or shows/hides a panel can drop focus (ACCESS-05 MVC); click handlers need keys
+  'access-keyboard': { js: /\.focus\(|tabindex|keydown|keyup|\.on\(\s*['"](key|click)|addEventListener\(\s*['"](key|click)|onclick|\.(html|load)\(|innerHTML|slideToggle|\.(show|hide|toggle)\(/i, text: /tabindex|\(keydown|\(keyup|@HostListener|\.focus\(|modal|overlay|dropdown|tabs|\(click\)|autofocus|onclick|onkey|\.on\(\s*['"](click|key)|keydown|keyup|addEventListener/i },
 };
 
 const CONFIG_JS = /(^|\/)[^/]*\.(config|conf)\.[cm]?js$|(^|\/)(karma|protractor|webpack|gulpfile|gruntfile|babel|jest|eslint|prettier|tailwind|postcss|vite|rollup|bundleconfig)[\w.-]*\.[cm]?js$/i;
