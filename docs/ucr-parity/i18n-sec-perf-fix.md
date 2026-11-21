@@ -206,3 +206,10 @@ FIX-0n ↔ FIX-0n.
 Rule-file text fixed in this pass: all 7 MISSING and 14 of the 20 PARTIAL (C03, I04, I26, I29, I30, I31, S26, P02, P07 in
 part, P15, P16, P27, F12, F24). Still open in the rule files: I12, I33, S18, S27, P23, F07 (script / config / design decisions
 listed above).
+
+## Decided on 2026-11-21
+
+Undecided 1 (`<code>`): exclusion removed from `lang.md`. Undecided 3 (MEDIA-02): the script reports only images in a
+repeated block; data-bound images elsewhere are the AI's, only with an off-screen container. I12 (LANG-05 line), P02 (inline
+templates), P07 (`loading="eager"`), P15 (asset folders, oversized changed asset blocks `/ui-guard:check`) and F18 (missing
+verdict = Unclear) are done in the scripts. See `BUILD-NOTES.md` (2026-11-21).

@@ -7,8 +7,10 @@
 //   deps      // @dependencies: <tool file> lines after @charset for every tool the file reads (AXIS tools.md)
 //   px        16px → px(16) (root font size from the profile; 1px stays; custom properties untouched)
 //   logical   physical → logical properties (STYLE-11 = AXIS R-09). Sizes (width/height, min-/max-) → inline-size/block-size
-//             always (the same in both directions); sides (margin-left, left, text-align: left…) only when the app has ONE
-//             direction (a bidirectional app would flip in the other direction → listed as "decide")
+//             always (the same in both directions); sides (margin-left, left, text-align: left…) by the app's base direction.
+//             A bidirectional app (rtl + ltr) is a mirror by default: the sides convert as authored for the base direction
+//             (proven in that direction) and flip in the other one; a file with direction-specific code ([dir=rtl],
+//             :dir(rtl), @include dir(…)) keeps its physical sides and is listed as "decide".
 //   mq        @media (min-width/max-width …) → @include mq(…) with the project's breakpoints (missing keys are added)
 //   bem       top-level .block__x / .block-variant rules right after .block → nested &__x / &-variant (same compiled CSS)
 //   colors    hex / rgb() / rgba() in variables and tokens → hsl(H, S%, L%[, A]) when the round trip is exact; a colour in a component that
@@ -66,6 +68,15 @@ function dirMode(profile) {
   if (d === 'rtl' || d === 'ltr') return d;
   return rtl ? 'rtl' : 'ltr';
 }
+/** The direction the styles are authored for: index.html `dir`, then the init answer, then the first language. */
+function baseDir(profile) {
+  const d = ((profile.index && profile.index.dir) || (profile.answers && profile.answers.dir) || '').toLowerCase();
+  if (d === 'rtl' || d === 'ltr') return d;
+  const first = String(((profile.i18n && profile.i18n.languages) || [])[0] || (profile.index && profile.index.lang) || '').toLowerCase().slice(0, 2);
+  return ['ar', 'he', 'fa', 'ur', 'ps', 'ku', 'yi', 'dv'].includes(first) ? 'rtl' : 'ltr';
+}
+/** Code written for one direction only: mirroring would double-flip it. */
+const DIR_SPECIFIC = /\[\s*dir\s*=|:dir\(|@include\s+dir\s*\(/i;
 
 /** Replace inside the text, but never inside comments, strings or url(). fn(segmentText) → new segment text. */
 function mapCode(text, fn) {
@@ -301,7 +312,8 @@ function applyFile(root, rel, opts) {
   if (before == null) return { ...res, noSass: true };
   if (before.error) { res.skipped.push({ what: 'all transforms', reason: `the file does not compile on its own (${u.clip(before.error, 120)})` }); return res; }
   const renameCss = (css) => { let c = css; for (const r of opts.renames) c = c.replace(new RegExp(`\\.${esc(r.from)}(?![\\w-])`, 'g'), '.' + r.to); return c; };
-  const nopt = { rootPx: opts.rootPx, dir: opts.dir === 'rtl' ? 'rtl' : 'ltr', tokens: opts.palette.canon };
+  const sideDir = opts.dir === 'both' ? opts.base : opts.dir;
+  const nopt = { rootPx: opts.rootPx, dir: sideDir === 'rtl' ? 'rtl' : 'ltr', tokens: opts.palette.canon };
   const colorOnly = opts.colorOnly(rel);
   res.decisions = [];
   // the reference is the original CSS; once the rename step is applied, the original with the planned renames
@@ -322,8 +334,9 @@ function applyFile(root, rel, opts) {
   if (!colorOnly) steps.push(colorStep);
   if (!colorOnly && isScss) steps.push(['px', (t) => tPx(t, opts.rootPx)]);
   if (!colorOnly) steps.push(['size', (t) => tSize(t)]);
-  if (colorOnly) { /* settings, tools and theme files get the colour step only */ } else if (opts.dir === 'both') { if (Object.keys(PHYS).some((p) => new RegExp(`(^|[;{\\s])${p}\\s*:`).test(original)) || /text-align\s*:\s*(left|right)/.test(original)) res.skipped.push({ what: 'logical', reason: 'the app switches direction (rtl + ltr): a logical property would flip in the other direction — decide per rule' }); }
-  else steps.push(['logical', (t) => tLogical(t, opts.dir)]);
+  const hasSides = Object.keys(PHYS).some((p) => new RegExp(`(^|[;{\\s])${p}\\s*:`).test(original)) || /(text-align|float|clear)\s*:\s*(left|right)/.test(original);
+  if (colorOnly) { /* settings, tools and theme files get the colour step only */ } else if (opts.dir === 'both' && DIR_SPECIFIC.test(original)) { if (hasSides) res.skipped.push({ what: 'logical', reason: 'the file has direction-specific code ([dir=…], :dir(), @include dir()) — mirroring its physical sides would double-flip them — decide per rule' }); }
+  else steps.push(['logical', (t) => tLogical(t, sideDir)]);
   if (!colorOnly && isScss) steps.push(['mq', (t) => tMq(t, opts.bp, [])]);
   if (!colorOnly && isScss) steps.push(['bem', (t) => tBem(t, [])]);
   if (!colorOnly && isScss) steps.push(['deps', (t) => tDeps(t)]);
@@ -395,7 +408,7 @@ function run(root, { files, phaseId, dry, withRenames }) {
   const componentStyles = require('./foundation').componentStyles(root);
   const allScss = project.listUiFiles(root, profile).filter((f) => f.kind === 'scss').map((f) => u.readText(f.abs) || '');
   const colorOnly = (rel) => /(^|\/)theme\//.test(rel) || rel.startsWith(`${sr}/settings/`) || rel.startsWith(`${sr}/tools/`);
-  const opts = { sr, loadPaths, rootPx: profile.rootFontSize || 16, dir: dirMode(profile), bp, renames: safeRenames, dry, componentStyles, palette: cf.palette(root, profile), fnVars: cf.colourFnVars(allScss), colorOnly, newTokens: new Map(), paletteFiles: paletteFiles(root, profile) };
+  const opts = { sr, loadPaths, rootPx: profile.rootFontSize || 16, dir: dirMode(profile), base: baseDir(profile), bp, renames: safeRenames, dry, componentStyles, palette: cf.palette(root, profile), fnVars: cf.colourFnVars(allScss), colorOnly, newTokens: new Map(), paletteFiles: paletteFiles(root, profile) };
   for (const rel of files.filter((f) => /\.s?css$/.test(f))) {
     if (/\/packages\//.test(rel)) continue;
     const r = applyFile(root, rel, opts);
@@ -436,7 +449,7 @@ function run(root, { files, phaseId, dry, withRenames }) {
   return report;
 }
 
-module.exports = { run, tCharset, tUseTools, tDeps, tPx, tLogical, tSize, tMq, tBem, renameInHtml, renameInTs, renameInScss, dirMode, readBreakpoints };
+module.exports = { run, tCharset, tUseTools, tDeps, tPx, tLogical, tSize, tMq, tBem, renameInHtml, renameInTs, renameInScss, dirMode, baseDir, DIR_SPECIFIC, readBreakpoints };
 if (require.main === module) {
   const args = u.parseArgs(process.argv.slice(2), ['renames']);
   u.helpExit(args, HELP);

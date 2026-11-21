@@ -72,7 +72,7 @@ If the developer agreed to installs, run exactly the listed `npm install -D …`
    Record the branch: `profile.js --answers '{"button":{"decision":"design|existing:<class>|standard"}}'`.
 4. `node PLUGIN/scripts/scaffold.js angular-json` — vendor CSS first, then `src/assets/scss/common/common.scss` and `src/assets/scss/utilities/utils.scss`; includePaths; assets; externalDependencies; scss schematic.
    Vendor bundles with `inject: false` are left as they are.
-5. `node PLUGIN/scripts/scaffold.js index-html --lang <lang> --dir <dir>` (default `ar` / `rtl`) — theme `<link>`s (colors.base, colors.palette, fonts, then `custom.theme.css` **last**), favicon.
+5. `node PLUGIN/scripts/scaffold.js index-html --lang <lang> --dir <dir>` (default `ar` / `rtl`) — theme `<link>`s (colors.base, colors.palette, fonts, in `<head>`, then `custom.theme.css` **last**, at the start of `<body>`), favicon.
 
 ## 5. Lint, hooks, .gitignore (§5.8)
 1. `node PLUGIN/scripts/setup-project.js lint`. If it reports an existing Stylelint/ESLint config (exit 3), ask before replacing (Stylelint) or merging (ESLint — never overwrite; show its merge snippet), then re-run with `--root-stylelint` / `--root-eslint` or merge by hand as agreed.

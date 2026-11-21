@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 'use strict';
-// MEDIA-01..06 â€” images, video, iframes, fonts and asset sizes. Deterministic: free, zero AI tokens.
+// MEDIA-01..06 — images, video, iframes, fonts and asset sizes. Deterministic: free, zero AI tokens.
 // Image files are never opened or judged: only their path, extension and size on disk are read.
 const fs = require('fs');
 const path = require('path');
@@ -18,7 +18,7 @@ const SIZE_LIMITS = [
 const ICON_NAME = /(^|[-_.])(icon|ico|logo|arrow|symbol|glyph|chevron|caret)([-_.]|$)/i;
 const kb = (n) => Math.round(n / 1024) + ' KB';
 
-/** Attributes of one tag: name â†’ value ('' for a bare attribute). */
+/** Attributes of one tag: name → value ('' for a bare attribute). */
 function attrsOf(tag) {
   const out = {};
   const re = /([@\[\(\*#]?[\w:.\-\)\]]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g;
@@ -29,7 +29,7 @@ function attrsOf(tag) {
 }
 const has = (a, ...names) => names.some((n) => n in a || ('[' + n + ']') in a || ('[attr.' + n + ']') in a);
 
-/** class name â†’ does any SCSS rule give it a fixed box (inline-size + block-size, width + height, or aspect-ratio)? */
+/** class name → does any SCSS rule give it a fixed box (inline-size + block-size, width + height, or aspect-ratio)? */
 function boxInfoClasses(root, profile) {
   const blocks = [];
   for (const f of project.listUiFiles(root, profile).filter((x) => x.kind === 'scss' || x.kind === 'css')) {
@@ -78,6 +78,19 @@ function insideRazorLoop(text, pos) {
   }
   return open;
 }
+/** The inline `template:` literals of a component .ts; everything else becomes spaces (newlines kept → same line numbers). */
+function inlineTemplates(ts) {
+  const keep = new Array(ts.length).fill(false);
+  const re = /\btemplate\s*:\s*`/g;
+  let m;
+  while ((m = re.exec(ts))) {
+    let i = m.index + m[0].length;
+    for (; i < ts.length && ts[i] !== '`'; i++) { if (ts[i] === '\\') { keep[i] = true; i++; } keep[i] = true; }
+  }
+  let out = '';
+  for (let i = 0; i < ts.length; i++) out += keep[i] || ts[i] === '\n' || ts[i] === '\r' ? ts[i] : ' ';
+  return out;
+}
 function resolveAsset(root, ref) {
   if (/^~\//.test(ref)) ref = ref.slice(2);
   const clean = ref.split(/[?#]/)[0].replace(/^[./]+/, '').replace(/^src\//, '');
@@ -93,8 +106,11 @@ function run(root, profile) {
   const boxFixed = boxFixedClasses(root, profile);
 
   // ----- templates: MEDIA-01, 02, 04 (img) and MEDIA-06 (video, iframe)
-  for (const f of files.filter((x) => x.kind === 'html' || x.kind === 'index' || x.kind === 'cshtml')) {
-    const text = u.readText(f.abs) || '';
+  for (const f of files.filter((x) => x.kind === 'html' || x.kind === 'index' || x.kind === 'cshtml' || x.kind === 'ts')) {
+    const raw = u.readText(f.abs) || '';
+    // a component .ts: only its inline `template:` literal is markup (the rest blanked, newlines kept so lines match)
+    const text = f.kind === 'ts' ? inlineTemplates(raw) : raw;
+    if (!text.trim()) continue;
     const idx = u.lineIndexer(text);
     const tagRe = /<(img|video|iframe)\b[^>]*>/gi;
     let m;
@@ -103,14 +119,16 @@ function run(root, profile) {
       if (name === 'img') {
         const classes = String(a.class || '').split(/\s+/).filter(Boolean);
         const sized = (has(a, 'width') && has(a, 'height')) || ('fill' in a) || classes.some(boxFixed) || /\b(width|height|aspect-ratio)\s*:/.test(a.style || '');
-        if (!sized) findings.push(mk(root, 'MEDIA-01', f.rel, line, 'Image has no `width` + `height` and no class that fixes its box â€” the page jumps when it loads.', 'Add `width` and `height` attributes with the intrinsic size (or fix the box with `aspect-ratio` / `inline-size` + `block-size` in its class).', { evidence: tag.replace(/\s+/g, ' ').slice(0, 120) }));
-        // content image = data-bound source, or inside a loop; icons and priority images are never flagged
+        if (!sized) findings.push(mk(root, 'MEDIA-01', f.rel, line, 'Image has no `width` + `height` and no class that fixes its box — the page jumps when it loads.', 'Add `width` and `height` attributes with the intrinsic size (or fix the box with `aspect-ratio` / `inline-size` + `block-size` in its class).', { evidence: tag.replace(/\s+/g, ' ').slice(0, 120) }));
+        // content image the code shows is repeated (a loop: one of PERF-02's off-screen containers); a data-bound image
+        // elsewhere, modals, tabs, rows and the footer are judged by the AI. Icons and priority images are never flagged;
+        // only loading="lazy" satisfies the rule (loading="eager" does not).
         const src = a.src ?? a.ngSrc ?? a['[src]'] ?? a['[ngSrc]'] ?? a['ngSrc'] ?? '';
-        const bound = '[src]' in a || '[ngSrc]' in a || /\{\{|@/.test(String(a.src || ''));
         const inLoop = '*ngFor' in a || insideFor(text, m.index) || (f.kind === 'cshtml' && insideRazorLoop(text, m.index));
-        const eager = 'priority' in a || a.loading === 'eager' || a.fetchpriority === 'high';
-        if ((bound || inLoop) && !('loading' in a) && !eager && !('priority' in a) && !/\.svg(\?|$)/i.test(String(src))) {
-          findings.push(mk(root, 'MEDIA-02', f.rel, line, 'Content image (data-bound or inside a list) without `loading="lazy"`.', 'Add `loading="lazy"` (never on the first-screen / hero image â€” give that one `fetchpriority="high"`).', { evidence: tag.replace(/\s+/g, ' ').slice(0, 120) }));
+        const priority = 'priority' in a || '[priority]' in a || a.fetchpriority === 'high';
+        const icon = /\.svg(\?|$)/i.test(String(src)) || /(^|[/_.-])icons?([/_.-]|$)/i.test(String(src));
+        if (inLoop && a.loading !== 'lazy' && !priority && !icon) {
+          findings.push(mk(root, 'MEDIA-02', f.rel, line, `Content image inside a repeated block without \`loading="lazy"\`${a.loading ? ` (\`loading="${a.loading}"\`)` : ''}.`, 'Add `loading="lazy"` (never on the first-screen / hero image — give that one `fetchpriority="high"`).', { evidence: tag.replace(/\s+/g, ' ').slice(0, 120) }));
         }
         const ref = String(a.src || a.ngSrc || '');
         if (RASTER.test(ref) && !/\{\{|^https?:|^data:/.test(ref)) {
@@ -134,7 +152,7 @@ function run(root, profile) {
     const idx = u.lineIndexer(text);
     let m;
     const imp = /@import\s+(?:url\()?["']?([^"')\s;]+)/g;
-    while ((m = imp.exec(text))) if (/fonts\.(googleapis|gstatic)|\.(woff2?|ttf|otf|eot)(\?|$)|\/fonts?\//i.test(m[1]) && /^https?:|font/i.test(m[1])) findings.push(mk(root, 'MEDIA-05', f.rel, idx(m.index), 'Web font loaded with CSS `@import` â€” it blocks rendering.', 'Load the font with `<link rel="preload">` / a local `@font-face` in `fonts.theme.css`.', { evidence: m[0].slice(0, 100) }));
+    while ((m = imp.exec(text))) if (/fonts\.(googleapis|gstatic)|\.(woff2?|ttf|otf|eot)(\?|$)|\/fonts?\//i.test(m[1]) && /^https?:|font/i.test(m[1])) findings.push(mk(root, 'MEDIA-05', f.rel, idx(m.index), 'Web font loaded with CSS `@import` — it blocks rendering.', 'Load the font with `<link rel="preload">` / a local `@font-face` in `fonts.theme.css`.', { evidence: m[0].slice(0, 100) }));
     const ff = /@font-face\s*\{/g;
     while ((m = ff.exec(text))) {
       const line = idx(m.index);
@@ -151,10 +169,11 @@ function run(root, profile) {
   }
 
   // ----- asset files: MEDIA-03 (sizes). Only the size on disk is read, never the content.
-  const roots = [path.join(root, 'src', 'assets'), path.join(root, 'public')];
+  // Angular (src/assets, public, a root assets/) and ASP.NET MVC (wwwroot without its vendor lib/, MVC 5 Content/ Images/)
+  const roots = ['src/assets', 'public', 'assets', 'wwwroot', 'Content', 'Images'].map((d) => path.join(root, d));
   for (const dir of roots) {
     if (!u.isDir(dir)) continue;
-    for (const abs of u.walk(dir, (n) => project.EXCLUDED_DIRS.has(n))) {
+    for (const abs of u.walk(dir, (n) => project.EXCLUDED_DIRS.has(n) || (dir.endsWith('wwwroot') && n === 'lib'))) {
       const rule = SIZE_LIMITS.find((s) => s.re.test(abs));
       if (!rule) continue;
       const size = fs.statSync(abs).size;
@@ -164,5 +183,18 @@ function run(root, profile) {
   return findings;
 }
 
-module.exports = { run, boxInfoClasses, attrsOf };
-if (require.main === module) cli('media-check', 'media-check.js â€” MEDIA-01..06: image size attributes, lazy loading, raster-as-icon, fonts, video/iframe loading, asset sizes. Never opens an image.', run);
+/** MEDIA-03 for given project-relative files (the assets a change adds or edits), wherever they live. Size on disk only. */
+function oversized(root, rels) {
+  const out = [];
+  for (const rel of rels) {
+    const rule = SIZE_LIMITS.find((s) => s.re.test(rel));
+    if (!rule) continue;
+    let size;
+    try { size = fs.statSync(path.join(root, rel)).size; } catch { continue; }
+    if (size > rule.max) out.push(mk(root, 'MEDIA-03', rel, 1, `${rule.label} is ${kb(size)} (limit ${kb(rule.max)}).`, rule.fix));
+  }
+  return out;
+}
+
+module.exports = { run, boxInfoClasses, attrsOf, oversized, inlineTemplates };
+if (require.main === module) cli('media-check', 'media-check.js — MEDIA-01..06: image size attributes, lazy loading, raster-as-icon, fonts, video/iframe loading, asset sizes. Never opens an image.', run);

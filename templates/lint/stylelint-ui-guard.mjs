@@ -92,8 +92,11 @@ const PHYS = {
   width: 'inline-size', height: 'block-size', 'min-width': 'min-inline-size', 'max-width': 'max-inline-size', 'min-height': 'min-block-size', 'max-height': 'max-block-size',
   'scroll-margin-left': 'scroll-margin-inline-start', 'scroll-margin-right': 'scroll-margin-inline-end', 'scroll-margin-top': 'scroll-margin-block-start', 'scroll-margin-bottom': 'scroll-margin-block-end',
   'scroll-padding-left': 'scroll-padding-inline-start', 'scroll-padding-right': 'scroll-padding-inline-end', 'scroll-padding-top': 'scroll-padding-block-start', 'scroll-padding-bottom': 'scroll-padding-block-end',
+  // reported, never converted by scss-fix (incomplete browser support → decision)
+  'overflow-x': 'overflow-inline', 'overflow-y': 'overflow-block', 'overscroll-behavior-x': 'overscroll-behavior-inline', 'overscroll-behavior-y': 'overscroll-behavior-block',
+  'contain-intrinsic-width': 'contain-intrinsic-inline-size', 'contain-intrinsic-height': 'contain-intrinsic-block-size',
 };
-const PHYS_VALUES = { 'text-align': { left: 'start', right: 'end' }, float: { left: 'inline-start', right: 'inline-end' }, clear: { left: 'inline-start', right: 'inline-end' } };
+const PHYS_VALUES = { 'text-align': { left: 'start', right: 'end' }, float: { left: 'inline-start', right: 'inline-end' }, clear: { left: 'inline-start', right: 'inline-end' }, resize: { horizontal: 'inline', vertical: 'block' } };
 const logicalProperties = make('logical-properties', 'STYLE-11', (root, r) => {
   root.walkDecls((d) => {
     const prop = d.prop.toLowerCase();

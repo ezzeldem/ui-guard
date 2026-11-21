@@ -4,7 +4,7 @@
   <div class="tile" (click)="go()">{{ 'home.title' | translate }}</div>
   <img src="assets/images/missing.png">
   <img src="src/assets/images/icon-arrow.svg" width="8" height="8" alt="">
-  <img [src]="item.photo" width="40" height="40" alt="">
+  <img *ngFor="let item of items" [src]="item.photo" width="40" height="40" alt="">
   <img src="assets/images/icon-arrow.png" width="8" height="8" alt="">
   <a href="https://example.com" target="_blank">{{ 'home.title' | translate }}</a>
   <video src="assets/intro.mp4" autoplay></video>

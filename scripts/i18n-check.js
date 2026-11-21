@@ -237,7 +237,8 @@ function run(root, profile) {
     group.forEach((p, i) => {
       for (let j = 0; j < group.length; j++) {
         if (j === i) continue;
-        for (const e of group[j].entries) if (!keySets[i].has(e.key)) findings.push(mk(root, 'LANG-05', p.rel, 1, `Key \`${e.key}\` exists in \`${group[j].lang}\` but not in \`${p.lang}\`.`, `Add ${e.key} to ${p.rel} with a real translation.`));
+        // reported on the key's own line in the file that has it (the line that was added or renamed, like ui-code-review)
+        for (const e of group[j].entries) if (!keySets[i].has(e.key)) findings.push(mk(root, 'LANG-05', group[j].rel, e.line || 1, `Key \`${e.key}\` exists in \`${group[j].lang}\` but not in \`${p.lang}\` (\`${p.rel}\`).`, `Add ${e.key} to ${p.rel} with a real translation.`));
       }
     });
   }

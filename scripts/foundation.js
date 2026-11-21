@@ -332,7 +332,9 @@ function structure(root, profile, { apply }) {
     want.forEach((h, k) => {
       if (linkRe(h).test(next)) return;
       const tag = `<link rel="stylesheet" href="${h}">`;
-      const later = want.slice(k + 1).find((x) => linkRe(x).test(next));
+      // custom.theme.css at the start of <body> (after Angular's styles bundle in <head>); the token files in <head>
+      if (k === want.length - 1) { next = next.replace(/<body\b[^>]*>/i, (b) => `${b}\n  ${tag}`); add.push(h); return; }
+      const later = want.slice(k + 1, -1).find((x) => linkRe(x).test(next));
       if (later) next = next.replace(linkRe(later), (m) => `${tag}\n  ${m}`);
       else next = next.replace(/(\s*)<\/head>/i, `\n  ${tag}\n</head>`);
       add.push(h);

@@ -293,3 +293,9 @@ the AXIS docs in their repository rather than copy them (`docs/README.md:39`, `G
 After the edit every PARTIAL/MISSING row is fixed in `rules/style.md` except: rows 107–112 (ACCESS severity, `access.md` not
 edited), 146 (Autoprefixer half), 151 (compiled-minified half = Angular build), 193 (narrow-viewport-first), 234
 (unmeasurable guidelines), and the lint gap in row 13.
+
+## Decided on 2026-11-21
+
+Rows 107–112: ACCESS severity stays `warning` (stricter). Row 13: `overflow-x/-y`, `resize`, `overscroll-behavior-x/-y`,
+`contain-intrinsic-*` added to the STYLE-11 lint (never auto-converted). Row 193: STYLE-61 (info, AI, report only). Row 195:
+STYLE-39 no longer cites R-COMP-3. Row 149: `custom.theme.css` is linked at the start of `<body>` (STYLE-36, scaffold, foundation).

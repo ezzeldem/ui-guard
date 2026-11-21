@@ -40,7 +40,7 @@ in a TypeScript dictionary). A `.resx` with no culture in its name (`Shared.resx
 - A key built at runtime (`'STATUS.' + code`, `Localizer[name]`) can't be checked: don't report it.
 - **Not user-visible, so not LANG:** CSS classes, ids, routes, URLs, `data-*` and test ids, enum and API values, log and
   `console` text (that is SAFE-08), comments, code that is commented out, `.spec.ts` files, and strings passed only to code
-  (keys of a map, event names), keys themselves, text inside `<code>`.
+  (keys of a map, event names), and the translation keys themselves. Text inside `<code>` that a user reads is user-visible text like any other.
 - **Not text to translate:** brand and product names (say so in the message), numbers, units, symbols and punctuation alone,
   icons, file extensions, sample values in a `placeholder` such as an email or URL format.
 - Language names in a language switcher are written in their own language on purpose (`English`, `العربية`): not a defect.

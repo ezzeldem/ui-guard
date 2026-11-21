@@ -164,8 +164,11 @@ function indexHtml(root, args) {
   });
   const links = project.THEME_FILES.map((f) => `assets/scss/theme/${f}`); // base, palette, fonts, custom (last)
   t = t.replace(/\n?\s*<link[^>]*href=["'][^"']*theme[^"']*\.css["'][^>]*>/gi, '');
-  const block = links.map((h) => `  <link rel="stylesheet" href="${h}">`).join('\n');
+  // base, palette, fonts in <head>; custom.theme.css at the start of <body>, so it loads after the styles bundle Angular
+  // adds at the end of <head> (AXIS output.md: custom.theme.css last)
+  const block = links.slice(0, -1).map((h) => `  <link rel="stylesheet" href="${h}">`).join('\n');
   t = t.replace(/(\s*)<\/head>/i, `\n${block}\n</head>`);
+  t = t.replace(/<body\b[^>]*>/i, (b) => `${b}\n  <link rel="stylesheet" href="${links[links.length - 1]}">`);
   if (/<link[^>]*rel=["'](?:shortcut )?icon["'][^>]*>/i.test(t)) t = t.replace(/(<link[^>]*rel=["'](?:shortcut )?icon["'][^>]*href=["'])[^"']*(["'])/i, '$1assets/project-images/favicon.ico$2');
   else t = t.replace(/<\/head>/i, '  <link rel="icon" type="image/x-icon" href="assets/project-images/favicon.ico">\n</head>');
   fs.writeFileSync(file, t);

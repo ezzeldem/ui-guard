@@ -12,8 +12,8 @@ judges image colors.
 | ID | Where it runs | What the script does |
 |---|---|---|
 | MEDIA-01 | scan, check | `<img>` with no `width`+`height`, no `fill`, and no class (in any SCSS) that fixes its box |
-| MEDIA-02 | scan, check | data-bound (`[src]`, `[ngSrc]`, `{{ }}`, `@Model…`) or looped (`@for`, `*ngFor`, Razor `@foreach`) `<img>` without `loading`; never SVG, never `priority` / `fetchpriority="high"`; the AI adds images in a modal, closed tab/accordion/dropdown, table row or the footer |
-| MEDIA-03 | scan, check | file size of `src/assets/**`, `public/**` and `wwwroot/**` against the limits |
+| MEDIA-02 | scan, check | an `<img>` inside a repeated block (`@for`, `*ngFor`, Razor `@foreach`) — in templates, Razor views and inline `template:` literals — whose `loading` is not `lazy` (`loading="eager"` is reported too); never an icon (SVG, `icon` / `icons` in the path), never `priority` / `fetchpriority="high"`. A data-bound image elsewhere is reported only by the AI, when the code shows it is in a modal, closed tab/accordion/dropdown, table row or the footer |
+| MEDIA-03 | scan, check | file size of `src/assets/**`, `public/**`, a root `assets/**`, `wwwroot/**` (not `wwwroot/lib`), MVC 5 `Content/**` and `Images/**` against the limits |
 | MEDIA-04 | scan, check | a `png/jpg/gif` `<img>` whose same-name `.svg` exists, or a small raster named like an icon / logo / arrow |
 | MEDIA-05 | scan, check | `@font-face` rules and `@import` of fonts in SCSS/CSS |
 | MEDIA-06 | scan, check | `<video autoplay>` / `preload="auto"`, `<iframe>` without `loading="lazy"` |

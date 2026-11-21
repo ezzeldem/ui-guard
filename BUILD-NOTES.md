@@ -188,6 +188,29 @@ Where the AXIS text left room, the stricter reading was taken:
 - (o) A library module's block must be `.m-<vendor-component>` from its file name; a vendor class anywhere outside a library module
   or `common/_classes.common.scss` is a STYLE-54 finding (also when nested under a `c-`/`p-` block), since R-30 allows only an `m-` wrapper.
 
+## ui-code-review parity — accessibility and the open decisions (2026-11-21)
+- Accessibility audit redone from scratch: `docs/ucr-parity/access.md` (129 rows: 92 present, 27 partial, 10 missing, all
+  fixed in `rules/access.md` and `rules/access-mvc.md`). Final ID check: `node scripts/dev/ucr-parity.js` (every rule ID that
+  ui-code-review defines is named in ui-guard).
+- "Apply the rules literally" is also in `skills/ui-rules/SKILL.md` and the CLAUDE.md block.
+- Decisions taken by the developer:
+  1. ACCESS markup rules stay `warning` (stricter than AXIS Medium = info; no ui-code-review comment can follow).
+  2. `overflow-x/-y`, `resize: horizontal/vertical` (and `overscroll-behavior-x/-y`, `contain-intrinsic-width/-height`) are
+     STYLE-11 lint findings; scss-fix never converts them (browser support) → decision.
+  3. STYLE-61 (info, ai): narrow viewport first (AXIS components.md), report only.
+  4. STYLE-39 no longer cites R-COMP-3 (a team rule; AXIS walkthrough's shared `c-button`).
+  5. `custom.theme.css` is linked at the start of `<body>`: Angular adds the global styles bundle at the end of `<head>`, so a
+     `<head>` link loads before it. scaffold, foundation and STYLE-36 (angular-config-check) follow this.
+  6. LANG: text inside `<code>` is no longer excluded.
+  7. MEDIA-02 script: only images in a repeated block (and `loading="eager"` counts as missing lazy); data-bound images
+     elsewhere are left to the AI (code must show an off-screen container). Icons (`icon`/`icons` in the path) are skipped.
+  8. Scripts: LANG-05 on the key's line in the file that has it; media-check reads inline `template:` literals and checks
+     asset sizes in `assets/`, `wwwroot/` (not `lib/`), `Content/`, `Images/` too; `/ui-guard:check` fails on an oversized
+     changed asset (MEDIA-03) and turns a missing / unknown fix verdict into `Unclear`.
+- Logical properties in a bidirectional app (Arabic + English): scss-fix now mirrors by default — sides convert as authored
+  for the base direction (`index.html` `dir`, else the init answer, else the first language) and are proven in that
+  direction; a file with `[dir=…]`, `:dir()` or `@include dir()` keeps its sides (decision).
+
 ## Package versions verified (npm, 2026-11-13)
 stylelint 18.0.0 (17.16.0 used), stylelint-scss 7.5.0 (peer ^16.8.2‖^17‖^18), postcss-scss 4.0.9, eslint 10.15.0 (9.39.5 used — see Review fixes), angular-eslint 22.6.0 (eslint ^9‖^10), typescript-eslint 8.72.2 (TS <6.1 → 5.9.3), sass 1.108.2, playwright 1.65.1, pixelmatch 8.0.0 (ESM, loaded via dynamic import), pngjs 7.0.0.
 

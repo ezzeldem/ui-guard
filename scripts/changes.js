@@ -60,8 +60,10 @@ function collect(root, ref) {
   const assets = require('./assets').check(root);
   const abl = new Set((u.readJSON(path.join(p.ug, 'assets-baseline.json'), { fingerprints: [] }).fingerprints) || []);
   const newAssets = assets.problems.filter((x) => !abl.has(x.fingerprint) && ranges[x.file] && inRanges(x.line, x.line, ranges[x.file]));
+  // MEDIA-03 (= PERF-03, a Warning comment): an image / font / video the change adds or edits that is over the limit blocks
+  const bigAssets = require('./media-check').oversized(root, all.filter((f) => !/(^|\/)(node_modules|dist|bin|obj|lib)\//.test(f) && u.exists(u.fromPosix(root, f))));
   void status;
-  u.writeJSON(path.join(dir, 'changes.json'), { base, head: git.head(root), ref: ref || null, files, ranges, notes: det.notes, notChecked: det.notChecked, newAssets });
+  u.writeJSON(path.join(dir, 'changes.json'), { base, head: git.head(root), ref: ref || null, files, ranges, notes: det.notes, notChecked: det.notChecked, newAssets, bigAssets });
   u.writeJSON(path.join(dir, 'batches.json'), batches);
   console.log(`check: ${files.length} changed UI file(s) vs ${base ? base.slice(0, 10) : ref} · ${det.findings.length} lint/script finding(s) · ${batches.length} reviewer batch(es) · ${newAssets.length} new missing asset(s) → .ui-guard/tmp/check/`);
   for (const [tool, reason] of Object.entries(det.notChecked)) console.log(`NOT CHECKED: ${tool} rules (${reason})`);
@@ -85,6 +87,15 @@ function finish(root) {
   const fixVerdicts = (fixOut && Array.isArray(fixOut.verdict)) ? fixOut.verdict : [];
   for (const raw of (fixOut && fixOut.findings) || []) { const f = merge.normalize(root, { ...raw, checker: 'ai', sources: ['fix-checker'] }, 'reviewer'); if (f) rows.push(f); }
   const fixPending = !!(fixTarget && fixTarget.fixWorkItems && fixTarget.fixWorkItems.length && !fixOut);
+  // every work item gets a verdict: one the checker left out, or gave an unknown status, is Unclear (rules/fix.md)
+  const KNOWN = ['Fixed', 'Partial', 'SymptomOnly', 'NotAddressed', 'Unclear'];
+  for (const v of fixVerdicts) if (!KNOWN.includes(v.status)) v.status = 'Unclear';
+  if (fixOut && fixTarget && Array.isArray(fixTarget.fixWorkItems)) {
+    for (const wi of fixTarget.fixWorkItems) {
+      const id = String(wi && typeof wi === 'object' ? wi.id : wi);
+      if (!fixVerdicts.some((v) => String(v.workItem ?? v.id) === id)) fixVerdicts.push({ workItem: id, status: 'Unclear', reason: 'no verdict returned by the fix checker' });
+    }
+  }
   const fixBlocking = fixVerdicts.filter((v) => ['Partial', 'SymptomOnly', 'NotAddressed'].includes(v.status));
   const findings = merge.cluster(rows);
   // Same scope as ui-code-review: every finding ON a changed line counts (a review comments on it whether or not the issue
@@ -98,9 +109,10 @@ function finish(root) {
   // ui-code-review posts errors AND warnings as review comments, so both block; info does not.
   const newErrors = fresh.filter((f) => f.severity === 'error' || f.severity === 'warning');
   const newAssets = ch.newAssets || [];
-  const verdict = newErrors.length || newAssets.length || fixBlocking.length || fixPending ? 'FAIL' : 'PASS';
+  const bigAssets = ch.bigAssets || [];
+  const verdict = newErrors.length || newAssets.length || bigAssets.length || fixBlocking.length || fixPending ? 'FAIL' : 'PASS';
   const sha = git.shortHead(root);
-  const L = [`# ui-guard change check — ${verdict}`, '', `| | |`, `|---|---|`, `| Date | ${new Date().toISOString()} |`, `| HEAD | ${ch.head || 'none'} |`, `| Compared with | ${ch.base || ch.ref} |`, `| Changed UI files | ${ch.files.length} |`, `| New errors + warnings | ${newErrors.length} |`, `| New info | ${fresh.length - newErrors.length} |`, `| Existing near your change | ${near.length} |`, `| New missing assets | ${newAssets.length} |`, ''];
+  const L = [`# ui-guard change check — ${verdict}`, '', `| | |`, `|---|---|`, `| Date | ${new Date().toISOString()} |`, `| HEAD | ${ch.head || 'none'} |`, `| Compared with | ${ch.base || ch.ref} |`, `| Changed UI files | ${ch.files.length} |`, `| New errors + warnings | ${newErrors.length} |`, `| New info | ${fresh.length - newErrors.length} |`, `| Existing near your change | ${near.length} |`, `| New missing assets | ${newAssets.length} |`, `| Oversized changed assets | ${bigAssets.length} |`, ''];
   for (const [tool, reason] of Object.entries(ch.notChecked || {})) L.push(`> **NOT CHECKED:** ${tool} rules (${reason})`);
   for (const n of ch.notes || []) L.push(`> Note: ${n}`);
   L.push('## Fix check (work items)', '');
@@ -113,6 +125,7 @@ function finish(root) {
   L.push('', '## New findings (on changed lines)', '');
   L.push(fresh.length ? fresh.map((f) => `- **${f.ruleId}** (${f.severity}) \`${f.file}:${f.line}\` — ${f.message}${f.fix ? ` · _fix:_ ${f.fix}` : ''}`).join('\n') : 'None.');
   L.push('', '## Missing assets (new, not in the assets baseline)', '', newAssets.length ? newAssets.map((x) => `- \`${x.file}:${x.line}\` -> ${x.problem}`).join('\n') : 'None.');
+  L.push('', '## Oversized changed assets (MEDIA-03)', '', bigAssets.length ? bigAssets.map((x) => `- \`${x.file}\` — ${x.message} · _fix:_ ${x.fix}`).join('\n') : 'None.');
   L.push('', '## Existing near your change (info)', '');
   L.push(near.length ? near.map((f) => `- ${f.ruleId} (${f.severity}) \`${f.file}:${f.line}\` — ${f.message}`).join('\n') : 'None.');
   L.push('', '## Changed files', '', ...ch.files.map((f) => `- \`${f}\` lines ${(ch.ranges[f] || []).map(([a, b]) => (b >= Number.MAX_SAFE_INTEGER ? `${a}–end (new file)` : `${a}–${b}`)).join(', ') || '—'}`), '');
@@ -125,7 +138,7 @@ function finish(root) {
   u.writeJSON(path.join(p.checkTmp, 'done.json'), { verdict, time: new Date().toISOString() }); // lets cleanup.js delete tmp/check
   const cleanLine = require('./cleanup').finish(root, ARGS);
   const fixLine = fixVerdicts.length ? `, work items: ${fixVerdicts.map((v) => `${v.workItem} ${v.status}`).join(', ')}` : fixPending ? ', fix checker not run' : '';
-  console.log(`${verdict}: ${newErrors.length} new error/warning(s), ${newAssets.length} new missing asset(s), ${fresh.length - newErrors.length} new info, ${near.length} existing near the change${fixLine} → ${u.relPosix(root, out)}`);
+  console.log(`${verdict}: ${newErrors.length} new error/warning(s), ${newAssets.length} new missing asset(s), ${bigAssets.length} oversized changed asset(s), ${fresh.length - newErrors.length} new info, ${near.length} existing near the change${fixLine} → ${u.relPosix(root, out)}`);
   console.log(cleanLine);
   process.exit(verdict === 'PASS' ? 0 : 1);
 }

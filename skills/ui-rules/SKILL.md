@@ -40,6 +40,14 @@ description: Use whenever creating or editing .scss, .css, .html or Angular .ts 
 15. No HTML from untrusted data (`innerHTML`, `bypassSecurityTrust*`), no secrets in front-end code.
 16. Never commit, branch, stash or push unless the developer asks. Do not edit the `.ui-guard/<domain>/baseline.json` files.
 
+## Apply the rules literally
+- Do exactly what the developer asked and what the rules say, nothing more and nothing less. The rule text decides, not taste.
+- Never relax a rule, add an exception it does not list, or make it stricter than it is written.
+- Names, prefixes, tokens and values come from the rules and `.ui-guard/profile.md`, never invented. Follow the exact patterns
+  the rule gives (BEM variant `c-x-variant`, never `c-x--variant`).
+- A case the rules do not clearly cover is not guessed: tell the developer it needs a decision, with the rule ID.
+- No refactor, rename, reformat, cleanup or "better" code that neither the request nor a rule asks for.
+
 For the full rules read `${CLAUDE_PLUGIN_ROOT}/rules/<file>.md` for the prefix you are touching
 (`style.md`, `lang.md`, `safe.md`, `access.md` + `access-fix-tiers.md` (+ `access-mvc.md` for Razor views and scripts); images/assets: `media.md` (01–06 are checked by the free scan; `/ui-guard:assets` checks referenced files exist)).
 Read `.ui-guard/profile.md` for this project's role map, tokens, i18n setup and button.

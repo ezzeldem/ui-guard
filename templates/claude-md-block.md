@@ -14,6 +14,9 @@ This project follows the team UI standards (the AXIS SCSS standard), enforced by
 - Theme files are plain `.css` only (no `.scss` in `theme/` or `src/assets/themes/`). Theme files and `project-images/` are
   swapped after the build: never reference them from SCSS `url()`, TS imports or `angular.json` `styles` — use them from
   `custom.theme.css` or `<img src="assets/project-images/…">`.
+- Apply the rules literally: do exactly what is asked and what the rules say — no extra exceptions, no stricter or looser
+  reading, no invented names or values (they come from the rules and `.ui-guard/profile.md`), no refactor or cleanup nobody
+  asked for. A case the rules do not clearly cover is reported as needing a decision, with the rule ID.
 - Never commit, branch or push unless the developer asks.
 - Scan and fix per domain: `/ui-guard:scan scss|access|lang|safe`, `/ui-guard:fix <domain>`. Plans and reports live in
   `.ui-guard/<domain>/`. Do not edit the `baseline.json` files by hand.

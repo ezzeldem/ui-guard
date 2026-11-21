@@ -191,10 +191,10 @@ async function main() {
     const hooks = u.readJSON(path.join(PLUGIN, 'hooks', 'hooks.json'));
     assert.ok(hooks.hooks.PostToolUse[0].matcher === 'Edit|Write|MultiEdit' && hooks.hooks.PreToolUse[0].matcher.includes('Bash'));
   });
-  await test('rules.json lists every rule in the rule files (110: STYLE-48..57, ACCESS-06..22, SAFE-09/10, FIX-01..03) with checker/group/lintRules', () => {
+  await test('rules.json lists every rule in the rule files (114: STYLE-48..61, ACCESS-06..22, SAFE-09/10, FIX-01..03) with checker/group/lintRules', () => {
     const idx = u.readJSON(path.join(PLUGIN, 'rules', 'rules.json'));
-    assert.strictEqual(idx.rules.length, 110);
-    for (const r of idx.rules.filter((x) => x.id.startsWith('STYLE-'))) assert.ok(Array.isArray(r.axis) && r.axis.length, r.id + ' lists the AXIS rules it implements');
+    assert.strictEqual(idx.rules.length, 114);
+    for (const r of idx.rules.filter((x) => x.id.startsWith('STYLE-'))) assert.ok(Array.isArray(r.axis) && (r.axis.length || r.source), r.id + ' lists the AXIS rules it implements (or its source)');
     assert.ok(idx.rules.find((r) => r.id === 'STYLE-48' && r.checker.includes('script')), 'STYLE-48 is a script rule');
     assert.ok(/inline-size\/block-size/.test(idx.rules.find((r) => r.id === 'STYLE-11').title), 'STYLE-11 converts width/height (AXIS R-09)');
     for (const r of idx.rules.filter((x) => /^(SAFE|LANG|FIX)-/.test(x.id) || /^MEDIA-0[1-7]$/.test(x.id))) assert.ok(r.ucr, r.id + ' names its ui-code-review rule');
@@ -703,8 +703,11 @@ async function main() {
     assert.ok(/\.u-hidden/.test(u.readText(path.join(fb, 'src', 'assets', 'css', '_general.scss'))), 'legacy file restored');
     assert.deepStrictEqual(u.readJSON(path.join(fb, 'angular.json')).projects.bare.architect.build.options.styles, ['src/styles.scss', 'src/assets/scss/common/common.scss', 'src/assets/scss/utilities/utils.scss']);
   });
-  await test('scss-fix: a bidirectional app keeps physical sides (listed as a decision); sizes always become inline-size/block-size', () => {
+  await test('scss-fix: a bidirectional app mirrors by its base direction (direction-specific files are a decision); sizes always become inline-size/block-size', () => {
     const sf = require(S('scss-fix'));
+    assert.strictEqual(sf.baseDir({ i18n: { languages: ['ar', 'en'] } }), 'rtl', 'first language decides when index.html has no dir');
+    assert.strictEqual(sf.baseDir({ index: { dir: 'ltr' }, i18n: { languages: ['ar', 'en'] } }), 'ltr');
+    assert.ok(sf.DIR_SPECIFIC.test('.a { :dir(rtl) & { left: 0; } }') && sf.DIR_SPECIFIC.test('[dir="rtl"] .a {}') && sf.DIR_SPECIFIC.test('@include dir(rtl) { }') && !sf.DIR_SPECIFIC.test('.a { margin-left: 0; }'));
     assert.strictEqual(sf.dirMode({ i18n: { languages: ['ar', 'en'] } }), 'both');
     assert.strictEqual(sf.dirMode({ index: { dir: 'rtl' } }), 'rtl');
     assert.strictEqual(sf.tLogical('.a {\n  margin-left: 1px;\n  width: 2px;\n  max-height: 3px;\n}', 'rtl'), '.a {\n  margin-inline-end: 1px;\n  width: 2px;\n  max-height: 3px;\n}');

@@ -34,6 +34,12 @@ gap. Where the fix goes: AJAX-inserted markup → the partial the endpoint retur
 built-in helper output → what is passed to it (attributes, `[Display]` metadata, label expression); state changed by a script → the
 script function that changes the visual state.
 
+**ACCESS-00 (MVC), vendor and keys.** Never patch `Scripts/` files installed by NuGet (MVC 5) or any `*.min.css` either. A missing
+localizer key fails quietly (`IStringLocalizer` returns the key itself, so an English-looking key renders in English and untranslated
+elsewhere): add every new key to **every** culture's `.resx` (or the project's equivalent store) and check a non-default culture.
+Custom Tag Helper / HTML Helper blast radius: count usages of the element name (`<my-tag`), the attribute it targets, or the helper
+method name, and put the count in the finding.
+
 - **ACCESS-01 (MVC):** a hand-written `<label for>` that does not match the generated id (`Address.City` → `Address_City`,
   case-sensitive), or a label with neither `asp-for` nor `for`; `<label asp-for>` / `Html.LabelFor` whose property has no
   `[Display(Name = …)]` (it shows the raw property name) or a literal `[Display(Name = "…")]` that bypasses localization; an HTML
@@ -77,7 +83,8 @@ script function that changes the visual state.
   `"alert"`; an AJAX-inserted form not re-parsed for validation (report).
 - **ACCESS-04 / 09 / 10 / 12 / 20 (MVC):** `_Layout*.cshtml` without `<main>` around `@RenderBody()`, nav in a `<div>`, several
   unnamed `<nav>`s, no `<header>` / `<footer>` (check every layout and each folder's `_ViewStart`); `<html lang dir>` missing or
-  hard-coded when the culture switches (use `CultureInfo.CurrentUICulture`); the viewport zoom lock and an empty `<title>`
+  hard-coded when the culture switches (use `lang="@CultureInfo.CurrentUICulture.Name"` and
+  `dir="@(CultureInfo.CurrentUICulture.TextInfo.IsRightToLeft ? "rtl" : "ltr")"`, matching the project's existing mechanism); the viewport zoom lock and an empty `<title>`
   (`ViewData["Title"]`) in the layout; a layout that hard-codes an `<h1>` while views render their own; headings in shared
   partials at varying depths (`_*.cshtml` partials, EditorTemplates and Components are fragments; `Views/<Ctrl>/<Action>.cshtml`
   are pages); `<a href="#">` / `javascript:void(0)` with a script handler; `div` / `span` / `tr` made clickable by `onclick` or
@@ -100,4 +107,8 @@ script function that changes the visual state.
   same function as the click handler — Enter + Space for buttons (Space with `preventDefault()`), Enter only for links; Escape calls
   the existing close function; capture the trigger and restore focus on close; a positive `tabindex` is removed from views and
   `htmlAttributes` only when DOM order already matches visual order. The skip link is the first focusable element in `<body>`, with
-  localized text.
+  localized text, hidden until focused by a visually-hidden-focusable class the project already has (`u-sr-only` first, else the
+  existing one — Bootstrap 4 `sr-only sr-only-focusable`, Bootstrap 5 `visually-hidden-focusable`); when none exists, adding CSS is
+  reported, not done. Collapsed content is hidden with `hidden` / `display: none` (a class that maps to `display: none` is fine;
+  `visibility`, opacity or off-screen classes are not). Every validation finding is `runtimeCheck: needed`, to be confirmed after
+  both a client-side and a server-side failure; keyboard findings say what a Tab walk must confirm.

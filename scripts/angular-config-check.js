@@ -13,16 +13,16 @@ const THEME_RE = /(^|\/)theme\/.*\.s?css$|\.theme\.s?css$|custom[._]theme\.s?css
 
 function stylesheetLinks(html) {
   const head = /<head[^>]*>([\s\S]*?)<\/head>/i.exec(html);
-  const offset = head ? head.index + head[0].indexOf(head[1]) : 0;
-  const body = head ? head[1] : html;
+  const headEnd = head ? head.index + head[0].length : 0;
   const links = [];
   const re = /<link\b[^>]*>/gi;
   let m;
-  while ((m = re.exec(body))) {
+  // <head> and <body>: custom.theme.css is linked at the start of <body> (after the styles bundle Angular adds to <head>)
+  while ((m = re.exec(html))) {
     const tag = m[0];
     if (!/rel\s*=\s*["']?stylesheet/i.test(tag)) continue;
     const href = (/href\s*=\s*["']([^"']+)["']/i.exec(tag) || [])[1] || '';
-    links.push({ href, tag, line: u.lineAt(html, offset + m.index) });
+    links.push({ href, tag, line: u.lineAt(html, m.index), inBody: !!head && m.index >= headEnd });
   }
   return { links, headEndLine: head ? u.lineAt(html, head.index + head[0].length) : 1 };
 }
@@ -62,8 +62,9 @@ function run(root, profile) {
       if (order[k] >= 0 && prev !== undefined && order[k] < prev) findings.push(mk(root, 'STYLE-36', 'src/index.html', links[order[k]].line, `${project.THEME_FILES[k].split('/').pop()} is linked before ${links[prev].href.split('/').pop()} — the theme token files are linked colors.base, colors.palette, fonts.`, 'Reorder the theme <link>s: colors.base, colors.palette, fonts, then custom.theme.css last.'));
     }
     const customIdx = links.findIndex((l) => /custom[._]theme\.css$/.test(l.href));
-    if (customIdx >= 0 && customIdx !== links.length - 1) {
-      findings.push(mk(root, 'STYLE-36', 'src/index.html', links[customIdx].line, `custom.theme.css is not the last stylesheet link in <head> (\`${links[links.length - 1].href}\` comes after it).`, 'Move the custom.theme.css <link> to the end of <head> (phase 1, checked with the pixel diff).'));
+    if (customIdx >= 0 && (customIdx !== links.length - 1 || !links[customIdx].inBody)) {
+      const why = customIdx !== links.length - 1 ? `\`${links[links.length - 1].href}\` comes after it` : 'it is in <head>, and Angular adds the global styles bundle at the end of <head>, after it';
+      findings.push(mk(root, 'STYLE-36', 'src/index.html', links[customIdx].line, `custom.theme.css is not the last stylesheet loaded (${why}).`, 'Move the custom.theme.css <link> to the start of <body>, after every other stylesheet link (phase 1, checked with the pixel diff).'));
     }
   }
 

@@ -27,7 +27,7 @@ Usage (all need --domain scss|access|lang|safe and accept --root <dir>):
 const STAGES = {
   scss: [
     { id: 1, name: 'SCSS/CSS — STYLE', kinds: ['scss', 'css'], groups: ['style-ai'],
-      rules: ['STYLE-09', 'STYLE-17', 'STYLE-18', 'STYLE-19', 'STYLE-20', 'STYLE-25', 'STYLE-27', 'STYLE-28', 'STYLE-30', 'STYLE-37', 'STYLE-38', 'STYLE-39', 'STYLE-42', 'STYLE-43', 'STYLE-54', 'STYLE-58', 'STYLE-59', 'STYLE-60'] },
+      rules: ['STYLE-09', 'STYLE-17', 'STYLE-18', 'STYLE-19', 'STYLE-20', 'STYLE-25', 'STYLE-27', 'STYLE-28', 'STYLE-30', 'STYLE-37', 'STYLE-38', 'STYLE-39', 'STYLE-42', 'STYLE-43', 'STYLE-54', 'STYLE-58', 'STYLE-59', 'STYLE-60', 'STYLE-61'] },
     { id: 2, name: 'Templates + TS/JS + Razor — STYLE classes', kinds: ['html', 'index', 'ts', 'cshtml', 'js'], groups: ['style-ai'],
       rules: ['STYLE-02', 'STYLE-03', 'STYLE-04', 'STYLE-37', 'STYLE-39', 'STYLE-43', 'STYLE-58'] },
   ],

@@ -850,7 +850,7 @@
         "angular.json",
         "**/*.scss"
       ],
-      "title": "Theme files load via <link> (base, palette, fonts); custom.theme.css last",
+      "title": "Theme files load via <link> (base, palette, fonts); custom.theme.css last (start of <body>)",
       "inScan": true,
       "axis": [
         "R-THEME-5",
@@ -918,9 +918,8 @@
       ],
       "title": "One shared button component",
       "inScan": true,
-      "axis": [
-        "R-COMP-3"
-      ]
+      "axis": [],
+      "source": "team rule (AXIS walkthrough: shared c-button)"
     },
     {
       "id": "STYLE-40",
@@ -1389,6 +1388,24 @@
       "axis": [
         "R-TOOL-5"
       ]
+    },
+    {
+      "id": "STYLE-61",
+      "severity": "info",
+      "checker": [
+        "ai"
+      ],
+      "group": "style-ai",
+      "family": "style",
+      "rulesFile": "rules/style.md",
+      "lintRules": [],
+      "appliesTo": [
+        "**/*.scss"
+      ],
+      "title": "Narrow viewport first: base styles for the narrow layout, mq(min) upward, clamp() for continuous values",
+      "inScan": true,
+      "axis": [],
+      "source": "AXIS components.md (narrow viewport first)"
     },
     {
       "id": "LANG-01",
@@ -2547,7 +2564,8 @@
         "STYLE-54",
         "STYLE-58",
         "STYLE-59",
-        "STYLE-60"
+        "STYLE-60",
+        "STYLE-61"
       ]
     },
     "lang": {
