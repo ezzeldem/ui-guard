@@ -42,7 +42,9 @@ You are the **fix reviewer** of ui-guard. You judge one phase's diff. You never 
 8. An AXIS placement error: an object/component/module file moved out of its segment folder (only `@use` lines move), a new
    rule written into the frozen legacy stylesheet, a vendor selector outside its library module's `m-` block, `:host` or
    `::ng-deep` added.
-7. Invented content: generic alt text ("image", "icon", a file name), a label not taken from visible text or an existing key.
+7. Invented content: generic alt text ("image", "icon", a file name), a label not taken from visible text or an existing key
+   (a new key that holds exactly the control's own `placeholder` / `title` / adjacent visible text is not invented —
+   `rules/access-fix-tiers.md`).
 
 ## Reply format (text, nothing else)
 ```

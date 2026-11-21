@@ -211,6 +211,35 @@ Where the AXIS text left room, the stricter reading was taken:
   for the base direction (`index.html` `dir`, else the init answer, else the first language) and are proven in that
   direction; a file with `[dir=…]`, `:dir()` or `@include dir()` keeps its sides (decision).
 
+## Real fix run vs ui-code-review (2026-11-21)
+A clean AXIS project (made by ui-guard's own init scripts) got a planted change (Angular page, translations, Razor view,
+jQuery script). ui-code-review's own reviewers commented 65 times on it. After scan + fix of scss, access, lang and safe
+(static mode: no Playwright, no Angular CLI) the same reviewers commented 35 times. Gaps found and fixed:
+1. `c-button` template was desktop-first (`mq(max)`): now narrow-first (STYLE-61), same rendering.
+2. scss-fix `charset` reformatted a correct file (removed the blank line after `@charset`): a correct file is left alone.
+3. The reviewer's diff header did not list what the fixer skipped on purpose → false "fail": skipped items, decisions and
+   report-only findings are now in the header.
+4. `phase.js complete` counted every finding of the phase as fixed (summary said "remaining 0" with 6 still in the code):
+   findings still reported by verify, skipped, decided or report-only stay open (skipped / needs-decision) and in the
+   baseline; "Remaining findings" counts them.
+5. lang fixes add keys to every translation file, but those files were "outside the phase" (false failure + rescan of all
+   domains): translation files belong to every lang phase.
+6. ui-fixer read a "verify left" list as its whole job: its contract now says the job is every finding of the phase file.
+7. LANG-01 relied on the AI only and missed literals ui-code-review flags (placeholder, text nodes, table headers):
+   i18n-check.js now reports the obvious literals (text nodes; placeholder/title/alt/aria-label/label values) — script + ai.
+8. New keys came out as a second `PRODUCTS` object next to `products`: lang.md — a key follows the file's existing shape.
+9. `@Html.Raw(model value)` was never found: web-check.js reports it (SAFE-09).
+10. Images had no fix path at all: `media-fix.js` (run by `fix access`) fixes `src/assets/` paths (MEDIA-07) and adds
+    `loading="lazy"` in repeated blocks (MEDIA-02); width/height and raster → svg stay decisions.
+11. A class styled only inside another block was renamed as a new block (`.p-title`): renames.md now proposes the BEM
+    element (`.p-products__title`).
+12. Access fixes refused names whose text the template already shows (a placeholder): such text may get a key
+    (access-fix-tiers.md); wording that appears nowhere stays a decision.
+What stays a decision by design: colours with no palette token, `!important` without pixel proof, a dead `#main` rule,
+`bypassSecurityTrustHtml` / `[innerHTML]` / a token in localStorage whose callers are not visible, tag swaps (div → button,
+h4 → h1) and image sizes in static mode, and names/alt text that appear nowhere in the code. The run was not repeated after
+these fixes (it costs about 500k tokens).
+
 ## Package versions verified (npm, 2026-11-13)
 stylelint 18.0.0 (17.16.0 used), stylelint-scss 7.5.0 (peer ^16.8.2‖^17‖^18), postcss-scss 4.0.9, eslint 10.15.0 (9.39.5 used — see Review fixes), angular-eslint 22.6.0 (eslint ^9‖^10), typescript-eslint 8.72.2 (TS <6.1 → 5.9.3), sass 1.108.2, playwright 1.65.1, pixelmatch 8.0.0 (ESM, loaded via dynamic import), pngjs 7.0.0.
 

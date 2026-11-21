@@ -17,7 +17,7 @@ in a TypeScript dictionary). A `.resx` with no culture in its name (`Shared.resx
 
 | ID | UCR | Severity | Checked by | Applies to | Rule | How to fix |
 |---|---|---|---|---|---|---|
-| LANG-01 | I18N-01 | warning | ai | `*.html`, `*.cshtml`, Angular inline `template:` in `*.ts` | User-visible text written literally in a template or view: text nodes, and the `placeholder`, `title`, `alt`, `aria-label`, `aria-placeholder`, `label` values, button and option text. A one-word literal counts too (`alt="hero"`, `title="Edit"`); only `alt=""` and ARIA state values are not text. | Add a key to **every** language file and use it through the project's mechanism. Incorrect: `<button>Save</button>`. Correct: `<button>{{ 'common.save' \| translate }}</button>` / `<button>@Localizer["Save"]</button>`. |
+| LANG-01 | I18N-01 | warning | script + ai | `*.html`, `*.cshtml`, Angular inline `template:` in `*.ts` | User-visible text written literally in a template or view: text nodes, and the `placeholder`, `title`, `alt`, `aria-label`, `aria-placeholder`, `label` values, button and option text. A one-word literal counts too (`alt="hero"`, `title="Edit"`); only `alt=""` and ARIA state values are not text. | Add a key to **every** language file and use it through the project's mechanism. Incorrect: `<button>Save</button>`. Correct: `<button>{{ 'common.save' \| translate }}</button>` / `<button>@Localizer["Save"]</button>`. |
 | LANG-02 | I18N-02 | warning | ai | `*.ts`, `*.html`, `*.cshtml`, `*.js` | A literal chosen by language in code: `currentLang == 'ar' ? 'بحث' : 'Search'`, `lang === 'en' ? ... : ...`, `@(isArabic ? "..." : "...")`. | Replace the condition with one key. If both strings already exist as a key, reuse it. |
 | LANG-03 | I18N-03 | warning | ai | `*.ts`, `*.js`, `*.cshtml` | User-visible text written literally in TypeScript / C# / JS: toast, alert, confirm and dialog messages, page titles, validation messages, text that is bound into the template or a live region. | Build it with `translate.instant('KEY', params)` / `Localizer["Key"]`. |
 | LANG-04 | I18N-04 | error | script | code, templates, views, translation files | A key used in code, a template or a view is missing from a language's translation files (the user sees the raw key). | Add the key to every language file that lacks it. |
@@ -47,6 +47,13 @@ in a TypeScript dictionary). A `.resx` with no culture in its name (`Shared.resx
 - One finding per rule per line. When one line has LANG-02 and the same text also breaks LANG-01, report only LANG-02.
 - LANG-04/05/06 belong to `i18n-check.js` (JSON, TS/JS dictionaries incl. per-language blocks, `.xlf`, `.resx`, `.po`);
   do not report them unless the scan says the script could not parse a file.
+- LANG-01 has a script part (`i18n-check.js`): literal text nodes and literal `placeholder` / `title` / `alt` / `aria-label` /
+  `aria-placeholder` / `label` values in `.html` and `.cshtml`, when the project has translation files. The AI reports the rest
+  (inline templates, TS, bound literals, LANG-02/03/07) and does not repeat the script's lines; a brand name the script reported
+  is rejected with that reason.
+- A new key follows the shape the translation file already uses — the same casing, the same nesting and the feature's
+  existing namespace (`products.title` next to `products.empty`, never a second `PRODUCTS` object) — and a key the project
+  already has with the same text is reused.
 - When fixing, add the key to **every** language file. In a finding's fix, name an existing key to reuse when there is one;
   when you propose a new key, give it with its Arabic and English values.
 - Report only defects that need a change: no observations, optional suggestions, or findings you could not confirm from the

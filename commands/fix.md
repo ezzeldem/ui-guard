@@ -51,6 +51,10 @@ file needs-rescan. `phase.js fail` marks every file it modified needs-rescan. Sh
    re-implemented, so a project `.sr-only` / `.visually-hidden` is not reused). When it is missing the script creates ONLY
    `utilities/accessibility/_sr-only.utility.scss` and its `@use` lines; nothing else is created or moved.
    Exit 8 → **STOP** with its message (`utilities/utils.scss` not loaded or no tools yet: run `/ui-guard:fix scss` first).
+   **access only — images (MEDIA, no domain of its own):** `media-fix.js --apply` — the two changes that cannot alter what
+   the page shows: an Angular `src/assets/…` path → `assets/…` (MEDIA-07) and `loading="lazy"` on an image in a repeated
+   block (MEDIA-02). Width / height, raster → svg and other image findings stay in the report as decisions. Show its lines in
+   the summary.
 6. Build once before any change: `npx ng build --configuration development` (timeout 10 min, background if needed).
    It fails → **STOP**: "the project does not build before the fix" (with the first error lines). Nothing was changed.
 

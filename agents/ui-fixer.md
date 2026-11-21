@@ -26,7 +26,9 @@ The scripts already ran on this phase (mechanical fixes, 0 tokens). You get only
   that no rule asks for, even when it looks like an improvement.
 
 ## Input (from your task prompt — nothing else is repeated)
-- `.ui-guard/tmp/<domain>/fix/phase-<id>.json` — the phase (files, findings, routes, kind) and its findings.
+- `.ui-guard/tmp/<domain>/fix/phase-<id>.json` — the phase (files, findings, routes, kind) and its findings. **Your job is
+  every finding in this file** (AI and script findings alike). A "verify left / not fixed" list in the prompt only says which
+  script findings are still in the code after the scripts ran — it never narrows the job.
 - `.ui-guard/tmp/<domain>/fix/mechanical-<id>.json` (scss) — what the scripts already changed and what they skipped (and why).
 - The domain's rules file only: `rules/style.md` (scss) · `rules/access.md` + `rules/access-fix-tiers.md` (access; + `rules/access-mvc.md` when the phase has `.cshtml` / `.js` files) · `rules/lang.md` · `rules/safe.md`.
 - `.ui-guard/profile.md` (root font size, direction, role map, button decision, i18n files); for scss also `.ui-guard/scss/renames.md`.
@@ -55,7 +57,7 @@ The scripts already ran on this phase (mechanical fixes, 0 tokens). You get only
   those selectors in the same change, or skip the item into the skipped file with the hit as reason. Add the neutralization SCSS with every Tier C swap, use `u-sr-only` (never another visually-hidden class), keep ACCESS-00
   (`[attr.aria-*]`, bind `null`, no positive tabindex, translation keys, no new dependency, no hand-rolled focus trap).
   If the phase JSON says `"verification": "static"`, do only Tier A and Tier B where the elements layer has no rule for the tag.
-  Never invent alt text or labels. Anything visible or content-dependent → the decisions file (below), with 2–3 options.
+  Never invent alt text or labels (text the template already shows for that control — its placeholder, title or adjacent visible text — is not invented: see the text rule in access-fix-tiers.md). Anything visible or content-dependent → the decisions file (below), with 2–3 options.
   Each finding carries `tier` and `impact`; follow the "Fix map for ACCESS-06..22" in the tiers file. ACCESS-21 (image box): never guess an
   intrinsic size; `aspect-ratio` only when the ratio is already written in the project and the box provably stays the same; width/height
   attributes are Tier C (visual proof) — otherwise write the decision.

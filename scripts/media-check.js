@@ -196,5 +196,5 @@ function oversized(root, rels) {
   return out;
 }
 
-module.exports = { run, boxInfoClasses, attrsOf, oversized, inlineTemplates };
+module.exports = { run, boxInfoClasses, attrsOf, oversized, inlineTemplates, insideFor, insideRazorLoop };
 if (require.main === module) cli('media-check', 'media-check.js — MEDIA-01..06: image size attributes, lazy loading, raster-as-icon, fonts, video/iframe loading, asset sizes. Never opens an image.', run);

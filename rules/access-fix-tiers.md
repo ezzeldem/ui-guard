@@ -19,6 +19,13 @@ Before adding or changing them, search the project stylesheets for `:invalid`, `
 Never invent text. Alt text, labels and names come from visible text, translation keys that already exist, or the
 developer (→ needs-decision). `alt="image"`, `alt="icon"` or a file name is worse than nothing.
 
+Text the template already shows for that control is not invented: a field's `placeholder` or `title`, the visible text
+next to it, a button's `title`. Such a name may get a new translation key holding exactly that text, added to every
+language file as `lang.md` says (key shape and Arabic value included), and the project's translate pipe may be imported
+into a standalone component that does not import it yet. A key the project already has for the same word (`common.save`
+for a save button) is reused. Wording that appears nowhere (an icon-only button with no `title`, an image's purpose) stays a
+decision.
+
 ## Tier B — a `div` becomes a landmark (low risk)
 
 `div` → `header`, `nav`, `main`, `section`, `aside`, `footer`, `figure` when the block clearly plays that role.

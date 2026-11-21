@@ -92,6 +92,7 @@ function mapCode(text, fn) {
 
 // ---------- transforms (text → text) ----------
 function tCharset(t) {
+  if (/^@charset "UTF-8";\r?\n/.test(t)) return t; // already right: never reformat the file
   const body = t.replace(/^﻿/, '').replace(/^\s*@charset\s+["'][^"']*["']\s*;\s*\n?/i, '');
   return '@charset "UTF-8";\n' + body.replace(/^\n+/, '');
 }

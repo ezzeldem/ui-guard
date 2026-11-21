@@ -127,6 +127,8 @@ function allowedFiles(root, ph) {
   const set = new Set([...(ph.files || []), ...(ph.extraFiles || [])]);
   const { mech } = scriptReports(root, ph);
   for (const f of (mech && mech.extraFiles) || []) set.add(f);
+  // lang: a new or fixed key goes into EVERY language file (lang.md), so the project's translation files belong to every phase
+  if (DOMAIN === 'lang') for (const f of project.listUiFiles(root, project.readProfile(root)).filter((x) => x.kind === 'translation')) set.add(f.rel);
   return set;
 }
 function isAllowed(root, ph, f, set) {
@@ -198,7 +200,8 @@ function ledgerAfterPhase(root, ph, { ok }) {
   const { mech } = scriptReports(root, ph);
   const renames = renameMap(mech);
   const findings = u.readJSON(dp(root).findings, []) || [];
-  const fixedFp = new Set(findings.filter((f) => (ph.findings || []).includes(f.id)).map((f) => f.fingerprint));
+  // only what `complete` marked fixed; skipped / needs-decision findings stay open and are re-located like the rest
+  const fixedFp = new Set(findings.filter((f) => (ph.findings || []).includes(f.id) && (!ok || f.status === 'fixed')).map((f) => f.fingerprint));
   const decisions = u.readJSONL(path.join(fixDir(root), `decisions-${ph.id}.jsonl`)).filter((x) => !x.__malformed);
   const skipped = ((mech && mech.skipped) || []).map((s) => ({ file: s.file, line: +((/^L(\d+)\b/.exec(s.what || '') || [])[1] || 0) })).filter((s) => s.line);
   const res = { fixed: 0, carried: 0, rescan: [], unexpected: [] };
@@ -299,6 +302,35 @@ function selectorImpactFor(root, files) {
   return out;
 }
 
+/** f → 'skipped' | 'needs-decision' | null: is this phase finding still in the code after the phase? */
+function openAfterPhase(root, ph) {
+  const d = fixDir(root);
+  const verify = u.readJSON(path.join(d, `phase-${ph.id}-verify.json`), null);
+  const notFixed = new Set(((verify && verify.notFixed) || []).map((x) => String(x).split(' ')[0]));
+  const read = (n) => (u.exists(path.join(d, n)) ? u.readJSONL(path.join(d, n)).filter((x) => !x.__malformed) : []);
+  const skipped = read(`skipped-${ph.id}.jsonl`), decisions = read(`decisions-${ph.id}.jsonl`);
+  // a record names a finding by its id anywhere in it (`F-000012` in a topic), or by file + rule, or by file + line
+  const names = (f, s) => { const j = JSON.stringify(s); return /\bF-\d{6}\b/.test(j) ? new RegExp(`\\b${f.id}\\b`).test(j) : byPlace(f, s); };
+  const byPlace = (f, s) => (s.file === f.file && (s.ruleId === f.ruleId
+    || String(s.what || '').includes(f.ruleId) || String(s.rule || '').includes(f.ruleId) || (s.line && +s.line === +f.line)));
+  return (f) => {
+    if (decisions.some((s) => names(f, s))) return 'needs-decision';
+    if (notFixed.has(f.id) || skipped.some((s) => names(f, s)) || /report only/i.test(String(f.fix || ''))) return 'skipped';
+    return null;
+  };
+}
+
+/** The skipped (unsure) items and decisions of ONE phase (scripts + fixer), for the reviewer's diff header. */
+function skippedLines(root, ph) {
+  const d = fixDir(root), out = [];
+  for (const s of (u.readJSON(path.join(d, `mechanical-${ph.id}.json`), {}) || {}).skipped || []) out.push(`${s.file} · ${s.what} — ${s.reason}`);
+  for (const name of [`skipped-${ph.id}.jsonl`, `decisions-${ph.id}.jsonl`]) {
+    const f = path.join(d, name);
+    if (u.exists(f)) for (const s of u.readJSONL(f)) if (!s.__malformed && (s.what || s.ruleId || s.id || s.reason || s.question)) out.push(`${s.file || ''}${s.line ? ':' + s.line : ''} · ${s.what || s.ruleId || s.id || ''} — ${s.reason || s.question || ''}`);
+  }
+  return out;
+}
+
 /** skipped (unsure) items of every source (scripts + fixer) and the access decisions, collected for the summary. */
 function collect(root) {
   const d = fixDir(root);
@@ -356,7 +388,8 @@ function summary(root, args) {
   const phases = plan ? plan.data.phases : [];
   const done = phases.filter((x) => x.status === 'done');
   const findings = u.readJSON(p.findings, []) || [];
-  const remaining = findings.filter((f) => f.status === 'confirmed');
+  // still in the code: open, skipped (not proven neutral) and waiting for a decision
+  const remaining = findings.filter((f) => ['confirmed', 'skipped', 'needs-decision'].includes(f.status));
   const changed = new Set();
   for (const ph of done) {
     for (const f of ph.files || []) changed.add(f);
@@ -467,7 +500,10 @@ if (require.main === module) {
     const verify = u.readJSON(path.join(fixDir(root), `phase-${ph.id}-verify.json`), null);
     const header = [`# ui-guard ${DOMAIN} phase ${ph.id} — ${ph.title} (${ph.kind || 'fix'})`, `# files: ${(ph.files || []).length} · findings: ${fl.length}`,
       ...fl.slice(0, 400).map((f) => `# ${f.id} ${f.ruleId} ${f.file}:${f.line} ${u.clip(f.message, 140)}`),
-      ...(verify ? [`# verify: ${verify.notFixed.length} not fixed, ${verify.newErrors.length} new error(s)`, ...verify.notFixed.map((x) => `#   not fixed: ${x}`), ...verify.newErrors.map((x) => `#   new error: ${x}`)] : []), ''].join('\n');
+      ...(verify ? [`# verify: ${verify.notFixed.length} not fixed, ${verify.newErrors.length} new error(s)`, ...verify.notFixed.map((x) => `#   not fixed: ${x}`), ...verify.newErrors.map((x) => `#   new error: ${x}`)] : []),
+      // what the fixer and the scripts left on purpose: a finding listed here is not a "not fixed" failure
+      ...skippedLines(root, ph).map((x) => `# skipped: ${x}`),
+      ...fl.filter((f) => /report only/i.test(String(f.fix || ''))).map((f) => `# report-only (never changed by a fix): ${f.id} ${f.ruleId}`), ''].join('\n');
     if (hasGit(root)) u.writeText(out, header + git.workingDiff(root, files));
     else {
       const parts = [header];
@@ -504,10 +540,20 @@ if (require.main === module) {
     const p = dp(root);
     const findings = u.readJSON(p.findings, []) || [];
     const fixedFps = [];
-    // a finding in the frozen legacy stylesheet stays open (migrate page by page): it is not fixed by Foundation B
-    for (const f of findings) if ((ph.findings || []).includes(f.id) && f.status === 'confirmed' && !keptInLegacy(root, ph, f)) { f.status = 'fixed'; fixedFps.push(f.fingerprint); }
+    const stillOpen = openAfterPhase(root, ph);
+    let leftOpen = 0;
+    // a finding in the frozen legacy stylesheet stays open (migrate page by page): it is not fixed by Foundation B.
+    // A finding the last verify still reports, that the fixer or a script skipped, or that is report-only stays in the
+    // baseline as skipped / needs-decision — never counted as fixed.
+    for (const f of findings) {
+      if (!(ph.findings || []).includes(f.id) || f.status !== 'confirmed' || keptInLegacy(root, ph, f)) continue;
+      const why = stillOpen(f);
+      if (why) { f.status = why; leftOpen++; continue; }
+      f.status = 'fixed'; fixedFps.push(f.fingerprint);
+    }
     u.writeJSON(p.findings, findings);
     const left = fpLib.removeFromBaseline(root, fixedFps, DOMAIN);
+    if (leftOpen) console.log(`${leftOpen} finding(s) of the phase are still in the code (skipped / needs-decision / report-only) and stay in the baseline`);
     ph.status = 'done'; ph.doneAt = new Date().toISOString();
     writePlan(root, plan);
     const log = writeLog(root, ph, { ok: true, verdict: args.verdict, retries: args.retries, review: args.review });

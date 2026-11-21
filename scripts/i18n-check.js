@@ -275,11 +275,35 @@ function run(root, profile) {
       }
     }
   }
+  // LANG-01 (script part): the obvious literals in templates and Razor views of a project that has a translation mechanism —
+  // a text node with letters, and a literal placeholder / title / alt / aria-label / aria-placeholder / label value.
+  // Bound values, interpolations, Razor expressions and alt="" are never reported; the AI judges the rest (brand names, TS).
+  if (langs.length) for (const f of files.filter((x) => ['html', 'cshtml'].includes(x.kind))) findings.push(...literalText(root, f.rel, u.readText(f.abs) || ''));
   void path;
   return findings;
 }
 
-module.exports = { run, parseJsonKeys, parseTsDict, parseXlf, parseResx, parsePo, splitLanguageBlocks, langOf, usedKeys };
+const LETTER = /[A-Za-z؀-ۿ]{2,}/;
+function literalText(root, rel, text) {
+  const out = [];
+  const idx = u.lineIndexer(text);
+  // blank out comments, <script>, <style> and Razor code blocks so their text is never read as markup text
+  const body = text.replace(/<!--[\s\S]*?-->|@\*[\s\S]*?\*@|<(script|style)\b[\s\S]*?<\/\1>|@\{[\s\S]*?\n\}|@(model|using|inject|page)\b[^\n]*/gi, (m) => m.replace(/[^\n]/g, ' '));
+  const lit = (v) => v.trim() && LETTER.test(v) && !/\{\{|\}\}|@|\||^\s*[\w.-]+\s*\(|^https?:/.test(v);
+  for (const m of body.matchAll(/\s(placeholder|title|alt|aria-label|aria-placeholder|label)\s*=\s*"([^"]*)"/gi)) {
+    if (lit(m[2])) out.push(mk(root, 'LANG-01', rel, idx(m.index), `Literal \`${m[1]}="${u.clip(m[2], 40)}"\` — user-visible text written in the template.`, 'Use a translation key (added to every language file) through the project\'s mechanism.'));
+  }
+  for (const m of body.matchAll(/>([^<>]+)</g)) {
+    const t = m[1].replace(/\{\{[\s\S]*?\}\}|@\([^)]*\)|@[\w.[\]"()]+/g, ' ');
+    if (!LETTER.test(t) || /^[\s{}();=+\-*/<>!&|?:,.'"\w]*(=>|===|&&|\|\|)/.test(m[1]) || /[{};]\s*$/.test(m[1].trim())) continue;
+    const line = idx(m.index + 1 + m[1].search(/\S/));
+    if (out.some((x) => x.line === line)) continue; // one finding per rule per line (lang.md)
+    out.push(mk(root, 'LANG-01', rel, line, `Literal text \`${u.clip(m[1].trim(), 40)}\` in the template.`, 'Use a translation key (added to every language file) through the project\'s mechanism; a brand name stays (say so).'));
+  }
+  return out;
+}
+
+module.exports = { run, literalText, parseJsonKeys, parseTsDict, parseXlf, parseResx, parsePo, splitLanguageBlocks, langOf, usedKeys };
 if (require.main === module) cli('i18n-check', `i18n-check.js — LANG-04 (key used but missing in a language), LANG-05 (key in one language only),
 LANG-06 (duplicate key / trans-unit id), LANG-08 (empty, key-equal or wrong-language values).
 Unparseable TS dictionaries are reported as info "unverified" and handed to the AI scanner.`, run);

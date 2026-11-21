@@ -183,6 +183,28 @@ function render(plan, findingsById) {
   return [...head, ...rows, '', ...why, '', ...foot].join('\n') + '\n';
 }
 
+/** The top-level block class (".x" alone) whose rule nests every occurrence of `.cls` in that stylesheet, or null. */
+function parentBlock(root, file, cls) {
+  if (!/\.s?css$/.test(String(file))) return null;
+  const text = (u.readText(u.fromPosix(root, file)) || '').replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, (m) => m.replace(/[^\n]/g, ' '));
+  const re = new RegExp(`\\.${cls.replace(/[-]/g, '\\-')}(?![\\w-])`, 'g');
+  let block = null, m;
+  while ((m = re.exec(text))) {
+    const stack = [];
+    let sel = '';
+    for (let i = 0; i < m.index; i++) {
+      const ch = text[i];
+      if (ch === '{') { stack.push(sel.trim()); sel = ''; } else if (ch === '}') { stack.pop(); sel = ''; } else if (ch === ';') sel = ''; else sel += ch;
+    }
+    const top = stack.find((s) => !s.startsWith('@'));
+    const b = top && /^\.([\w-]+)$/.exec(top);
+    if (!b || b[1] === cls) return null; // top level somewhere, or not under a single plain block class
+    if (block && block !== b[1]) return null;
+    block = b[1];
+  }
+  return block;
+}
+
 /** renames.md from findings: normal classes → rows; library classes → "kept"; project state classes → "(decide)". */
 function renames(findings, phaseOf, root, ctx) {
   const usage = u.readJSON(path.join(project.paths(root).scan, 'class-usage.json'), null) || u.readJSON(path.join(domains.paths(root, 'scss').scan, 'class-usage.json'), null);
@@ -203,7 +225,11 @@ function renames(findings, phaseOf, root, ctx) {
         if (!rows.has(key)) rows.set(key, { old: '.' + cls, neu: `(decide: state class, check TS usages) — is-${bare} / has-${bare} / js-${bare}`, reason: 'STYLE-03 — project-owned state class: is-/has- if fixed in markup, js- if code toggles it; never c-', phase: phaseOf[f.id], uses: count(cls) });
         continue;
       }
-      const row = { old: '.' + cls, neu: prefix ? '.' + prefix + bare : '(decide: prefix by role, or move the rule)', reason: `STYLE-01 — prefix ${prefix || 'by role'} for its segment/role`, phase: phaseOf[f.id], uses: count(cls) };
+      // a class styled only INSIDE another block's rule is that block's BEM element (AXIS R-04): .products { .title } →
+      // .p-products__title, never a second block .p-title
+      const outer = prefix ? parentBlock(root, f.file, cls) : null;
+      const neu = !prefix ? '(decide: prefix by role, or move the rule)' : outer ? `.${prefix}${outer.replace(/^(o|c|l|m|ctrl|p|u)-/, '')}__${bare}` : '.' + prefix + bare;
+      const row = { old: '.' + cls, neu, reason: outer ? `STYLE-01/STYLE-04 — element of .${outer}, prefix ${prefix}` : `STYLE-01 — prefix ${prefix || 'by role'} for its segment/role`, phase: phaseOf[f.id], uses: count(cls) };
       const prev = rows.get(key);
       if (!prev || (prev.neu.startsWith('(decide') && prefix)) rows.set(key, row);
     } else if (f.ruleId === 'STYLE-09' && (m = /Token `(--[\w-]+)`.*typo of `([\w-]+)`/.exec(f.message))) {
@@ -286,7 +312,7 @@ function renderOnly(root, domain) {
   u.writeText(dp.plan, render(plan, byId));
 }
 
-module.exports = { run, render, renderOnly, areaOf, buildPhases, MAX_FILES, MAX_FINDINGS };
+module.exports = { run, render, renderOnly, areaOf, buildPhases, parentBlock, MAX_FILES, MAX_FINDINGS };
 if (require.main === module) {
   const args = u.parseArgs(process.argv.slice(2));
   u.helpExit(args, HELP);

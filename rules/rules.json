@@ -1411,6 +1411,7 @@
       "id": "LANG-01",
       "severity": "warning",
       "checker": [
+        "script",
         "ai"
       ],
       "group": "lang",

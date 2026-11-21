@@ -41,6 +41,14 @@ function razorChecks(root, f, text, idx, findings) {
       findings.push(mk(root, 'SAFE-09', f.rel, idx(start + m.index), `\`${u.clip(m[0], 40)}\` writes a server value into a script string without JSON encoding.`, 'Use @Json.Serialize(...) (Core) / @Html.Raw(Json.Encode(...)) (MVC 5) on the whole value.'));
     }
   }
+  // SAFE-09: @Html.Raw / new HtmlString / MvcHtmlString.Create on a model, loop or ViewBag value (not a constant, not JSON
+  // encoding) — the value can hold user data, so it is written unencoded. A string literal or Json.Encode/Serialize is fine.
+  for (const m of text.matchAll(/@?(Html\.Raw|new\s+HtmlString|MvcHtmlString\.Create)\s*\(\s*([^)]*)\)/g)) {
+    const arg = m[2].trim();
+    if (!arg || /^["'@]/.test(arg) || /Json\.(Encode|Serialize)|JsonSerializer|JsonConvert/.test(arg)) continue;
+    if (!/^(Model\b|ViewBag\b|ViewData\b|TempData\b|item\b|[a-z_]\w*\.)/.test(arg)) continue;
+    findings.push(mk(root, 'SAFE-09', f.rel, idx(m.index), `\`${u.clip(m[0], 50)}\` writes a model value without HTML encoding — it can hold user data.`, 'Write it with @value so Razor encodes it, or sanitize it on the server before output.'));
+  }
 }
 
 function run(root, profile) {
